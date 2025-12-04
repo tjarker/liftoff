@@ -25,6 +25,8 @@ libraryDependencies += "net.java.dev.jna" % "jna" % "5.13.0"
 
 libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.19" % "test"
 
+libraryDependencies += "com.lihaoyi" %% "fansi" % "0.5.0"
+
 val chiselVersion = "6.0.0"
 addCompilerPlugin(
   "org.chipsalliance" % "chisel-plugin" % chiselVersion cross CrossVersion.full
