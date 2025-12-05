@@ -7,6 +7,8 @@ import liftoff.simulation.Time
 object WorkingDirectory {
   def apply(dir: String): WorkingDirectory = {
     val dirFile = new File(dir)
+    // create potential parent directories
+    dirFile.getParentFile.mkdirs()
     dirFile.mkdirs()
     if (!dirFile.isDirectory) {
       throw new IllegalArgumentException(s"Path $dir is not a directory.")
@@ -22,15 +24,16 @@ object WorkingDirectory {
 
     def invoke(): T = {
       require(targets.nonEmpty, "No targets specified for the recipe.")
-      val commands = "make" +: targets.map(_.getAbsolutePath())
+      val commands = "make" +: Seq(targets.head.getAbsolutePath())
       val process = new ProcessBuilder(commands: _*)
         .directory(dir.dir)
         .redirectErrorStream(true)
         .start()
-      scala.io.Source
+      val out = scala.io.Source
         .fromInputStream(process.getInputStream)
         .getLines()
-        .foreach(Reporting.info(Time(0, Time.TimeUnit.s), "Makefile", _))
+      //Reporting.error(None, "WorkingDirectory", s"Recipe output:\n${out.mkString("\n")}")
+        
       val exitCode = process.waitFor()
       if (exitCode != 0) {
         throw new RuntimeException(
@@ -139,6 +142,12 @@ class WorkingDirectory(val dir: File) {
   def delete(): Unit = {
     clean()
     dir.delete()
+  }
+
+  def createIfNotExists(): Unit = {
+    if (!dir.exists()) {
+      dir.mkdirs()
+    }
   }
 
 }

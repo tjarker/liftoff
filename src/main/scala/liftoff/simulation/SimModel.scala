@@ -14,6 +14,7 @@ trait SimModel {
   def getOutputPortHandle(portName: String): OutputPortHandle
   def evaluate(): Unit
   def tick(delta: RelativeTime): Unit
+  def cleanup(): Unit
 }
 
 object SimModel {

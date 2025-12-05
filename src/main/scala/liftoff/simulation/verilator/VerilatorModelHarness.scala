@@ -21,6 +21,7 @@ object VerilatorModelHarness {
   def getFunName(m: String) = s"${m}_get"
   def setWideFunName(m: String) = s"${m}_set_wide"
   def getWideFunName(m: String) = s"${m}_get_wide"
+  def quackFunName(m: String) = s"${m}_quack"
 
   def imports(m: String) =
     s"""|#include <verilated.h>
@@ -87,11 +88,11 @@ object VerilatorModelHarness {
         |}
         |""".stripMargin
 
-  def set(m: String, syms: Seq[VerilatorPortHandle]) = {
+  def set(m: String, syms: Seq[VerilatorPortDescriptor]) = {
     val cases = syms
       .filter(_.width <= 64)
       .collect {
-        case i: VerilatorInputPortHandle =>
+        case i: VerilatorInputDescriptor =>
           s"""|case ${i.id}: // ${i.toString()}
               |  ctx->model->${i.name} = value;
               |  break;""".stripMargin
@@ -106,11 +107,11 @@ object VerilatorModelHarness {
         |""".stripMargin
   }
 
-  def setWide(m: String, syms: Seq[VerilatorPortHandle]) = {
+  def setWide(m: String, syms: Seq[VerilatorPortDescriptor]) = {
     val cases = syms
       .filter(_.width > 64)
       .map(s => s -> (s.width / 32d).ceil.toInt)
-      .collect { case (i @ VerilatorInputPortHandle(model, name, id, width), words) =>
+      .collect { case (i @ VerilatorInputDescriptor(name, id, width), words) =>
         s"""|case $id: // ${i.toString()}
             |  for (int i = 0; i < $words; i++) 
             |    ctx->model->${name}.data()[i] = value[i];
@@ -127,10 +128,10 @@ object VerilatorModelHarness {
         |""".stripMargin
   }
 
-  def get(m: String, syms: Seq[VerilatorPortHandle]) = {
+  def get(m: String, syms: Seq[VerilatorPortDescriptor]) = {
     val cases = syms
       .filter(_.width <= 64)
-      .collect { case s: VerilatorPortHandle =>
+      .collect { case s: VerilatorPortDescriptor =>
         s"""|case ${s.id}:
               |  return ctx->model->${s.name};
               |""".stripMargin
@@ -138,7 +139,6 @@ object VerilatorModelHarness {
       .mkString("\n")
 
     s"""|uint64_t ${getFunName(m)}(${m}_context_t* ctx, uint64_t id) {
-        |  printf("Getting value for id %lu\\n", id);
         |  switch (id) {
         |${cases.indent(4)}
         |    default:
@@ -148,11 +148,11 @@ object VerilatorModelHarness {
         |""".stripMargin
   }
 
-  def getWide(m: String, syms: Seq[VerilatorPortHandle]) = {
+  def getWide(m: String, syms: Seq[VerilatorPortDescriptor]) = {
     val cases = syms
       .filter(_.width > 64)
       .map(s => s -> (s.width / 32d).ceil.toInt)
-      .collect { case (i @ VerilatorPortHandle(_, name, id), words) =>
+      .collect { case (i @ VerilatorPortDescriptor(name, id, width), words) =>
         s"""|case $id: // ${i.toString()}
             |  for (int i = 0; i < $words; i++) 
             |    value[i] = ctx->model->${name}.data()[i];
@@ -169,7 +169,7 @@ object VerilatorModelHarness {
         |""".stripMargin
   }
 
-  def harness(m: String, syms: Seq[VerilatorPortHandle]): String =
+  def harness(m: String, syms: Seq[VerilatorPortDescriptor]): String =
     s"""|${imports(m)}
         |
         |double sc_time_stamp() { return 0; }
@@ -184,14 +184,14 @@ object VerilatorModelHarness {
         |${setWide(m, syms).indent(2)}
         |${get(m, syms).indent(2)}
         |${getWide(m, syms).indent(2)}
-        |  void quack() {
+        |  void ${quackFunName(m)}() {
         |    printf("Quack!\\n");
         |  }
         |}
         |""".stripMargin
 
 
-  def writeHarness(dir: WorkingDirectory, m: String, syms: Seq[VerilatorPortHandle]) = {
+  def writeHarness(dir: WorkingDirectory, m: String, syms: Seq[VerilatorPortDescriptor]) = {
     dir.addFile(s"${m}_harness.cpp", harness(m, syms))
   }
 
