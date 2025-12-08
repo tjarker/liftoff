@@ -17,46 +17,57 @@ object Reporting {
     str.split("\\.").map(part =>fansi.Color.LightMagenta(part).toString()).mkString(fansi.Color.LightGray(".").toString())
   }
 
-  def reportString(tag: fansi.Str, time: Time, provider: String, message: String): String = {
-    val tagStr = "[" + tag + "]" + (" " * (7-tag.length))
-    val timeStr = time.toString()
-    val timeStrFmt = (" " * (9 - timeStr.length)) + "@" + fansi.Color.LightRed(timeStr).toString()
-    val providerStr = fansi.Color.LightGray("[").toString + pathColor(provider) + fansi.Color.LightGray("]").toString() + (" " * (25 - provider.length))
-    s"$tagStr $timeStrFmt $providerStr $message"
+  def reportString(tag: fansi.Str, time: Option[Time], provider: String, message: String): String = {
+    val tagStr = "[" + tag + "]" + ("─" * (7-tag.length))
+    val tagStrNoLine = "[" + tag + "]" + (" " * (7-tag.length))
+    val timeStrFmt = time match {
+      case Some(t) if t.toString.endsWith("s ") => {
+        val timeStr = t.toString.trim
+        ("─" * (8 - timeStr.length)) + "@" + fansi.Color.LightRed(timeStr).toString() + "─"
+      }
+      case Some(t) => {
+        val timeStr = t.toString
+        ("─" * (9 - timeStr.length)) + "@" + fansi.Color.LightRed(timeStr).toString()
+      }
+      case None => "─" * 10
+    }
+    val providerStr = fansi.Color.LightGray("[").toString + pathColor(provider) + fansi.Color.LightGray("]").toString() + ("─" * (25 - provider.length))
+    val lines = message.split("\n")
+    s"$tagStr─$timeStrFmt─$providerStr─╢ ${lines.mkString(s"\n$tagStrNoLine" + (" " * 40) + "║ ")}\n" + " " * 49 + "║"
   }
 
-  def infoStr(time: Time, provider: String, message: String): String = {
+  def infoStr(time: Option[Time], provider: String, message: String): String = {
     reportString(infoTag, time, provider, message)
   }
-  def info(time: Time, provider: String, message: String): Unit = {
+  def info(time: Option[Time], provider: String, message: String): Unit = {
     println(infoStr(time, provider, message))
   }
 
-  def warnStr(time: Time, provider: String, message: String): String = {
+  def warnStr(time: Option[Time], provider: String, message: String): String = {
     reportString(warnTag, time, provider, message)
   }
-  def warn(time: Time, provider: String, message: String): Unit = {
+  def warn(time: Option[Time], provider: String, message: String): Unit = {
     println(warnStr(time, provider, message))
   }
 
-  def errorStr(time: Time, provider: String, message: String): String = {
+  def errorStr(time: Option[Time], provider: String, message: String): String = {
     reportString(errorTag, time, provider, message)
   }
-  def error(time: Time, provider: String, message: String): Unit = {
+  def error(time: Option[Time], provider: String, message: String): Unit = {
     println(errorStr(time, provider, message))
   }
 
-  def successStr(time: Time, provider: String, message: String): String = {
+  def successStr(time: Option[Time], provider: String, message: String): String = {
     reportString(successTag, time, provider, message)
   }
-  def success(time: Time, provider: String, message: String): Unit = {
+  def success(time: Option[Time], provider: String, message: String): Unit = {
     println(successStr(time, provider, message))
   }
 
-  def debugStr(time: Time, provider: String, message: String): String = {
+  def debugStr(time: Option[Time], provider: String, message: String): String = {
     reportString(debugTag, time, provider, message)
   }
-  def debug(time: Time, provider: String, message: String): Unit = {
+  def debug(time: Option[Time], provider: String, message: String): Unit = {
     println(debugStr(time, provider, message))
   }
 
