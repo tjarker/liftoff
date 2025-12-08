@@ -47,6 +47,26 @@ object VerilatorSimModelFactory {
       portDescriptors
     )
 
+    val harnessCompileRecipe = verilatorDir.addRecipe(
+      Seq(dir / s"${topName}_harness.o"),
+      Seq(harnessFile),
+      Seq(
+        "g++",
+        "-I.") ++
+        Verilator.getIncludeDir().get.map(p => s"-I$p").dropRight(1) ++ Seq(
+        "-fPIC",
+        "-fpermissive",
+        "-c",
+        "-o",
+        (dir / s"${topName}_harness.o").getAbsolutePath(),
+        harnessFile.getAbsolutePath()
+      ),
+      _.head
+    )
+
+    val compiledHarness = harnessCompileRecipe.invoke()
+
+
     val extraCOptions = 
       if (System.getProperty("os.name").toLowerCase.contains("windows")) Seq()
       else if (System.getProperty("os.name").toLowerCase.contains("mac")) Seq()
@@ -55,12 +75,9 @@ object VerilatorSimModelFactory {
     val sharedObjectRecipe = SharedObject.createRecipe(
       libname = s"lib${topName}",
       dir,
-      sources = artifacts :+ harnessFile,
-      options = Verilator.getIncludeDir().get.map(i => s"-I$i") ++ Seq(
+      sources = artifacts :+ compiledHarness,
+      options = Seq(
           "-lz",
-          s"-I${verilatorDir.path}",
-          "-std=gnu++17",
-          "-Wformat"
         ) ++ extraCOptions ++ cOptions
     )
 
@@ -75,6 +92,16 @@ object VerilatorSimModelFactory {
 
 }
 
+
+/*
+
+harness:
+	g++ -I. -I/usr/share/verilator/include -I/usr/share/verilator/include/vltstd -fPIC -fpermissive -c -o new_ALU_harness.o ../ALU_harness.cpp
+
+other:
+	g++ -shared -fPIC ./new_ALU_harness.o verilated.o verilated_fst_c.o verilated_threads.o VALU__ALL.a   -lz  -pthread -lpthread -latomic   -o libtest.so
+
+*/
 
 class VerilatorSimModelFactory(
   val name: String,

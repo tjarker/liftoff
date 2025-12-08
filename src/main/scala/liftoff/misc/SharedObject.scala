@@ -1,6 +1,6 @@
 package liftoff.misc
 
-import com.sun.jna.NativeLibrary
+import com.sun.jna._
 
 import java.io.File
 import scala.sys.process.Process
@@ -13,7 +13,9 @@ class SharedObject(libFile: File) {
         s"Shared object file ${libFile.getAbsolutePath} does not exist."
       )
     }
-    NativeLibrary.getInstance(libFile.getAbsolutePath)
+    val opts = new java.util.HashMap[String, Int]()
+    opts.put(Library.OPTION_OPEN_FLAGS, 2)
+    NativeLibrary.getInstance(libFile.getAbsolutePath, opts)
   }
 
 }
@@ -35,10 +37,13 @@ object SharedObject {
 
     val libFile = dir / (libname + sharedLibraryExtension)
 
-    val command = Seq("g++", "-shared", "-fPIC", "-o", libFile.getAbsolutePath()) ++
-      options ++
-      sources.map(_.getAbsolutePath)
+    val nonLibOptions = options.filterNot(_.startsWith("-l"))
+    val libOptions = options.filter(_.startsWith("-l"))
 
+    val command = Seq("g++", "-shared", "-fPIC", "-o", libFile.getAbsolutePath()) ++
+      nonLibOptions ++
+      sources.map(_.getAbsolutePath) ++
+      libOptions
     dir.addRecipe(
       Seq(libFile),
       sources,

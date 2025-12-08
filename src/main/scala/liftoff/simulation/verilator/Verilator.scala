@@ -122,10 +122,10 @@ object Verilator {
 
     // TODO: add/remove libs, such as fst, based on verilator flags
     val targets = Seq(
-      dir / s"libV${name}.a",
-      //dir / s"V${name}__ALL.a",
-      dir / "libverilated.a",
-      //dir / "verilated_fst_c.o",
+      dir / s"V${name}__ALL.o",
+      dir / "verilated.o",
+      dir / "verilated_fst_c.o",
+      dir / "verilated_threads.o",
     )
 
     dir.addRecipe(

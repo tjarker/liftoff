@@ -16,6 +16,7 @@ class VerilatorSimModelTests extends AnyWordSpec with Matchers {
 
       val buildDir = "build/verilator_test".toDir
       buildDir.createIfNotExists()
+      buildDir.clean()
       val topName = "ALU"
 
       val verilog = s"""

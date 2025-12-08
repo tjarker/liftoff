@@ -32,7 +32,7 @@ object WorkingDirectory {
       val out = scala.io.Source
         .fromInputStream(process.getInputStream)
         .getLines()
-      //Reporting.error(None, "WorkingDirectory", s"Recipe output:\n${out.mkString("\n")}")
+      //Reporting.info(None, "WorkingDirectory", s"Recipe output:\n${out.mkString("\n")}")
         
       val exitCode = process.waitFor()
       if (exitCode != 0) {
@@ -134,9 +134,21 @@ class WorkingDirectory(val dir: File) {
   }
 
   def clean(): Unit = {
-    artifacts.foreach(deleteArtifact)
-    subdirs.foreach(_.delete())
-    artifacts.clear()
+    // delete all files in directory
+    dir.listFiles().foreach { file =>
+      if (file.isDirectory) {
+        new WorkingDirectory(file).clean()
+      } else {
+        file.delete()
+      }
+    }
+    // create empty Makefile
+    java.nio.file.Files.write(
+      makefile.toPath(),
+      "# Automatically Generated\n".getBytes("UTF-8"),
+      java.nio.file.StandardOpenOption.CREATE,
+      java.nio.file.StandardOpenOption.TRUNCATE_EXISTING
+    )
   }
 
   def delete(): Unit = {
