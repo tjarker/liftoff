@@ -13,10 +13,10 @@ class ThreadedCoroutineScope(val threadFactory: Runnable => Thread) extends Coro
 
   var shouldWait: Boolean = false
 
-  var current: ThreadedCoroutine[Any, Any] = null
+  var current: ThreadedCoroutine[Any, Any, Any] = null
 
-  def create[I, O](block: => O): Coroutine[I, O] = {
-    new ThreadedCoroutine[I, O](block, this)
+  def create[I, O, R](block: => R): Coroutine[I, O,R] = {
+    new ThreadedCoroutine[I, O, R](block, this)
   }
 
   // this is coroutine code
@@ -36,7 +36,7 @@ class ThreadedCoroutineScope(val threadFactory: Runnable => Thread) extends Coro
 }
 
 
-class ThreadedCoroutine[I, O](block: => O, scope: ThreadedCoroutineScope) extends Coroutine[I, O] {
+class ThreadedCoroutine[I, O, R](block: => R, scope: ThreadedCoroutineScope) extends Coroutine[I, O, R] {
 
   var hasStarted: Boolean = false
   var hasBeenCancelled: Boolean = false
@@ -44,7 +44,7 @@ class ThreadedCoroutine[I, O](block: => O, scope: ThreadedCoroutineScope) extend
   var caller: Thread = null
 
   var in: Option[I] = None
-  var out: Result[O] = null
+  var out: Result[O, R] = null
 
   val thread = scope.threadFactory(new Runnable {
 
@@ -67,9 +67,9 @@ class ThreadedCoroutine[I, O](block: => O, scope: ThreadedCoroutineScope) extend
     })
 
   // this is caller code
-  def resume(value: Option[I]): Result[O] = {
+  def resume(value: Option[I]): Result[O, R] = {
     if (hasBeenCancelled) throw new ResumedCancelledCoroutineException
-    scope.current = this.asInstanceOf[ThreadedCoroutine[Any, Any]]
+    scope.current = this.asInstanceOf[ThreadedCoroutine[Any, Any, Any]]
     caller = Thread.currentThread()
     in = value
 
@@ -97,7 +97,7 @@ class ThreadedCoroutine[I, O](block: => O, scope: ThreadedCoroutineScope) extend
     shouldSleep = false
     scope.shouldWait = true
     caller = Thread.currentThread()
-    scope.current = this.asInstanceOf[ThreadedCoroutine[Any, Any]]
+    scope.current = this.asInstanceOf[ThreadedCoroutine[Any, Any, Any]]
     LockSupport.unpark(thread)
     LockSupport.park()
     while (scope.shouldWait) {

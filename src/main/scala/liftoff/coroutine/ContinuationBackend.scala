@@ -7,10 +7,10 @@ import jdk.internal.vm.{Continuation, ContinuationScope}
 class ContinuationCoroutineScope extends CoroutineScope {
 
   val scope = new ContinuationScope(this.toString)
-  var current: ContinuationCoroutine[Any, Any] = null
+  var current: ContinuationCoroutine[Any, Any, Any] = null
 
-  def create[I, O](block: => O): Coroutine[I, O] = {
-    new ContinuationCoroutine[I, O](this, block)
+  def create[I, O, R](block: => R): Coroutine[I, O, R] = {
+    new ContinuationCoroutine[I, O, R](this, block)
   }
 
   def suspend[I, O](value: Option[O]): Option[I] = {
@@ -24,10 +24,11 @@ class ContinuationCoroutineScope extends CoroutineScope {
 }
 
 
-class ContinuationCoroutine[I, O](factory: ContinuationCoroutineScope, block: => O) extends Coroutine[I, O] {
+class ContinuationCoroutine[I, O, R](factory: ContinuationCoroutineScope, block: => R) extends Coroutine[I, O, R] {
 
   var in: Option[I] = None
-  var out: Result[O] = null
+  var out: Result[O, R] = null
+
 
   var hasBeenCancelled: Boolean = false
 
@@ -40,9 +41,9 @@ class ContinuationCoroutine[I, O](factory: ContinuationCoroutineScope, block: =>
     }
   )
 
-  def resume(value: Option[I]): Result[O] = {
+  def resume(value: Option[I]): Result[O, R] = {
     if (hasBeenCancelled) throw new ResumedCancelledCoroutineException
-    factory.current = this.asInstanceOf[ContinuationCoroutine[Any, Any]]
+    factory.current = this.asInstanceOf[ContinuationCoroutine[Any, Any, Any]]
     in = value
     try {
       continuation.run()

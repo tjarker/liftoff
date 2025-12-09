@@ -119,6 +119,14 @@ class EventQueue {
     queue.toSeq.sorted.mkString("EventQueue(", ", ", ")")
   }
 
+  def empty: Boolean = queue.isEmpty
+  def nonEmpty: Boolean = queue.nonEmpty
 
+  def containsTasks: Boolean = {
+    queue.exists {
+      case _: Event.RunTask => true
+      case _ => false
+    }
+  }
 
 }

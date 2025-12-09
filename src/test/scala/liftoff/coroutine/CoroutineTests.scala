@@ -3,6 +3,7 @@ package liftoff.coroutine
 import org.scalatest.wordspec.AnyWordSpec
 import org.scalatest.matchers.should._
 import liftoff.coroutine._
+import liftoff.coroutine.YieldedWith
 
 class CoroutineTests extends AnyWordSpec with Matchers {
 
@@ -13,24 +14,26 @@ class CoroutineTests extends AnyWordSpec with Matchers {
       val scope = new ContinuationCoroutineScope()
 
       "be resumable and suspendable" in {
-        val coroutine = scope.create[Int, Int] {
+        val coroutine = scope.create[Int, Int, String] {
           val a = scope.suspend[Int]().get
           val b = scope.suspend[Int]().get
           scope.suspendWith(a)
           scope.suspendWith(b)
-          a + b
+          scope.suspendWith(a + b)
+          "Done"
         }
 
         coroutine.resume() shouldBe Yielded
         coroutine.resumeWith(10) shouldBe Yielded
         coroutine.resumeWith(20) shouldBe YieldedWith(10)
         coroutine.resume() shouldBe YieldedWith(20)
-        coroutine.resume() shouldBe Finished(30)
+        coroutine.resume() shouldBe YieldedWith(30)
+        coroutine.resume() shouldBe Finished("Done")
 
       }
 
       "be cancellable" in {
-        val coroutine = scope.create[Int, Int] {
+        val coroutine = scope.create[Int, Unit, Int] {
           val a = scope.suspend[Int]().get
           val b = scope.suspend[Int]().get
           a + b
@@ -52,24 +55,26 @@ class CoroutineTests extends AnyWordSpec with Matchers {
       val scope = new VirtualThreadedCoroutineScope()
 
       "be resumable and suspendable" in {
-        val coroutine = scope.create[Int, Int] {
+        val coroutine = scope.create[Int, Int, String] {
           val a = scope.suspend[Int]().get
           val b = scope.suspend[Int]().get
           scope.suspendWith(a)
           scope.suspendWith(b)
-          a + b
+          scope.suspendWith(a + b)
+          "Done"
         }
 
         coroutine.resume() shouldBe Yielded
         coroutine.resumeWith(10) shouldBe Yielded
         coroutine.resumeWith(20) shouldBe YieldedWith(10)
         coroutine.resume() shouldBe YieldedWith(20)
-        coroutine.resume() shouldBe Finished(30)
+        coroutine.resume() shouldBe YieldedWith(30)
+        coroutine.resume() shouldBe Finished("Done")
 
       }
 
       "be cancellable" in {
-        val coroutine = scope.create[Int, Int] {
+        val coroutine = scope.create[Int, Unit, Int] {
           val a = scope.suspend[Int]().get
           val b = scope.suspend[Int]().get
           a + b
@@ -81,7 +86,7 @@ class CoroutineTests extends AnyWordSpec with Matchers {
           coroutine.resumeWith(10)
         }
 
-        coroutine.asInstanceOf[ThreadedCoroutine[Int, Int]].thread.isAlive() shouldBe false
+        coroutine.asInstanceOf[ThreadedCoroutine[Int, Unit, Int]].thread.isAlive() shouldBe false
 
       }
     }
@@ -91,24 +96,26 @@ class CoroutineTests extends AnyWordSpec with Matchers {
       val scope = new PlatformThreadedCoroutineScope()
 
       "be resumable and suspendable" in {
-        val coroutine = scope.create[Int, Int] {
+        val coroutine = scope.create[Int, Int, String] {
           val a = scope.suspend[Int]().get
           val b = scope.suspend[Int]().get
           scope.suspendWith(a)
           scope.suspendWith(b)
-          a + b
+          scope.suspendWith(a + b)
+          "Done"
         }
 
         coroutine.resume() shouldBe Yielded
         coroutine.resumeWith(10) shouldBe Yielded
         coroutine.resumeWith(20) shouldBe YieldedWith(10)
         coroutine.resume() shouldBe YieldedWith(20)
-        coroutine.resume() shouldBe Finished(30)
+        coroutine.resume() shouldBe YieldedWith(30)
+        coroutine.resume() shouldBe Finished("Done")
 
       }
 
       "be cancellable" in {
-        val coroutine = scope.create[Int, Int] {
+        val coroutine = scope.create[Int, Unit, Int] {
           val a = scope.suspend[Int]().get
           val b = scope.suspend[Int]().get
           a + b
@@ -120,7 +127,7 @@ class CoroutineTests extends AnyWordSpec with Matchers {
           coroutine.resumeWith(10)
         }
 
-        coroutine.asInstanceOf[ThreadedCoroutine[Int, Int]].thread.isAlive() shouldBe false
+        coroutine.asInstanceOf[ThreadedCoroutine[Int, Unit, Int]].thread.isAlive() shouldBe false
 
       }
     }
