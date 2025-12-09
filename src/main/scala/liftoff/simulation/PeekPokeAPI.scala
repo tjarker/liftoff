@@ -14,6 +14,7 @@ import chisel3.experimental.{SourceInfo, SourceLine}
 
 import scala.util.control.NoStackTrace
 import scala.language.implicitConversions
+import liftoff.simulation.Time.TimeUnit.s
 
 trait Peekable[T <: Data] {
 
@@ -78,33 +79,56 @@ trait AnySimulatedModule {
 
 }
 
+
+
+class DummySimulatedModule extends AnySimulatedModule {
+  override def port(data: Data): Simulation.Port = new Simulation.Port(data.pathName)
+
+  override def willPeek(): Unit = println(s"Will peek from module")
+
+  override def willPoke(): Unit = println(s"Will poke from module")
+
+  override def willEvaluate(): Unit = println(s"Will evaluate module")
+  override def controller: Controller = new DummyController
+}
+
 trait Controller {
   def run(cycles: Int): Unit
 }
+class DummyController extends Controller {
+  override def run(cycles: Int): Unit = println(s"Running simulation for $cycles cycles")
+}
 
 object AnySimulatedModule {
-  def current: AnySimulatedModule = ???
+  def current: AnySimulatedModule = new DummySimulatedModule
 
 }
 
 object Simulation {
-  trait Port {
-    def get(isSigned: Boolean): Value
-    def set(value: BigInt): Unit
-    def check(isSigned: Boolean)(checkFn: Value => Unit): Unit
+  class Port(name: String) {
+    def get(isSigned: Boolean): Value = { println(s"Getting value of port $name"); new DummyValue(1, 0) }
+    def set(value: BigInt): Unit = println(s"Setting port $name to value $value")
+    def check(isSigned: Boolean)(checkFn: Value => Unit): Unit = println(s"Checking port $name")
     def tick(
       timestepsPerPhase: Int,
       maxCycles:         Int,
       inPhaseValue:      BigInt,
       outOfPhaseValue:   BigInt,
       sentinel:         Option[(Port, BigInt)]
-    ): Unit
+    ): Unit = {
+      println(s"Ticking port $name for up to $maxCycles cycles with $timestepsPerPhase timesteps per phase")
+    }
   }
 
   trait Value {
     def bitCount: Int
 
     def asBigInt: BigInt
+  }
+  class DummyValue(bits: Int, value: BigInt) extends Value {
+    override def bitCount: Int = bits
+
+    override def asBigInt: BigInt = value
   }
 }
 
@@ -117,7 +141,7 @@ object Message {
 
 object ExceptionHelpers {
   def getErrorLineInFile(extraContext: Seq[String], sourceLine: SourceLine): Seq[String] = {
-    Seq()
+    Seq("this is a test")
   }
 }
 
@@ -435,18 +459,17 @@ object PeekPokeAPI {
 
   implicit class TestableEnum[T <: EnumType](val data: T) extends TestableElement[T] {
     override def encode(width: Int, value: BigInt): T = {
-      ???//data.factory.all.find(_.litValue == value).get.asInstanceOf[T]
+      ChiselExposer.enumFactory(data).all.find(_.litValue == value).get.asInstanceOf[T]
     }
   }
-
+  import chisel3.experimental.BundleLiterals._
   implicit class TestableRecord[T <: Record](val data: T) extends TestableAggregate[T] {
     override def peek()(implicit sourceInfo: SourceInfo): T = {
-      ???
-      /*chiselTypeOf(data)._makeLit(
+      chiselTypeOf(data).Lit(
         data.elements.toSeq.map { case (name: String, elt: Data) =>
           (rec: T) => rec.elements(name) -> elt.peek()
         }: _*
-      )*/
+      )
     }
 
     def expect(expected: T, buildMessage: (T, T, String) => String, allowPartial: Boolean = false)(
@@ -454,12 +477,12 @@ object PeekPokeAPI {
     ): Unit = {
       data.elements.foreach { case (elName, portEl) =>
         expected.elements(elName) match {
-          /*case expEl: Element if expEl.topBindingOpt == Some(DontCareBinding()) =>
+          case expEl: Element if ChiselExposer.topBindingOpt(expEl) == Some(ChiselExposer.dontCareBinding()) =>
             if (!allowPartial) {
               throw new UninitializedElementException(
                 s"Element '$elName' in the expected value is not initialized"
               )
-            }*/
+            }
           case expEl if expEl.getClass == portEl.getClass =>
             // Not peeking the value beforehand or using `def` or `lazy val` results in a mysterious infinite recursion and StackOverflowError
             // The value is not used if the expected value matches and incurs an overhead
@@ -541,11 +564,11 @@ object PeekPokeAPI {
       implicit sourceInfo: SourceInfo
     ): Unit = {
       data.getElements.zip(expected).zipWithIndex.foreach {
-        /*case ((datEl: Element, expEl: Element), idx) if expEl.topBindingOpt == Some(DontCareBinding()) =>
+        case ((datEl: Element, expEl: Element), idx) if ChiselExposer.topBindingOpt(expEl) == Some(ChiselExposer.dontCareBinding()) =>
           if (!allowPartial)
             throw new UninitializedElementException(
               s"Vec element at index $idx in the expected value is not initialized"
-            )*/
+            )
         case ((datEl, expEl), idx) if datEl.getClass == expEl.getClass =>
           val message = buildMessage(peek(), expected, idx)
           (allowPartial, datEl) match {
@@ -588,7 +611,7 @@ object PeekPokeAPI {
           new TestableUInt(dat).expect(exp, message)
         case (dat: SInt, exp: SInt) =>
           new TestableSInt(dat).expect(exp, message)
-        case (dat: EnumType, exp: EnumType) => // if dat.factory == exp.factory =>
+        case (dat: EnumType, exp: EnumType) if ChiselExposer.enumFactory(dat) == ChiselExposer.enumFactory(exp) =>
           new TestableEnum(dat).expect(exp, message)
         case (dat: Record, exp: Record) =>
           new TestableRecord(dat).expect(exp, message)
@@ -601,7 +624,7 @@ object PeekPokeAPI {
     def poke(literal: T): Unit = (data, literal) match {
       case (x: UInt, lit: UInt) => new TestableUInt(x).poke(lit)
       case (x: SInt, lit: SInt) => new TestableSInt(x).poke(lit)
-      case (x: EnumType, lit: EnumType) => // if x.factory == lit.factory =>
+      case (x: EnumType, lit: EnumType) if ChiselExposer.enumFactory(x) == ChiselExposer.enumFactory(lit) =>
         new TestableEnum(x).poke(lit)
       case (x: Record, lit: Record) => new TestableRecord(x).poke(lit)
       case (x: Vec[_], lit: Vec[_]) if x.getClass == lit.getClass =>
