@@ -4,7 +4,6 @@ import liftoff.coroutine.{Coroutine, Result, CoroutineScope}
 
 class Task[T](
     val name: String,
-    val region: Region,
     scope: CoroutineScope,
     block: => T
 ) {
@@ -13,6 +12,11 @@ class Task[T](
 
   def runStep(): Result[SimControllerYield, T] = {
     coroutine.resume()
+  }
+
+
+  override def toString(): String = {
+    s"Task($name)"
   }
 
 }

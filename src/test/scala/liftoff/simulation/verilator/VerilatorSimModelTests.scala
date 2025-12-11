@@ -55,11 +55,11 @@ class VerilatorSimModelTests extends AnyWordSpec with Matchers {
       val simModel = factory.createModel(buildDir.addSubDir(buildDir / "sim"))
 
       object Dut {
-        val clk = simModel.getInputPortHandle("clk")
-        val a = simModel.getInputPortHandle("a")
-        val b = simModel.getInputPortHandle("b")
-        val op = simModel.getInputPortHandle("op")
-        val result = simModel.getOutputPortHandle("result")
+        val clk = simModel.getInputPortHandle("clk").get
+        val a = simModel.getInputPortHandle("a").get
+        val b = simModel.getInputPortHandle("b").get
+        val op = simModel.getInputPortHandle("op").get
+        val result = simModel.getOutputPortHandle("result").get
       }
 
       for (op <- 0 to 3) {

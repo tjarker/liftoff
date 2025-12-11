@@ -7,11 +7,13 @@ import chisel3._
 import chisel3.experimental.BundleLiterals._
 import chisel3.experimental.VecLiterals._
 
-import chisel3.stage.phases.{Elaborate, Convert}
-import chisel3.stage.ChiselGeneratorAnnotation
-import chisel3.stage.DesignAnnotation
+import liftoff.chiselbridge.ChiselBridge
+import liftoff.simulation.Time._
+import liftoff.misc.PathToFileOps
+import liftoff.simulation.verilator.VerilatorSimModelFactory
+import liftoff.misc.Reporting
 
-class PeekPokeAPITests extends AnyWordSpec with Matchers with liftoff.simulation.MyPeekPokeAPI {
+class PeekPokeAPITests extends AnyWordSpec with Matchers with liftoff.chiselbridge.ChiselPeekPokeAPI {
 
   class MyBundle extends Bundle {
     val a = UInt(4.W)
@@ -29,41 +31,86 @@ class PeekPokeAPITests extends AnyWordSpec with Matchers with liftoff.simulation
     io.out := io.in + 1.U + io.bundleIn.a + io.bundleIn.b.asUInt + io.vecIn.reduce(_ +& _)
   }
 
-  def elaborate[M <: RawModule](gen: () => M): M = {
-    val elaboratePhase = new Elaborate
-    val converter = new Convert
-
-    val genAnno = ChiselGeneratorAnnotation(gen)
-    val elaborationAnnos: firrtl.AnnotationSeq =
-      elaboratePhase.transform(Seq(genAnno))
-
-    val dut: M = elaborationAnnos
-      .collectFirst { case DesignAnnotation(d) => d }
-      .get
-      .asInstanceOf[M]
-
-    dut
-  }
-
   "The Chisel PeekPokeAPI" should {
     "not throw errors when poking and peeking ports" in {
-      val mod = elaborate(() => new MyModule)
-      val simMod = new DummySimulatedModule
+      
 
-      val inPort = simMod.port(mod.io.in)
-      val outPort = simMod.port(mod.io.out)
 
-      mod.io.in.poke(42.U)
-      val outValue = mod.io.out.peek().litValue
+      val workingDir = "build/peekpoke_test".toDir
+      workingDir.createIfNotExists()
+      workingDir.clean()
+      ChiselBridge.emitSystemVerilogFile(new MyModule, workingDir)
 
-      mod.io.bundleIn.poke((new MyBundle).Lit(
-        _.a -> 3.U,
-        _.b -> (-5).S
-      ))
+      val simModel = VerilatorSimModelFactory.create(
+        "MyModule",
+        workingDir.addSubDir(workingDir / "verilator"),
+        Seq(workingDir / "MyModule.sv"),
+        verilatorOptions = Seq(),
+        cOptions = Seq()
+      ).createModel(workingDir.addSubDir(workingDir / "sim"))
 
-      mod.io.vecIn.poke(Vec.Lit(1.U, 2.U, 3.U))
+      val controller = new SimController(simModel)
 
-      mod.clock.step(1, 10)
+      val dut = ChiselBridge.elaborate(new MyModule)
+
+      controller.addClock(controller.getInputPortHandle("clock").get, 10.fs)
+
+      println(controller)
+
+      controller.addActiveTask("root") {
+
+        println(SimController.current)
+        println(SimController.currentId)
+
+        // SimController.current.addInactiveTask("monitor") { for (_ <- 0 until 5) {
+        //     println(SimController.current)
+        //     println(SimController.currentId)
+        //     //print inputs and outputs
+        //     Reporting.info(Some(controller.currentTime), "Test", s"in: ${dut.io.in.peek().litValue}")
+        //     Reporting.info(Some(controller.currentTime), "Test", s"out: ${dut.io.out.peek().litValue}")
+        //     Reporting.info(Some(controller.currentTime), "Test", s"bundleIn: a=${dut.io.bundleIn.a.peek().litValue}," +
+        //       s" b=${dut.io.bundleIn.b.peek().litValue}")
+        //     Reporting.info(Some(controller.currentTime), "Test", s"vecIn: ${dut.io.vecIn.map(_.peek().litValue).mkString(",")}")
+            
+        //     dut.clock.step(1, 10)
+        //   }
+        // }
+
+        dut.io.in.poke(42.U)
+        val outValue = dut.io.out.peek().litValue
+
+        dut.io.bundleIn.poke((new MyBundle).Lit(
+          _.a -> 3.U,
+          _.b -> (-5).S
+        ))
+
+        dut.io.bundleIn.b.expect((-5).S)
+
+        dut.io.vecIn.poke(Vec.Lit(1.U, 2.U, 3.U))
+
+        dut.clock.step(1, 10)
+
+        val outValue2 = dut.io.out.peek().litValue
+
+        dut.io.in.poke(10.U)
+
+        dut.clock.step(1, 10)
+
+        dut.io.bundleIn.a.poke(7.U)
+        dut.io.bundleIn.b.poke(4.S)
+        dut.io.vecIn(0).poke(0.U)
+        dut.io.vecIn(1).poke(1.U)
+        dut.io.vecIn(2).poke(2.U)
+        dut.clock.step(1, 10)
+
+        dut.io.bundleIn.peek().a.litValue shouldBe 7
+        dut.io.bundleIn.peek().b.litValue shouldBe 4
+
+      }
+
+      controller.run()
+      simModel.cleanup()
+      
 
       
     }

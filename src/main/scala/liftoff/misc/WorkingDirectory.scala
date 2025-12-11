@@ -162,4 +162,6 @@ class WorkingDirectory(val dir: File) {
     }
   }
 
+  override def toString(): String = dir.getAbsolutePath()
+
 }

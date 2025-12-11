@@ -5,7 +5,33 @@ import org.scalatest.matchers.should._
 import liftoff.coroutine._
 import liftoff.coroutine.YieldedWith
 
+import jdk.internal.vm.{Continuation, ContinuationScope}
+
 class CoroutineTests extends AnyWordSpec with Matchers {
+
+  "JVM Continuations" should {
+    "work with DynamicVariable" in {
+      val dyn = new scala.util.DynamicVariable[Int](0)
+
+      val scope = new ContinuationScope("test")
+
+      dyn.withValue(42) {
+        val cont = new Continuation(
+          scope,
+          new Runnable {
+            def run(): Unit = {
+              Continuation.`yield`(scope)
+              val v = dyn.value
+              v shouldBe 42
+            }
+          }
+        )
+        cont.run()
+        cont.run()
+        cont.isDone() shouldBe true
+      }
+    }
+  }
 
   "A Coroutine" when {
 
@@ -44,6 +70,19 @@ class CoroutineTests extends AnyWordSpec with Matchers {
         an[ResumedCancelledCoroutineException] should be thrownBy {
           coroutine.resumeWith(10)
         }
+
+      }
+
+      "work with DynamicVariable" in {
+        val dyn = new scala.util.DynamicVariable[Int](0)
+
+        val coroutine = scope.create[Unit, Unit, Int] {
+          dyn.withValue(100) {
+            dyn.value
+          }
+        }
+
+        coroutine.resume() shouldBe Finished(100)
 
       }
 
@@ -89,6 +128,27 @@ class CoroutineTests extends AnyWordSpec with Matchers {
         coroutine.asInstanceOf[ThreadedCoroutine[Int, Unit, Int]].thread.isAlive() shouldBe false
 
       }
+
+      "work with DynamicVariable" in {
+        val dyn = new scala.util.DynamicVariable[Int](0)
+
+        val coroutineInner = scope.create[Unit, Unit, Int] {
+          dyn.withValue(100) {
+            dyn.value
+          }
+        }
+
+        coroutineInner.resume() shouldBe Finished(100)
+
+        val coroutineOuter = dyn.withValue(42) {
+          scope.create[Unit, Unit, Int] {
+            dyn.value
+          }
+        }
+
+        coroutineOuter.resume() shouldBe Finished(42)
+
+      }
     }
 
     "using the platform thread backend" should {
@@ -128,6 +188,27 @@ class CoroutineTests extends AnyWordSpec with Matchers {
         }
 
         coroutine.asInstanceOf[ThreadedCoroutine[Int, Unit, Int]].thread.isAlive() shouldBe false
+
+      }
+
+      "work with DynamicVariable" in {
+        val dyn = new scala.util.DynamicVariable[Int](0)
+
+        val coroutineInner = scope.create[Unit, Unit, Int] {
+          dyn.withValue(100) {
+            dyn.value
+          }
+        }
+
+        coroutineInner.resume() shouldBe Finished(100)
+
+        val coroutineOuter = dyn.withValue(42) {
+          scope.create[Unit, Unit, Int] {
+            dyn.value
+          }
+        }
+
+        coroutineOuter.resume() shouldBe Finished(42)
 
       }
     }

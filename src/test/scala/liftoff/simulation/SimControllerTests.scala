@@ -8,6 +8,8 @@ import liftoff.simulation.verilator.VerilatorSimModelFactory
 import liftoff.simulation.Time._
 import liftoff.coroutine.CoroutineScope
 import liftoff.coroutine.Coroutine
+import scala.util.DynamicVariable
+
 
 class SimControllerTests extends AnyWordSpec with Matchers {
 
@@ -57,24 +59,26 @@ class SimControllerTests extends AnyWordSpec with Matchers {
       val ctrl = new SimController(simModel)
 
       object Dut {
-        val clk = ctrl.getInputPortHandle("clk")
-        val a = ctrl.getInputPortHandle("a")
-        val b = ctrl.getInputPortHandle("b")
-        val op = ctrl.getInputPortHandle("op")
-        val result = ctrl.getOutputPortHandle("result")
+        val clk = ctrl.getInputPortHandle("clk").get
+        val a = ctrl.getInputPortHandle("a").get
+        val b = ctrl.getInputPortHandle("b").get
+        val op = ctrl.getInputPortHandle("op").get
+        val result = ctrl.getOutputPortHandle("result").get
       }
 
-      ctrl.addTask(Region(0), {
+      val a = new DynamicVariable[BigInt](0)
 
+
+
+      ctrl.addActiveTask("main task") {
+        SimController.current.addClock(Dut.clk, 10.fs)
         Dut.a.set(5)
         Dut.b.set(3)
         Dut.op.set(0)
-        println("yielding")
-        Coroutine.suspendWith[SimControllerYield](Step(2))
-        println("resumed")
-        val res0 = Dut.result.get()
-        println(s"Result after addition: $res0")
-      })
+        SimController.current.suspendWith(Step(Dut.clk, 2))
+        Dut.result.get() shouldBe 8
+      }
+      
 
       ctrl.run()
       simModel.cleanup()

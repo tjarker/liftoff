@@ -42,7 +42,7 @@ package object coroutine {
   case object VirtualThreadBackend extends CoroutineBackend
   case object PlatformThreadBackend extends CoroutineBackend
 
-  object Coroutine extends CoroutineScope {
+  object Coroutine {
 
     // Check if the Continuation API is available
     val hasContinuations: Boolean =
@@ -82,14 +82,6 @@ package object coroutine {
       case ContinuationBackend   => new ContinuationCoroutineScope()
       case VirtualThreadBackend  => new VirtualThreadedCoroutineScope()
       case PlatformThreadBackend => new PlatformThreadedCoroutineScope()
-    }
-
-    def create[I, O, R](block: => R): Coroutine[I, O, R] = {
-      defaultScope.create[I, O, R](block)
-    }
-
-    def suspend[I, O](value: Option[O]): Option[I] = {
-      defaultScope.suspend(value)
     }
 
   }

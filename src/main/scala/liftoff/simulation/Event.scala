@@ -4,10 +4,6 @@ import liftoff.simulation.Time.AbsoluteTime
 
 import scala.collection.mutable.{PriorityQueue, ListBuffer}
 
-case class Region(id: Int) extends Ordered[Region] {
-  def compare(that: Region): Int = that.id - this.id
-}
-
 
 /**
   * Ordering at a time step in each region is as follows:
@@ -17,12 +13,11 @@ case class Region(id: Int) extends Ordered[Region] {
   */
 trait Event extends Ordered[Event] {
   def time: AbsoluteTime
-  def region: Region
 
 
   def toInt: Int = this match {
-    case _: Event.RunTask => 0
-    case _: Event.Drive => 1
+    case _: Event.RunActiveTask => 0
+    case _: Event.RunInactiveTask => 1
     case _: Event.ClockEdge => 2
   }
 
@@ -36,11 +31,7 @@ trait Event extends Ordered[Event] {
   */
   def compare(that: Event): Int = {
     if (this.time.fs == that.time.fs) { // is this at the same time as that?
-      if (this.region == that.region) { // is this in the same region as that?
-        that.toInt - this.toInt // order by event type
-      } else {
-        this.region.compare(that.region) // order by region
-      }
+      that.toInt - this.toInt // order by event type
     } else {
       (that.time.fs - this.time.fs).toInt // order by time
     }
@@ -48,14 +39,14 @@ trait Event extends Ordered[Event] {
 }
 
 object Event {
-  case class Drive(time: AbsoluteTime, region: Region, inputPort: InputPortHandle, value: BigInt) extends Event {
-    override def toString(): String = s"Drive(${time}@r${region.id}, ${inputPort}, $value)"
+  case class RunActiveTask(time: AbsoluteTime, task: Task[_]) extends Event {
+    override def toString(): String = s"RunTask(${time}, ${task})"
   }
-  case class RunTask(time: AbsoluteTime, region: Region, task: Task[_]) extends Event {
-    override def toString(): String = s"RunTask(${time}@r${region.id}, ${task})"
+  case class RunInactiveTask(time: AbsoluteTime, task: Task[_]) extends Event {
+    override def toString(): String = s"RunInactiveTask(${time}, ${task})"
   }
-  case class ClockEdge(time: AbsoluteTime, region: Region, clock: InputPortHandle, rising: Boolean) extends Event {
-    override def toString(): String = s"ClockEdge(${time}@r${region.id}, ${clock}, ${if (rising) "rising" else "falling"})"
+  case class ClockEdge(time: AbsoluteTime, clock: InputPortHandle, period: Time, rising: Boolean) extends Event {
+    override def toString(): String = s"ClockEdge(${time}, ${clock}, ${period}, ${if (rising) "rising" else "falling"})"
   }
 }
 
@@ -64,47 +55,12 @@ class EventQueue {
 
   val queue = PriorityQueue.empty[Event]
 
-
-  /* 
-  (
-    Ordering.by((e: Event) => (
-      -e.time.fs,
-      e.region.id,
-      e match {
-        case _: Event.Drive => 2
-        case _: Event.RunTask => 0
-        case _ => 1
-      }
-    ))
-  ) */
-
  def enqueue(event: Event): Unit = {
     queue.enqueue(event)
   }
 
   def nextTime(): Option[AbsoluteTime] = {
     queue.headOption.map(_.time)
-  }
-
-  def nextRegion(): Option[Region] = {
-    queue.headOption.map(_.region)
-  }
-
-  def getNextChunk(): Seq[Event] = {
-    if (queue.isEmpty) {
-      Seq.empty
-    } else {
-      val nextTime = queue.head.time
-      val nextRegion = queue.head.region
-
-      val chunkBuffer = ListBuffer.empty[Event]
-
-      while (queue.nonEmpty && queue.head.time == nextTime && queue.head.region == nextRegion) {
-        chunkBuffer += queue.dequeue()
-      }
-
-      chunkBuffer.toSeq
-    }
   }
 
   def pop(): Option[Event] = {
@@ -122,10 +78,17 @@ class EventQueue {
   def empty: Boolean = queue.isEmpty
   def nonEmpty: Boolean = queue.nonEmpty
 
-  def containsTasks: Boolean = {
+  def containsActiveTasks: Boolean = {
     queue.exists {
-      case _: Event.RunTask => true
+      case Event.RunActiveTask(_, _) => true
       case _ => false
+    }
+  }
+
+  def nextEdgeFalling(clock: InputPortHandle): Option[Time] = {
+    queue.collectFirst {
+      case e @ Event.ClockEdge(_, c, p, false) if c == clock => e.time
+      case e @ Event.ClockEdge(_, c, p, true) if c == clock => e.time + (p / 2)
     }
   }
 

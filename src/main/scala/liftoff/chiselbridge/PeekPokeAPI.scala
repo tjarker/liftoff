@@ -1,4 +1,4 @@
-package liftoff.simulation
+package liftoff.chiselbridge
 
 /* 
   This PeekPokeAPI implementation is a modified version of the Chisel3 PeekPokeAPI.
@@ -15,6 +15,9 @@ import chisel3.experimental.{SourceInfo, SourceLine}
 import scala.util.control.NoStackTrace
 import scala.language.implicitConversions
 import liftoff.simulation.Time.TimeUnit.s
+
+import liftoff.simulation.{SimController}
+import liftoff.simulation.InputPortHandle
 
 trait Peekable[T <: Data] {
 
@@ -42,7 +45,7 @@ trait Peekable[T <: Data] {
   */
   def expect(expected: T, message: String)(implicit sourceInfo: SourceInfo): Unit
 
-  private[simulation] def dataToString(value: Data): String = {
+  private[liftoff] def dataToString(value: Data): String = {
     value match {
       case x: Bundle =>
         x.elements.map { case (name, elt) =>
@@ -66,17 +69,12 @@ trait Pokable[T <: Data] {
   def poke(literal: T): Unit
 }
 
-//////////////////////////////////
-
-
-////////////////////////////////////
-
 sealed trait AnyTestableData[T <: Data] {
   protected def data: T
 
-  protected def simulatedModule: AnySimulatedModule = AnySimulatedModule.current
+  protected lazy val controller = SimController.current
 
-  protected def simulationPort: Simulation.Port = simulatedModule.port(data)
+  protected lazy val simulationPort: ChiselBridge.Port = ChiselBridge.Port.fromData(data)
 }
 
 trait PeekPokable[T <: Data] extends Peekable[T] with Pokable[T] with AnyTestableData[T]
@@ -92,7 +90,7 @@ trait PeekPokeApiException extends NoStackTrace
   */
 case class FailedExpectationException[T <: Serializable](observed: T, expected: T, message: String)
     extends RuntimeException(
-      Message.dramaticMessage(
+      ChiselBridge.Message.dramaticMessage(
         header = Some("Failed Expectation"),
         body = s"""|Observed value: '$observed'
                    |Expected value: '$expected'
@@ -111,7 +109,7 @@ object FailedExpectationException {
     val extraContext =
       sourceInfo match {
         case sl: SourceLine =>
-          ExceptionHelpers.getErrorLineInFile(Seq(), sl)
+          ChiselBridge.ExceptionHelpers.getErrorLineInFile(Seq(), sl)
         case _ =>
           Seq()
       }
@@ -127,11 +125,11 @@ case class UninitializedElementException(message: String)(implicit sourceInfo: S
         val extraContext =
           sourceInfo match {
             case sl: SourceLine =>
-              ExceptionHelpers.getErrorLineInFile(Seq(), sl)
+              ChiselBridge.ExceptionHelpers.getErrorLineInFile(Seq(), sl)
             case _ =>
               Seq()
           }
-        Message.dramaticMessage(
+        ChiselBridge.Message.dramaticMessage(
           header = Some("Uninitialized Element"),
           body = s"$message ${sourceInfo.makeMessage(_)}" +
             (if (extraContext.nonEmpty) s"\n${extraContext.mkString("\n")}" else "")
@@ -164,14 +162,13 @@ sealed trait TestableAggregate[T <: Aggregate] extends PeekPokable[T] {
 sealed trait TestableElement[T <: Element] extends PeekPokable[T] {
   protected def isSigned = false
 
-  private[simulation] def encode(width: Int, value: BigInt): T
+  private[liftoff] def encode(width: Int, value: BigInt): T
 
-  private[simulation] final def encode(value: Simulation.Value): T = {
+  private[liftoff] final def encode(value: ChiselBridge.Value): T = {
     encode(value.bitCount, value.asBigInt)
   }
 
-  final def peekValue(): Simulation.Value = {
-    simulatedModule.willPeek()
+  final def peekValue(): ChiselBridge.Value = {
     simulationPort.get(isSigned = isSigned)
   }
 
@@ -180,21 +177,19 @@ sealed trait TestableElement[T <: Element] extends PeekPokable[T] {
   def poke(literal: T): Unit = poke(literal.litValue)
 
   def poke(value: BigInt): Unit = {
-    simulatedModule.willPoke()
     simulationPort.set(value)
   }
 
-  private[simulation] def check[U](checkFn: Simulation.Value => Unit): Unit = {
-    simulatedModule.willPeek()
+  private[liftoff] def check[U](checkFn: ChiselBridge.Value => Unit): Unit = {
     simulationPort.check(isSigned = isSigned)(checkFn)
   }
 
   protected final def expect[U](
     expected:       U,
-    sameValue:      (Simulation.Value, U) => Boolean,
-    formatObserved: (Simulation.Value) => String,
+    sameValue:      (ChiselBridge.Value, U) => Boolean,
+    formatObserved: (ChiselBridge.Value) => String,
     formatExpected: U => String,
-    buildMessage:   (Simulation.Value, U) => String,
+    buildMessage:   (ChiselBridge.Value, U) => String,
     sourceInfo:     SourceInfo
   ): Unit = {
     check(observedValue =>
@@ -211,8 +206,8 @@ sealed trait TestableElement[T <: Element] extends PeekPokable[T] {
 
   protected final def expect[U](
     expected:       U,
-    sameValue:      (Simulation.Value, U) => Boolean,
-    formatObserved: (Simulation.Value) => String,
+    sameValue:      (ChiselBridge.Value, U) => Boolean,
+    formatObserved: (ChiselBridge.Value) => String,
     formatExpected: U => String,
     sourceInfo:     SourceInfo
   ): Unit = expect[U](
@@ -220,20 +215,20 @@ sealed trait TestableElement[T <: Element] extends PeekPokable[T] {
     sameValue,
     formatObserved,
     formatExpected,
-    (observedValue: Simulation.Value, expected: U) =>
+    (observedValue: ChiselBridge.Value, expected: U) =>
       s"Expectation failed: observed value ${formatObserved(observedValue)} != ${formatExpected(expected)}",
     sourceInfo
   )
 
   protected final def expect[U](
     expected:     U,
-    sameValue:    (Simulation.Value, U) => Boolean,
-    buildMessage: (Simulation.Value, U) => String,
+    sameValue:    (ChiselBridge.Value, U) => Boolean,
+    buildMessage: (ChiselBridge.Value, U) => String,
     sourceInfo:   SourceInfo
   ): Unit = expect[U](
     expected,
     sameValue,
-    (observedValue: Simulation.Value) => encode(observedValue).toString,
+    (observedValue: ChiselBridge.Value) => encode(observedValue).toString,
     (expected: U) => expected.toString,
     buildMessage,
     sourceInfo
@@ -252,9 +247,9 @@ sealed trait TestableElement[T <: Element] extends PeekPokable[T] {
     require(expected.isLit, s"Expected value: $expected must be a literal")
     expect[T](
       expected,
-      (observed: Simulation.Value, expected: T) => observed.asBigInt == expected.litValue,
-      buildMessage = (obs: Simulation.Value, exp: T) => buildMessage(encode(obs), exp),
-      formatObserved = (obs: Simulation.Value) => encode(obs).toString,
+      (observed: ChiselBridge.Value, expected: T) => observed.asBigInt == expected.litValue,
+      buildMessage = (obs: ChiselBridge.Value, exp: T) => buildMessage(encode(obs), exp),
+      formatObserved = (obs: ChiselBridge.Value) => encode(obs).toString,
       formatExpected = (exp: T) => exp.toString,
       sourceInfo = sourceInfo
     )
@@ -265,8 +260,8 @@ sealed trait TestableElement[T <: Element] extends PeekPokable[T] {
 
   final def expect(expected: BigInt)(implicit sourceInfo: SourceInfo): Unit = expect[BigInt](
     expected,
-    (obs: Simulation.Value, exp: BigInt) => obs.asBigInt == exp,
-    formatObserved = (obs: Simulation.Value) => obs.asBigInt.toString,
+    (obs: ChiselBridge.Value, exp: BigInt) => obs.asBigInt == exp,
+    formatObserved = (obs: ChiselBridge.Value) => obs.asBigInt.toString,
     formatExpected = (exp: BigInt) => exp.toString,
     sourceInfo = sourceInfo
   )
@@ -274,8 +269,8 @@ sealed trait TestableElement[T <: Element] extends PeekPokable[T] {
   final def expect(expected: BigInt, message: String)(implicit sourceInfo: SourceInfo): Unit =
     expect[BigInt](
       expected,
-      (obs: Simulation.Value, exp: BigInt) => obs.asBigInt == exp,
-      buildMessage = (_: Simulation.Value, _: BigInt) => message,
+      (obs: ChiselBridge.Value, exp: BigInt) => obs.asBigInt == exp,
+      buildMessage = (_: ChiselBridge.Value, _: BigInt) => message,
       sourceInfo = sourceInfo
     )
 
@@ -283,8 +278,8 @@ sealed trait TestableElement[T <: Element] extends PeekPokable[T] {
     require(expected.isLit, s"Expected value: $expected must be a literal")
     expect(
       expected,
-      (observed: Simulation.Value, expected: T) => observed.asBigInt == expected.litValue,
-      formatObserved = (obs: Simulation.Value) => encode(obs).toString,
+      (observed: ChiselBridge.Value, expected: T) => observed.asBigInt == expected.litValue,
+      formatObserved = (obs: ChiselBridge.Value) => encode(obs).toString,
       formatExpected = (exp: T) => exp.toString,
       sourceInfo = sourceInfo
     )
@@ -301,9 +296,8 @@ object PeekPokeAPI {
         s"specified period, '${period}', must be 2 or greater because an integer half period must be non-zero"
       )
 
-      simulatedModule.willEvaluate()
       if (cycles == 0) {
-        simulatedModule.controller.run(0)
+        // do nothing
       } else {
         simulationPort.tick(
           timestepsPerPhase = period / 2,
@@ -325,13 +319,12 @@ object PeekPokeAPI {
         s"specified period, '${period}', must be 2 or greater because an integer half period must be non-zero"
       )
 
-      simulatedModule.willEvaluate()
       simulationPort.tick(
         timestepsPerPhase = period / 2,
         maxCycles = maxCycles,
         inPhaseValue = 0,
         outOfPhaseValue = 1,
-        sentinel = Some(simulatedModule.port(sentinelPort), sentinelValue)
+        sentinel = Some(ChiselBridge.Port.fromData(sentinelPort), sentinelValue)
       )
     }
   }
@@ -364,8 +357,8 @@ object PeekPokeAPI {
 
     override def expect(expected: Bool)(implicit sourceInfo: SourceInfo): Unit = expect[Bool](
       expected,
-      (obs: Simulation.Value, exp: Bool) => obs.asBigInt == exp.litValue,
-      formatObserved = (obs: Simulation.Value) => obs.asBigInt.toString,
+      (obs: ChiselBridge.Value, exp: Bool) => obs.asBigInt == exp.litValue,
+      formatObserved = (obs: ChiselBridge.Value) => obs.asBigInt.toString,
       formatExpected = (exp: Bool) => exp.litValue.toString,
       sourceInfo = sourceInfo
     )
@@ -558,7 +551,7 @@ object PeekPokeAPI {
   }
 }
 
-trait MyPeekPokeAPI {
+trait ChiselPeekPokeAPI {
 
   implicit def toTestableClock(clock: Clock): PeekPokeAPI.TestableClock = new PeekPokeAPI.TestableClock(clock)
 
