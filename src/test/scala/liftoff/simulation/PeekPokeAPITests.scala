@@ -25,7 +25,7 @@ class PeekPokeAPITests extends AnyWordSpec with Matchers with liftoff.chiselbrid
       val in = Input(UInt(8.W))
       val out = Output(UInt(8.W))
       val bundleIn = Input(new MyBundle)
-      val vecIn = Input(Vec(3, UInt(2.W)))
+      val vecIn = Input(Vec(3, UInt(3.W)))
     })
 
     io.out := io.in + 1.U + io.bundleIn.a + io.bundleIn.b.asUInt + io.vecIn.reduce(_ +& _)
@@ -57,62 +57,64 @@ class PeekPokeAPITests extends AnyWordSpec with Matchers with liftoff.chiselbrid
 
       println(controller)
 
-      controller.addActiveTask("root") {
+      SimController.runWith(controller) {
 
-        println(SimController.current)
-        println(SimController.currentId)
+        controller.addActiveTask("root") {
 
-        // SimController.current.addInactiveTask("monitor") { for (_ <- 0 until 5) {
-        //     println(SimController.current)
-        //     println(SimController.currentId)
-        //     //print inputs and outputs
-        //     Reporting.info(Some(controller.currentTime), "Test", s"in: ${dut.io.in.peek().litValue}")
-        //     Reporting.info(Some(controller.currentTime), "Test", s"out: ${dut.io.out.peek().litValue}")
-        //     Reporting.info(Some(controller.currentTime), "Test", s"bundleIn: a=${dut.io.bundleIn.a.peek().litValue}," +
-        //       s" b=${dut.io.bundleIn.b.peek().litValue}")
-        //     Reporting.info(Some(controller.currentTime), "Test", s"vecIn: ${dut.io.vecIn.map(_.peek().litValue).mkString(",")}")
-            
-        //     dut.clock.step(1, 10)
-        //   }
-        // }
+          println(SimController.current)
+          println(SimController.currentId)
 
-        dut.io.in.poke(42.U)
-        val outValue = dut.io.out.peek().litValue
+          SimController.current.addInactiveTask("monitor") { for (_ <- 0 until 5) {
+              println(SimController.current)
+              println(SimController.currentId)
+              //print inputs and outputs
+              Reporting.info(Some(controller.currentTime), "Test", s"in: ${dut.io.in.peek().litValue}")
+              Reporting.info(Some(controller.currentTime), "Test", s"out: ${dut.io.out.peek().litValue}")
+              Reporting.info(Some(controller.currentTime), "Test", s"bundleIn: a=${dut.io.bundleIn.a.peek().litValue}," +
+                s" b=${dut.io.bundleIn.b.peek().litValue}")
+              Reporting.info(Some(controller.currentTime), "Test", s"vecIn: ${dut.io.vecIn.map(_.peek().litValue).mkString(",")}")
+              
+              dut.clock.step(1, 10)
+            }
+          }
 
-        dut.io.bundleIn.poke((new MyBundle).Lit(
-          _.a -> 3.U,
-          _.b -> (-5).S
-        ))
+          dut.io.in.poke(42.U)
+          val outValue = dut.io.out.peek().litValue
 
-        dut.io.bundleIn.b.expect((-5).S)
+          dut.io.bundleIn.poke((new MyBundle).Lit(
+            _.a -> 3.U,
+            _.b -> (-5).S
+          ))
 
-        dut.io.vecIn.poke(Vec.Lit(1.U, 2.U, 3.U))
+          dut.io.bundleIn.b.expect((-5).S)
 
-        dut.clock.step(1, 10)
+          dut.io.vecIn.poke(Vec.Lit(4.U, 3.U, 5.U))
 
-        val outValue2 = dut.io.out.peek().litValue
+          dut.clock.step(1, 10)
 
-        dut.io.in.poke(10.U)
+          val outValue2 = dut.io.out.peek().litValue
 
-        dut.clock.step(1, 10)
+          dut.io.in.poke(10.U)
 
-        dut.io.bundleIn.a.poke(7.U)
-        dut.io.bundleIn.b.poke(4.S)
-        dut.io.vecIn(0).poke(0.U)
-        dut.io.vecIn(1).poke(1.U)
-        dut.io.vecIn(2).poke(2.U)
-        dut.clock.step(1, 10)
+          dut.clock.step(1, 10)
 
-        dut.io.bundleIn.peek().a.litValue shouldBe 7
-        dut.io.bundleIn.peek().b.litValue shouldBe 4
+          dut.io.bundleIn.a.poke(7.U)
+          dut.io.bundleIn.b.poke(4.S)
+          dut.io.vecIn(0).poke(0.U)
+          dut.io.vecIn(1).poke(1.U)
+          dut.io.vecIn(2).poke(2.U)
+          dut.clock.step(1, 10)
 
+          dut.io.bundleIn.peek().a.litValue shouldBe 7
+          dut.io.bundleIn.peek().b.litValue shouldBe 4
+
+          dut.io.vecIn.peek().map(_.litValue) shouldBe Seq(0, 1, 2)
+
+        }
+
+        controller.run()
+        simModel.cleanup()
       }
-
-      controller.run()
-      simModel.cleanup()
-      
-
-      
     }
   }
 

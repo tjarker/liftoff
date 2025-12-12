@@ -6,32 +6,13 @@ import liftoff.coroutine._
 import liftoff.coroutine.YieldedWith
 
 import jdk.internal.vm.{Continuation, ContinuationScope}
+import liftoff.coroutine.Yielded
+import liftoff.coroutine.YieldedWith
+import liftoff.coroutine.Coroutine
+import liftoff.coroutine.Finished
 
 class CoroutineTests extends AnyWordSpec with Matchers {
-
-  "JVM Continuations" should {
-    "work with DynamicVariable" in {
-      val dyn = new scala.util.DynamicVariable[Int](0)
-
-      val scope = new ContinuationScope("test")
-
-      dyn.withValue(42) {
-        val cont = new Continuation(
-          scope,
-          new Runnable {
-            def run(): Unit = {
-              Continuation.`yield`(scope)
-              val v = dyn.value
-              v shouldBe 42
-            }
-          }
-        )
-        cont.run()
-        cont.run()
-        cont.isDone() shouldBe true
-      }
-    }
-  }
+  
 
   "A Coroutine" when {
 
@@ -84,6 +65,81 @@ class CoroutineTests extends AnyWordSpec with Matchers {
 
         coroutine.resume() shouldBe Finished(100)
 
+      }
+
+      "support nested coroutines" in {
+        val outerCoroutine = scope.create[Unit, Unit, Int] {
+          val innerCoroutine = scope.create[Unit, Unit, Int] {
+            scope.suspend()
+            42
+          }
+          innerCoroutine.resume() shouldBe Yielded
+          innerCoroutine.resume() shouldBe Finished(42)
+          100
+        }
+        outerCoroutine.resume() shouldBe Finished(100)
+      }
+
+      "support deamon coroutines" in {
+        var deamon = Option.empty[Coroutine[Int, Int, Int]]
+        val mainCoroutine = scope.create[Int, Int, Int] {
+          deamon = Some(scope.create[Int, Int, Int] {
+            val ret = scope.suspendWith[Int](12).get
+            ret
+          })
+          scope.suspend()
+          456
+        }
+        mainCoroutine.resume() shouldBe Yielded
+        mainCoroutine.resume() shouldBe Finished(456)
+        deamon.get.resume() shouldBe YieldedWith(12)
+        deamon.get.resumeWith(56) shouldBe Finished(56)
+
+      }
+
+      "work with nested DynamicVariables" in {
+
+        val dyn = scope.createScopedVariable[Int](0)
+        
+        var nestedCont: Coroutine[Unit, Unit, Unit] = null
+
+        val root = scope.create[Unit, Unit, Unit] {
+          dyn.withValue(1) {
+            scope.suspend()
+            dyn.value shouldBe 1
+            nestedCont = scope.create[Unit, Unit, Unit] {
+              dyn.withValue(2) {
+                scope.suspend()
+                dyn.value shouldBe 2
+                scope.suspend()
+                dyn.value shouldBe 2
+                dyn.withValue(3) {
+                  scope.suspend()
+                  dyn.value shouldBe 3
+                }
+                dyn.value shouldBe 2
+              }
+            }
+            nestedCont.resume() shouldBe Yielded
+            dyn.value shouldBe 1
+            scope.suspend()
+            dyn.value shouldBe 1
+          }
+        }
+        root.resume() shouldBe Yielded
+        dyn.value shouldBe 0
+        root.resume() shouldBe Yielded
+        dyn.value shouldBe 0
+        root.resume() shouldBe Finished(())
+        dyn.value shouldBe 0
+
+        nestedCont.resume() shouldBe Yielded
+        dyn.value shouldBe 0
+        nestedCont.resume() shouldBe Yielded
+        dyn.value shouldBe 0
+        nestedCont.resume() shouldBe Finished(())
+        dyn.value shouldBe 0
+      
       }
 
     }
@@ -149,6 +205,81 @@ class CoroutineTests extends AnyWordSpec with Matchers {
         coroutineOuter.resume() shouldBe Finished(42)
 
       }
+
+      "support nested coroutines" in {
+        val outerCoroutine = scope.create[Unit, Unit, Int] {
+          val innerCoroutine = scope.create[Unit, Unit, Int] {
+            scope.suspend()
+            42
+          }
+          innerCoroutine.resume() shouldBe Yielded
+          innerCoroutine.resume() shouldBe Finished(42)
+          100
+        }
+        outerCoroutine.resume() shouldBe Finished(100)
+      }
+
+      "support deamon coroutines" in {
+        var deamon = Option.empty[Coroutine[Int, Int, Int]]
+        val mainCoroutine = scope.create[Int, Int, Int] {
+          deamon = Some(scope.create[Int, Int, Int] {
+            val ret = scope.suspendWith[Int](12).get
+            ret
+          })
+          scope.suspend()
+          456
+        }
+        mainCoroutine.resume() shouldBe Yielded
+        mainCoroutine.resume() shouldBe Finished(456)
+        deamon.get.resume() shouldBe YieldedWith(12)
+        deamon.get.resumeWith(56) shouldBe Finished(56)
+
+      }
+
+      "work with nested DynamicVariables" in {
+
+        val dyn = scope.createScopedVariable[Int](0)
+        
+        var nestedCont: Coroutine[Unit, Unit, Unit] = null
+
+        val root = scope.create[Unit, Unit, Unit] {
+          dyn.withValue(1) {
+            scope.suspend()
+            dyn.value shouldBe 1
+            nestedCont = scope.create[Unit, Unit, Unit] {
+              dyn.withValue(2) {
+                scope.suspend()
+                dyn.value shouldBe 2
+                scope.suspend()
+                dyn.value shouldBe 2
+                dyn.withValue(3) {
+                  scope.suspend()
+                  dyn.value shouldBe 3
+                }
+                dyn.value shouldBe 2
+              }
+            }
+            nestedCont.resume() shouldBe Yielded
+            dyn.value shouldBe 1
+            scope.suspend()
+            dyn.value shouldBe 1
+          }
+        }
+        root.resume() shouldBe Yielded
+        dyn.value shouldBe 0
+        root.resume() shouldBe Yielded
+        dyn.value shouldBe 0
+        root.resume() shouldBe Finished(())
+        dyn.value shouldBe 0
+
+        nestedCont.resume() shouldBe Yielded
+        dyn.value shouldBe 0
+        nestedCont.resume() shouldBe Yielded
+        dyn.value shouldBe 0
+        nestedCont.resume() shouldBe Finished(())
+        dyn.value shouldBe 0
+      
+      }
     }
 
     "using the platform thread backend" should {
@@ -210,6 +341,81 @@ class CoroutineTests extends AnyWordSpec with Matchers {
 
         coroutineOuter.resume() shouldBe Finished(42)
 
+      }
+
+      "support nested coroutines" in {
+        val outerCoroutine = scope.create[Unit, Unit, Int] {
+          val innerCoroutine = scope.create[Unit, Unit, Int] {
+            scope.suspend()
+            42
+          }
+          innerCoroutine.resume() shouldBe Yielded
+          innerCoroutine.resume() shouldBe Finished(42)
+          100
+        }
+        outerCoroutine.resume() shouldBe Finished(100)
+      }
+
+      "support deamon coroutines" in {
+        var deamon = Option.empty[Coroutine[Int, Int, Int]]
+        val mainCoroutine = scope.create[Int, Int, Int] {
+          deamon = Some(scope.create[Int, Int, Int] {
+            val ret = scope.suspendWith[Int](12).get
+            ret
+          })
+          scope.suspend()
+          456
+        }
+        mainCoroutine.resume() shouldBe Yielded
+        mainCoroutine.resume() shouldBe Finished(456)
+        deamon.get.resume() shouldBe YieldedWith(12)
+        deamon.get.resumeWith(56) shouldBe Finished(56)
+
+      }
+
+     "work with nested DynamicVariables" in {
+
+        val dyn = scope.createScopedVariable[Int](0)
+        
+        var nestedCont: Coroutine[Unit, Unit, Unit] = null
+
+        val root = scope.create[Unit, Unit, Unit] {
+          dyn.withValue(1) {
+            scope.suspend()
+            dyn.value shouldBe 1
+            nestedCont = scope.create[Unit, Unit, Unit] {
+              dyn.withValue(2) {
+                scope.suspend()
+                dyn.value shouldBe 2
+                scope.suspend()
+                dyn.value shouldBe 2
+                dyn.withValue(3) {
+                  scope.suspend()
+                  dyn.value shouldBe 3
+                }
+                dyn.value shouldBe 2
+              }
+            }
+            nestedCont.resume() shouldBe Yielded
+            dyn.value shouldBe 1
+            scope.suspend()
+            dyn.value shouldBe 1
+          }
+        }
+        root.resume() shouldBe Yielded
+        dyn.value shouldBe 0
+        root.resume() shouldBe Yielded
+        dyn.value shouldBe 0
+        root.resume() shouldBe Finished(())
+        dyn.value shouldBe 0
+
+        nestedCont.resume() shouldBe Yielded
+        dyn.value shouldBe 0
+        nestedCont.resume() shouldBe Yielded
+        dyn.value shouldBe 0
+        nestedCont.resume() shouldBe Finished(())
+        dyn.value shouldBe 0
+      
       }
     }
 

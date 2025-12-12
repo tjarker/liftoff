@@ -33,6 +33,10 @@ class ThreadedCoroutineScope(val threadFactory: Runnable => Thread) extends Coro
     if (current.hasBeenCancelled) throw ThreadedCoroutineCancelledException // check for cancellation
     current.in.asInstanceOf[Option[I]] // return input value
   }
+
+  def createScopedVariable[T](initial: T): ScopedVariable[T] = {
+    new ThreadedScopedVariable[T](initial)
+  }
 }
 
 
@@ -69,6 +73,7 @@ class ThreadedCoroutine[I, O, R](block: => R, scope: ThreadedCoroutineScope) ext
   // this is caller code
   def resume(value: Option[I]): Result[O, R] = {
     if (hasBeenCancelled) throw new ResumedCancelledCoroutineException
+    val parentCoroutine = scope.current
     scope.current = this.asInstanceOf[ThreadedCoroutine[Any, Any, Any]]
     caller = Thread.currentThread()
     in = value
@@ -88,6 +93,8 @@ class ThreadedCoroutine[I, O, R](block: => R, scope: ThreadedCoroutineScope) ext
       LockSupport.park() // wait for next suspend
       while (scope.shouldWait) LockSupport.park()
     }
+
+    scope.current = parentCoroutine
 
     out
   }

@@ -25,7 +25,7 @@ case class Step(clockPort: InputPortHandle, cycles: Int) extends SimControllerYi
 
 object SimController {
 
-  private val dynamicVariable = new DynamicVariable[SimController](null)
+  private val dynamicVariable = new scala.util.DynamicVariable[SimController](null)
   def current: SimController = dynamicVariable.value
 
   private val dynId = new DynamicVariable[Int](0)
@@ -172,14 +172,14 @@ class SimController(simModel: SimModel) {
 
   def addActiveTask(name: String)(block: => Unit): Unit = {
     val task = new Task[Unit](name, taskScope, {
-      SimController.runWith(this)(block)
+      block
     })
     eventQueue.enqueue(Event.RunActiveTask(currentTime, task))
   }
 
   def addInactiveTask(name: String)(block: => Unit): Unit = {
     val task = new Task[Unit](name, taskScope, {
-      SimController.runWith(this)(block)
+      block
     })
     eventQueue.enqueue(Event.RunInactiveTask(currentTime, task))
   }

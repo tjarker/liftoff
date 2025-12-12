@@ -19,6 +19,7 @@ package object coroutine {
     private[coroutine] def suspend[I, O](value: Option[O]): Option[I]
     def suspendWith[I](value: Any): Option[I] = suspend[I, Any](Some(value))
     def suspend[I](): Option[I] = suspend[I, Any](None)
+    def createScopedVariable[T](initial: T): ScopedVariable[T]
   }
 
   trait Result[+O, +R] {
@@ -74,7 +75,7 @@ package object coroutine {
         () => new PlatformThreadedCoroutineScope()
       }
 
-    val defaultScope: CoroutineScope = factory()
+    private val defaultScope: CoroutineScope = factory()
 
     def createScope(): CoroutineScope = factory()
 

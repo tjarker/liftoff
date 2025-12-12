@@ -21,6 +21,10 @@ class ContinuationCoroutineScope extends CoroutineScope {
     Continuation.`yield`(scope)
     current.in.asInstanceOf[Option[I]]
   }
+
+  def createScopedVariable[T](initial: T): ScopedVariable[T] = {
+    new ContinuationScopedVariable[T](scope, initial)
+  }
 }
 
 
