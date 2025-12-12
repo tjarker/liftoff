@@ -169,22 +169,13 @@ class VerilatorSimModel(
     case o: OutputPortHandle => o
   }
 
-  override def getInputPortHandle(portName: String): InputPortHandle = ports.find { p =>
-    p.name == portName && p.isInstanceOf[InputPortHandle]
-  } match {
-    case Some(port: InputPortHandle) => port
-    case _ => throw new RuntimeException(
-      s"Input port '$portName' not found in model '$name'."
-    )
+  override def getInputPortHandle(portName: String): Option[InputPortHandle] = ports.collectFirst {
+    case p: InputPortHandle if p.name == portName => p
   }
+  
 
-  override def getOutputPortHandle(portName: String): OutputPortHandle = ports.find { p =>
-    p.name == portName && p.isInstanceOf[OutputPortHandle]
-  } match {
-    case Some(port: OutputPortHandle) => port
-    case _ => throw new RuntimeException(
-      s"Output port '$portName' not found in model '$name'."
-    )
+  override def getOutputPortHandle(portName: String): Option[OutputPortHandle] = ports.collectFirst {
+    case p: OutputPortHandle if p.name == portName => p
   }
 
   override def evaluate(): Unit = {

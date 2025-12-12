@@ -2,26 +2,27 @@ package liftoff
 
 package object coroutine {
 
-  trait Coroutine[I, O] {
-    private[coroutine] def resume(value: Option[I]): Result[O]
-    def resumeWith(value: I): Result[O] = resume(Some(value))
-    def resume(): Result[O] = resume(None)
+  trait Coroutine[I, O, R] {
+    private[coroutine] def resume(value: Option[I]): Result[O, R]
+    def resumeWith(value: I): Result[O, R] = resume(Some(value))
+    def resume(): Result[O, R] = resume(None)
     def cancel(): Unit
 
     private[coroutine] var in: Option[I]
-    private[coroutine] var out: Result[O]
+    private[coroutine] var out: Result[O, R]
   }
 
   class ResumedCancelledCoroutineException extends Exception("Resumed a cancelled coroutine")
 
   trait CoroutineScope {
-    def create[I, O](block: => O): Coroutine[I, O]
+    def create[I, O, R](block: => R): Coroutine[I, O, R]
     private[coroutine] def suspend[I, O](value: Option[O]): Option[I]
     def suspendWith[I](value: Any): Option[I] = suspend[I, Any](Some(value))
     def suspend[I](): Option[I] = suspend[I, Any](None)
+    def createScopedVariable[T](initial: T): ScopedVariable[T]
   }
 
-  trait Result[+T] {
+  trait Result[+O, +R] {
 
     override def toString(): String = this match {
       case YieldedWith(value)  => s"Yielded($value)"
@@ -32,17 +33,17 @@ package object coroutine {
 
   }
 
-  case class YieldedWith[T](value: T) extends Result[T]
-  case object Yielded extends Result[Nothing]
-  case class Finished[T](value: T) extends Result[T]
-  case class Failed(exception: Throwable) extends Result[Nothing]
+  case class YieldedWith[O](value: O) extends Result[O, Nothing]
+  case object Yielded extends Result[Nothing, Nothing]
+  case class Finished[R](value: R) extends Result[Nothing, R]
+  case class Failed(exception: Throwable) extends Result[Nothing, Nothing]
 
   trait CoroutineBackend
   case object ContinuationBackend extends CoroutineBackend
   case object VirtualThreadBackend extends CoroutineBackend
   case object PlatformThreadBackend extends CoroutineBackend
 
-  object Coroutine extends CoroutineScope {
+  object Coroutine {
 
     // Check if the Continuation API is available
     val hasContinuations: Boolean =
@@ -65,16 +66,16 @@ package object coroutine {
         case _: Throwable         => false
       }
 
-    val factory: () => CoroutineScope = () =>
+    val factory: () => CoroutineScope = 
       if (hasContinuations) {
-        new ContinuationCoroutineScope()
+        () => new ContinuationCoroutineScope()
       } else if (hasVirtualThreads) {
-        new VirtualThreadedCoroutineScope()
+        () => new VirtualThreadedCoroutineScope()
       } else {
-        new PlatformThreadedCoroutineScope()
+        () => new PlatformThreadedCoroutineScope()
       }
 
-    val defaultScope: CoroutineScope = factory()
+    private val defaultScope: CoroutineScope = factory()
 
     def createScope(): CoroutineScope = factory()
 
@@ -82,14 +83,6 @@ package object coroutine {
       case ContinuationBackend   => new ContinuationCoroutineScope()
       case VirtualThreadBackend  => new VirtualThreadedCoroutineScope()
       case PlatformThreadBackend => new PlatformThreadedCoroutineScope()
-    }
-
-    def create[A, B](block: => B): Coroutine[A, B] = {
-      defaultScope.create[A, B](block)
-    }
-
-    def suspend[I, O](value: Option[O]): Option[I] = {
-      defaultScope.suspend(value)
     }
 
   }
