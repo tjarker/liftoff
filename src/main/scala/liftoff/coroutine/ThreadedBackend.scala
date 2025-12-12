@@ -103,13 +103,13 @@ class ThreadedCoroutine[I, O, R](block: => R, scope: ThreadedCoroutineScope) ext
     hasBeenCancelled = true
     shouldSleep = false
     scope.shouldWait = true
+    val parentCoroutine = scope.current
     caller = Thread.currentThread()
     scope.current = this.asInstanceOf[ThreadedCoroutine[Any, Any, Any]]
     LockSupport.unpark(thread)
     LockSupport.park()
-    while (scope.shouldWait) {
-      LockSupport.park()
-    }
+    while (scope.shouldWait) LockSupport.park()
+    scope.current = parentCoroutine
   }
   
 }
