@@ -18,6 +18,7 @@ import liftoff.simulation.Time.TimeUnit.s
 
 import liftoff.simulation.{SimController}
 import liftoff.simulation.InputPortHandle
+import liftoff.simulation.PortHandle
 
 trait Peekable[T <: Data] {
 
@@ -75,6 +76,8 @@ sealed trait AnyTestableData[T <: Data] {
   protected lazy val controller = SimController.current
 
   protected lazy val simulationPort: ChiselBridge.Port = ChiselBridge.Port.fromData(data)
+
+  private[liftoff] def getPortHandle: PortHandle = simulationPort.handle
 }
 
 trait PeekPokable[T <: Data] extends Peekable[T] with Pokable[T] with AnyTestableData[T]

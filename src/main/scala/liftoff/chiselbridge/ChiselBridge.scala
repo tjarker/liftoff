@@ -49,6 +49,7 @@ object ChiselBridge {
       outOfPhaseValue:   BigInt,
       sentinel:         Option[(Port, BigInt)]
     ): Unit
+    def handle: PortHandle
   }
   object Port {
     def fromHandle(handle: PortHandle): Port = handle match {
@@ -92,6 +93,8 @@ object ChiselBridge {
       outOfPhaseValue:   BigInt,
       sentinel:         Option[(Port, BigInt)]
     ): Unit = SimController.current.suspendWith(Step(handle, 1))
+
+    def handle: PortHandle = this.handle
   }
 
   class OutputPort(handle: OutputPortHandle) extends Port {
@@ -108,6 +111,8 @@ object ChiselBridge {
     }
     def tick(timestepsPerPhase: Int, maxCycles: Int, inPhaseValue: BigInt, outOfPhaseValue: BigInt, sentinel: Option[(Port, BigInt)]): Unit = 
       throw new Exception(s"Cannot tick output port handle: ${handle.name}")
+
+    def handle: PortHandle = this.handle
   }
 
   class Value(bits: Int, value: BigInt) {

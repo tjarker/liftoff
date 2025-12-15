@@ -71,7 +71,7 @@ class SimControllerTests extends AnyWordSpec with Matchers {
 
         SimController.runWith(ctrl) {
           ctrl.addActiveTask("main task") {
-            SimController.current.addClock(Dut.clk, 10.fs)
+            SimController.current.addClockDomain(Dut.clk, 10.fs, Seq(Dut.a, Dut.b, Dut.op, Dut.result))
             Dut.a.set(5)
             Dut.b.set(3)
             Dut.op.set(0)

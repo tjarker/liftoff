@@ -85,10 +85,16 @@ class EventQueue {
     }
   }
 
-  def nextEdgeFalling(clock: InputPortHandle): Option[Time] = {
+  def nextFallingEdge(clock: InputPortHandle): Option[Time] = {
     queue.collectFirst {
       case e @ Event.ClockEdge(_, c, p, false) if c == clock => e.time
       case e @ Event.ClockEdge(_, c, p, true) if c == clock => e.time + (p / 2)
+    }
+  }
+  def nextRisingEdge(clock: InputPortHandle): Option[Time] = {
+    queue.collectFirst {
+      case e @ Event.ClockEdge(_, c, p, true) if c == clock => e.time
+      case e @ Event.ClockEdge(_, c, p, false) if c == clock => e.time + (p / 2)
     }
   }
 

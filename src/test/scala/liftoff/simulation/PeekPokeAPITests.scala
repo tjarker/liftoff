@@ -56,11 +56,22 @@ class PeekPokeAPITests extends AnyWordSpec with Matchers with liftoff.chiselbrid
 
       val dut = ChiselBridge.elaborate(new MyModule)
 
-      Reporting.withOutput(runDir.addLoggingFile("simulation.log"), colored = false) {
+      val logger = runDir.addLoggingFile("simulation.log")
 
-        controller.addClock(controller.getInputPortHandle("clock").get, 10.fs)
+      Reporting.withOutput(logger, colored = false) {
 
         SimController.runWith(controller) {
+
+          controller.addClockDomain(controller.getInputPortHandle("clock").get, 10.fs, Seq(
+            dut.reset.getPortHandle,
+            dut.io.in.getPortHandle,
+            dut.io.out.getPortHandle,
+            dut.io.bundleIn.a.getPortHandle,
+            dut.io.bundleIn.b.getPortHandle,
+            dut.io.vecIn(0).getPortHandle,
+            dut.io.vecIn(1).getPortHandle,
+            dut.io.vecIn(2).getPortHandle,
+          ))
 
           controller.addActiveTask("root") {
 

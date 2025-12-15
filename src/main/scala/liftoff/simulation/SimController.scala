@@ -6,22 +6,13 @@ import liftoff.coroutine.{Finished, YieldedWith, Failed}
 import scala.util.DynamicVariable
 import liftoff.misc.Reporting
 import liftoff.coroutine.Yielded
+import chisel3.Output
 
 trait SimControllerYield
 case class Step(clockPort: InputPortHandle, cycles: Int) extends SimControllerYield
-
-
-/* 
-
-  Dynamic variables don't seem to work for continuations
-
-  idea:
-    - we need unique identifiers for each task
-      - could use getCurrentThread for threaded backends
-      - could use Continuation.getCurrentContinuation for continuation backend
-    - store current SimController in a map from task id to SimController
-
- */
+//case class StepUntil(clockPort: InputPortHandle, port: OutputPortHandle, value: BigInt, maxCycles: Int) extends SimControllerYield
+case class TickFor(duration: RelativeTime) extends SimControllerYield
+case class TickUntil(time: AbsoluteTime) extends SimControllerYield
 
 object SimController {
 
@@ -73,13 +64,15 @@ class SimController(simModel: SimModel) {
   val eventQueue: EventQueue = new EventQueue
   var currentTime: Time.AbsoluteTime = 0.fs.absolute
 
-  // TODO: clear output cache on clock edges
   val outputCache = collection.mutable.Map.empty[OutputPortHandle, BigInt]
   val inputCache = collection.mutable.Map.empty[InputPortHandle, BigInt]
-  val inputDirty = collection.mutable.Set.empty[InputPortHandle]
+  val inputDirty = collection.mutable.Set.empty[InputPortHandle] // TODO: update this on set() and get()
 
+  val inputHandles = simModel.inputs.map(p => p.name -> new SimControllerInputHandle(p, this)).toMap
+  val outputHandles = simModel.outputs.map(p => p.name -> new SimControllerOutputHandle(p, this)).toMap
 
   val clockPeriods = collection.mutable.Map.empty[InputPortHandle, Time]
+  val portToClock = collection.mutable.Map.empty[PortHandle, InputPortHandle]
 
   def run(): Unit = {
     
@@ -119,20 +112,26 @@ class SimController(simModel: SimModel) {
     }
   }
 
-  def addClock(clock: InputPortHandle, period: Time): Unit = {
+  def addClockDomain(clock: InputPortHandle, period: Time, ports: Seq[PortHandle]): Unit = {
     Reporting.debug(Some(currentTime), "SimController", s"Adding clock: ${clock.name} with period ${period}")
     clockPeriods(clock) = period
+    ports.foreach(p => portToClock(p) = clock)
     eventQueue.enqueue(Event.ClockEdge(currentTime.absolute, clock, period, false))
   }
 
   def handleTask(t: Task[_]) = {
     t.runStep() match {
+
+
           case Finished(result) => // do nothing
             Reporting.debug(Some(currentTime), "SimController", s"Task $t finished")
-          case YieldedWith(Step(clockPort, cycles)) =>
 
+
+          case YieldedWith(Step(clockPort, cycles)) =>
             Reporting.debug(Some(currentTime), "SimController", s"Stepping task ${t.name} for ${cycles} cycles on clock ${clockPort}")
-            val nextFallingEdge = eventQueue.nextEdgeFalling(clockPort).getOrElse {
+
+
+            val nextFallingEdge = eventQueue.nextFallingEdge(clockPort).getOrElse {
               Reporting.error(Some(currentTime), "SimController", s"No falling edge scheduled for clock ${clockPort.name} when trying to step task ${t.name}")
               0.fs.absolute
             }
@@ -142,21 +141,45 @@ class SimController(simModel: SimModel) {
             })
             val nextTime = if (nextFallingEdge == currentTime) nextFallingEdge + (period * cycles) else nextFallingEdge + (period * (cycles - 1))
             eventQueue.enqueue(Event.RunActiveTask(nextTime.absolute, t))
+
+          case YieldedWith(TickFor(duration)) =>
+            Reporting.debug(Some(currentTime), "SimController", s"Ticking task ${t.name} for duration ${duration}")
+            val nextTime = currentTime + duration
+            eventQueue.enqueue(Event.RunActiveTask(nextTime.absolute, t))
+
+          case YieldedWith(TickUntil(time)) =>
+            Reporting.debug(Some(currentTime), "SimController", s"Ticking task ${t.name} until time ${time}")
+            eventQueue.enqueue(Event.RunActiveTask(time.absolute, t))
+
+          
           case Yielded => // do nothing, will be resumed manually
+
+
           case Failed(e) =>
             Reporting.error(Some(currentTime), "SimController", s"Active task ${t.name} failed with exception: ${e}")
             throw e
         }
   }
 
-  val inputHandles = simModel.inputs.map(p => p.name -> new SimControllerInputHandle(p, this)).toMap
-  val outputHandles = simModel.outputs.map(p => p.name -> new SimControllerOutputHandle(p, this)).toMap
-
+  
   def getInputPortHandle(portName: String): Option[InputPortHandle] = inputHandles.get(portName)
 
   def getOutputPortHandle(portName: String): Option[OutputPortHandle] = outputHandles.get(portName)
   
   def get(port: PortHandle, isSigned: Boolean): BigInt = {
+    val nextSamplingTime = portToClock.get(port) match {
+      case Some(clockPort) =>
+        eventQueue.nextFallingEdge(clockPort).getOrElse {
+          Reporting.error(Some(currentTime), "SimController", s"No rising edge scheduled for clock ${clockPort.name} when trying to sample port ${port.name}")
+          throw new Exception("No clock period")
+        }
+      case None => currentTime
+    }
+    if (currentTime != nextSamplingTime) {
+      Reporting.debug(Some(currentTime), "SimController", s"Advancing time from ${currentTime} to ${nextSamplingTime} to sample port ${port.name}")
+      taskScope.suspendWith(TickUntil(nextSamplingTime.absolute))
+      Reporting.debug(Some(currentTime), "SimController", s"Resumed for sampling port ${port.name} at time ${currentTime}")
+    }
     port match {
       case iph: InputPortHandle =>
         inputCache.getOrElseUpdate(iph, iph.get())
@@ -166,11 +189,25 @@ class SimController(simModel: SimModel) {
   }
 
   def set(port: InputPortHandle, value: BigInt): Unit = {
+    val nextDriveTime = portToClock.get(port) match {
+      case Some(clockPort) =>
+        eventQueue.nextFallingEdge(clockPort).getOrElse {
+          Reporting.error(Some(currentTime), "SimController", s"No rising edge scheduled for clock ${clockPort.name} when trying to drive port ${port.name}")
+          throw new Exception("No clock period")
+        }
+      case None => currentTime
+    }
+    if (currentTime != nextDriveTime) {
+      Reporting.debug(Some(currentTime), "SimController", s"Advancing time from ${currentTime} to ${nextDriveTime} to drive port ${port.name}")
+      taskScope.suspendWith(TickUntil(nextDriveTime.absolute))
+      Reporting.debug(Some(currentTime), "SimController", s"Resumed for driving port ${port.name} at time ${currentTime}")
+    }
     inputCache(port) = value
     port.set(value)
   }
 
   def addActiveTask(name: String)(block: => Unit): Unit = {
+    Reporting.debug(Some(currentTime), "SimController", s"Adding active task: ${name}")
     val task = new Task[Unit](name, taskScope, {
       block
     })
@@ -178,6 +215,7 @@ class SimController(simModel: SimModel) {
   }
 
   def addInactiveTask(name: String)(block: => Unit): Unit = {
+    Reporting.debug(Some(currentTime), "SimController", s"Adding inactive task: ${name}")
     val task = new Task[Unit](name, taskScope, {
       block
     })
