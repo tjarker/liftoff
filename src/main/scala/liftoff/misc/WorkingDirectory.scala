@@ -3,6 +3,7 @@ package liftoff.misc
 import java.io.File
 import scala.collection.mutable.ArrayBuffer
 import liftoff.simulation.Time
+import java.io.PrintStream
 
 object WorkingDirectory {
   def apply(dir: String): WorkingDirectory = {
@@ -109,6 +110,18 @@ class WorkingDirectory(val dir: File) {
     )
     artifacts += file
     file
+  }
+
+  def addFile(name: String): File = {
+    val file = new File(dir, name)
+    artifacts += file
+    file
+  }
+
+  def addLoggingFile(name: String): PrintStream = {
+    val file = new File(dir, name)
+    artifacts += file
+    new PrintStream(file)
   }
 
   def addSubDir(file: File): WorkingDirectory = {

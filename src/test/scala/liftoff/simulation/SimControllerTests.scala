@@ -9,6 +9,7 @@ import liftoff.simulation.Time._
 import liftoff.coroutine.CoroutineScope
 import liftoff.coroutine.Coroutine
 import scala.util.DynamicVariable
+import liftoff.misc.Reporting
 
 
 class SimControllerTests extends AnyWordSpec with Matchers {
@@ -66,19 +67,22 @@ class SimControllerTests extends AnyWordSpec with Matchers {
         val result = ctrl.getOutputPortHandle("result").get
       }
 
-      SimController.runWith(ctrl) {
-        ctrl.addActiveTask("main task") {
-          SimController.current.addClock(Dut.clk, 10.fs)
-          Dut.a.set(5)
-          Dut.b.set(3)
-          Dut.op.set(0)
-          SimController.current.suspendWith(Step(Dut.clk, 2))
-          Dut.result.get() shouldBe 8
-        }
-        
+      Reporting.withOutput(buildDir.addLoggingFile("simulation.log")) {
 
-        ctrl.run()
-        simModel.cleanup()
+        SimController.runWith(ctrl) {
+          ctrl.addActiveTask("main task") {
+            SimController.current.addClock(Dut.clk, 10.fs)
+            Dut.a.set(5)
+            Dut.b.set(3)
+            Dut.op.set(0)
+            SimController.current.suspendWith(Step(Dut.clk, 2))
+            Dut.result.get() shouldBe 8
+          }
+          
+
+          ctrl.run()
+          simModel.cleanup()
+        }
       }
 
     }

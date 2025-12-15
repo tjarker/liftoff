@@ -12,6 +12,7 @@ import liftoff.simulation.Time._
 import liftoff.misc.PathToFileOps
 import liftoff.simulation.verilator.VerilatorSimModelFactory
 import liftoff.misc.Reporting
+import liftoff.coroutine.ContinuationBackend
 
 class PeekPokeAPITests extends AnyWordSpec with Matchers with liftoff.chiselbridge.ChiselPeekPokeAPI {
 
@@ -41,79 +42,78 @@ class PeekPokeAPITests extends AnyWordSpec with Matchers with liftoff.chiselbrid
       workingDir.clean()
       ChiselBridge.emitSystemVerilogFile(new MyModule, workingDir)
 
+      val runDir = workingDir.addSubDir(workingDir / "sim")
+
       val simModel = VerilatorSimModelFactory.create(
         "MyModule",
         workingDir.addSubDir(workingDir / "verilator"),
         Seq(workingDir / "MyModule.sv"),
         verilatorOptions = Seq(),
         cOptions = Seq()
-      ).createModel(workingDir.addSubDir(workingDir / "sim"))
+      ).createModel(runDir)
 
       val controller = new SimController(simModel)
 
       val dut = ChiselBridge.elaborate(new MyModule)
 
-      controller.addClock(controller.getInputPortHandle("clock").get, 10.fs)
+      Reporting.withOutput(runDir.addLoggingFile("simulation.log"), colored = false) {
 
-      println(controller)
+        controller.addClock(controller.getInputPortHandle("clock").get, 10.fs)
 
-      SimController.runWith(controller) {
+        SimController.runWith(controller) {
 
-        controller.addActiveTask("root") {
+          controller.addActiveTask("root") {
 
-          println(SimController.current)
-          println(SimController.currentId)
 
-          SimController.current.addInactiveTask("monitor") { for (_ <- 0 until 5) {
-              println(SimController.current)
-              println(SimController.currentId)
-              //print inputs and outputs
-              Reporting.info(Some(controller.currentTime), "Test", s"in: ${dut.io.in.peek().litValue}")
-              Reporting.info(Some(controller.currentTime), "Test", s"out: ${dut.io.out.peek().litValue}")
-              Reporting.info(Some(controller.currentTime), "Test", s"bundleIn: a=${dut.io.bundleIn.a.peek().litValue}," +
-                s" b=${dut.io.bundleIn.b.peek().litValue}")
-              Reporting.info(Some(controller.currentTime), "Test", s"vecIn: ${dut.io.vecIn.map(_.peek().litValue).mkString(",")}")
-              
-              dut.clock.step(1, 10)
+            SimController.current.addInactiveTask("monitor") { for (_ <- 0 until 5) {
+                //print inputs and outputs
+                Reporting.info(Some(controller.currentTime), "Test", s"in: ${dut.io.in.peek().litValue}")
+                Reporting.info(Some(controller.currentTime), "Test", s"out: ${dut.io.out.peek().litValue}")
+                Reporting.info(Some(controller.currentTime), "Test", s"bundleIn: a=${dut.io.bundleIn.a.peek().litValue}," +
+                  s" b=${dut.io.bundleIn.b.peek().litValue}")
+                Reporting.info(Some(controller.currentTime), "Test", s"vecIn: ${dut.io.vecIn.map(_.peek().litValue).mkString(",")}")
+                
+                dut.clock.step(1, 10)
+              }
             }
+
+            dut.io.in.poke(42.U)
+            val outValue = dut.io.out.peek().litValue
+
+            dut.io.bundleIn.poke((new MyBundle).Lit(
+              _.a -> 3.U,
+              _.b -> (-5).S
+            ))
+
+            dut.io.bundleIn.b.expect((-5).S)
+
+            dut.io.vecIn.poke(Vec.Lit(4.U, 3.U, 5.U))
+
+            dut.clock.step(1, 10)
+
+            val outValue2 = dut.io.out.peek().litValue
+
+            dut.io.in.poke(10.U)
+
+            dut.clock.step(1, 10)
+
+            dut.io.bundleIn.a.poke(7.U)
+            dut.io.bundleIn.b.poke(4.S)
+            dut.io.vecIn(0).poke(0.U)
+            dut.io.vecIn(1).poke(1.U)
+            dut.io.vecIn(2).poke(2.U)
+            dut.clock.step(1, 10)
+
+            dut.io.bundleIn.peek().a.litValue shouldBe 7
+            dut.io.bundleIn.peek().b.litValue shouldBe 4
+
+            dut.io.vecIn.peek().map(_.litValue) shouldBe Seq(0, 1, 2)
+
           }
 
-          dut.io.in.poke(42.U)
-          val outValue = dut.io.out.peek().litValue
-
-          dut.io.bundleIn.poke((new MyBundle).Lit(
-            _.a -> 3.U,
-            _.b -> (-5).S
-          ))
-
-          dut.io.bundleIn.b.expect((-5).S)
-
-          dut.io.vecIn.poke(Vec.Lit(4.U, 3.U, 5.U))
-
-          dut.clock.step(1, 10)
-
-          val outValue2 = dut.io.out.peek().litValue
-
-          dut.io.in.poke(10.U)
-
-          dut.clock.step(1, 10)
-
-          dut.io.bundleIn.a.poke(7.U)
-          dut.io.bundleIn.b.poke(4.S)
-          dut.io.vecIn(0).poke(0.U)
-          dut.io.vecIn(1).poke(1.U)
-          dut.io.vecIn(2).poke(2.U)
-          dut.clock.step(1, 10)
-
-          dut.io.bundleIn.peek().a.litValue shouldBe 7
-          dut.io.bundleIn.peek().b.litValue shouldBe 4
-
-          dut.io.vecIn.peek().map(_.litValue) shouldBe Seq(0, 1, 2)
-
+          controller.run()
+          simModel.cleanup()
         }
-
-        controller.run()
-        simModel.cleanup()
       }
     }
   }

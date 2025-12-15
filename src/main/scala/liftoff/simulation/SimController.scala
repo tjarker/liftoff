@@ -88,7 +88,7 @@ class SimController(simModel: SimModel) {
       val event = eventQueue.pop().get
 
       Reporting.debug(Some(currentTime), "SimController", s"Handling event: ${event}")
-      Reporting.debug(Some(currentTime), "SimController", s"Event queue: ${eventQueue}")
+      Reporting.debug(Some(currentTime), "SimController", s"Event queue:\n - ${eventQueue.queue.mkString("\n - ")}")
       val delta = event.time - currentTime
       if (delta > 0.fs) {
         simModel.tick(delta.relative)

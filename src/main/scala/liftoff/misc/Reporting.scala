@@ -1,8 +1,7 @@
 package liftoff.misc
 
-
-
 import liftoff.simulation.Time
+import liftoff.coroutine.ContextVariable
 
 object Reporting {
 
@@ -13,62 +12,90 @@ object Reporting {
   val debugTag   = fansi.Color.Magenta("debug")
 
 
+  val outputStream = new ContextVariable[java.io.PrintStream](System.out)
+  val coloredOutput = new ContextVariable[Boolean](true)
+
+  def withOutput[R](stream: java.io.PrintStream, colored: Boolean = true)(block: => R): R = {
+    outputStream.withValue[R](stream) {
+      coloredOutput.withValue[R](colored) {
+        block
+      }
+    }
+  }
+
   def pathColor(str: String) = {
     str.split("\\.").map(part =>fansi.Color.LightMagenta(part).toString()).mkString(fansi.Color.LightGray(".").toString())
   }
 
-  def reportString(tag: fansi.Str, time: Option[Time], provider: String, message: String): String = {
+  def reportStringColored(tag: fansi.Str, time: Option[Time], provider: String, message: String): String = {
     val tagStr = "[" + tag + "]" + ("─" * (7-tag.length))
     val tagStrNoLine = "[" + tag + "]" + (" " * (7-tag.length))
     val timeStrFmt = time match {
       case Some(t) if t.toString.endsWith("s ") => {
         val timeStr = t.toString.trim
-        ("─" * (8 - timeStr.length)) + "@" + fansi.Color.LightRed(timeStr).toString() + "─"
+        ("─" * (8 - timeStr.length)) + "@" + fansi.Color.LightBlue(timeStr).toString() + "─"
       }
       case Some(t) => {
         val timeStr = t.toString
-        ("─" * (9 - timeStr.length)) + "@" + fansi.Color.LightRed(timeStr).toString()
+        ("─" * (9 - timeStr.length)) + "@" + fansi.Color.True(51,153,255)(timeStr).toString()
       }
       case None => "─" * 10
     }
     val providerStr = fansi.Color.LightGray("[").toString + pathColor(provider) + fansi.Color.LightGray("]").toString() + ("─" * (25 - provider.length))
     val lines = message.split("\n")
-    s"$tagStr─$timeStrFmt─$providerStr─╢ ${lines.mkString(s"\n$tagStrNoLine" + (" " * 40) + "║ ")}\n" + " " * 49 + "║"
+    s"$tagStr─$timeStrFmt─$providerStr─╢ ${lines.mkString(s"\n" + (" " * 49) + "║ ")}\n" + " " * 49 + "║"
+  }
+
+  def reportString(tag: fansi.Str, time: Option[Time], provider: String, message: String): String = {
+    if (coloredOutput.value) {
+      reportStringColored(tag, time, provider, message)
+    } else {
+      val tagStr = "[" + tag.plainText + "]" + ("─" * (7 - tag.plainText.length))
+      val timeStrFmt = time match {
+        case Some(t) =>
+          val timeStr = t.toString
+          ("─" * (9 - timeStr.length)) + "@" + timeStr
+        case None => "─" * 10
+      }
+      val providerStr = "[" + provider + "]" + ("─" * (25 - provider.length))
+      val lines = message.split("\n")
+      s"$tagStr─$timeStrFmt─$providerStr─╢ ${lines.mkString(s"\n" + (" " * 49) + "║ ")}\n" + " " * 49 + "║"
+    }
   }
 
   def infoStr(time: Option[Time], provider: String, message: String): String = {
     reportString(infoTag, time, provider, message)
   }
   def info(time: Option[Time], provider: String, message: String): Unit = {
-    println(infoStr(time, provider, message))
+    outputStream.value.println(infoStr(time, provider, message))
   }
 
   def warnStr(time: Option[Time], provider: String, message: String): String = {
     reportString(warnTag, time, provider, message)
   }
   def warn(time: Option[Time], provider: String, message: String): Unit = {
-    println(warnStr(time, provider, message))
+    outputStream.value.println(warnStr(time, provider, message))
   }
 
   def errorStr(time: Option[Time], provider: String, message: String): String = {
     reportString(errorTag, time, provider, message)
   }
   def error(time: Option[Time], provider: String, message: String): Unit = {
-    println(errorStr(time, provider, message))
+    outputStream.value.println(errorStr(time, provider, message))
   }
 
   def successStr(time: Option[Time], provider: String, message: String): String = {
     reportString(successTag, time, provider, message)
   }
   def success(time: Option[Time], provider: String, message: String): Unit = {
-    println(successStr(time, provider, message))
+    outputStream.value.println(successStr(time, provider, message))
   }
 
   def debugStr(time: Option[Time], provider: String, message: String): String = {
     reportString(debugTag, time, provider, message)
   }
   def debug(time: Option[Time], provider: String, message: String): Unit = {
-    println(debugStr(time, provider, message))
+    outputStream.value.println(debugStr(time, provider, message))
   }
 
 
