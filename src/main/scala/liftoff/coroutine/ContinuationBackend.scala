@@ -61,7 +61,7 @@ class ContinuationCoroutine[I, O, R](scope: ContinuationCoroutineScope, block: =
     scope.current = Some(this.asInstanceOf[ContinuationCoroutine[Any, Any, Any]])
     in = value
     try {
-      continuation.run()
+      Coroutine.withScope(scope)(continuation.run())
     } catch {
       case e: Throwable =>
         out = Failed(e)

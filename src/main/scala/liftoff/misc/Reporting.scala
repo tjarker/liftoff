@@ -23,6 +23,10 @@ object Reporting {
     }
   }
 
+  object NullStream extends java.io.PrintStream(new java.io.OutputStream {
+    def write(b: Int): Unit = {}
+  })
+
   def pathColor(str: String) = {
     str.split("\\.").map(part =>fansi.Color.LightMagenta(part).toString()).mkString(fansi.Color.LightGray(".").toString())
   }

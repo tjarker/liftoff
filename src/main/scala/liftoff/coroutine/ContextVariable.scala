@@ -5,6 +5,7 @@ import liftoff.coroutine.CoroutineScope
 
 import jdk.internal.vm.{Continuation, ContinuationScope}
 
+
 class ContextVariable[T](initial: T) {
 
   val dynVar = new scala.util.DynamicVariable[T](initial)

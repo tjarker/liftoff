@@ -140,14 +140,24 @@ package object coroutine {
         new PlatformThreadedCoroutineScope()
       }
 
-    private val defaultScope: CoroutineScope = factory()
-
     def createScope(): CoroutineScope = factory()
 
     def createScope(backend: CoroutineBackend): CoroutineScope = backend match {
       case ContinuationBackend   => new ContinuationCoroutineScope()
       case VirtualThreadBackend  => new VirtualThreadedCoroutineScope()
       case PlatformThreadBackend => new PlatformThreadedCoroutineScope()
+    }
+
+    val scopeDynamicVar = new scala.util.DynamicVariable[Option[CoroutineScope]](None)
+    def withScope[T](scope: CoroutineScope)(block: => T): T = {
+      scopeDynamicVar.withValue(Some(scope)) {
+        block
+      }
+    }
+    def currentScope: Option[CoroutineScope] = scopeDynamicVar.value
+    def currentCoroutine: Option[Coroutine[Any, Any, Any]] = currentScope match {
+      case Some(scope) => scope.current
+      case None        => None
     }
 
   }

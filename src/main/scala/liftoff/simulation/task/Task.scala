@@ -1,10 +1,21 @@
-package liftoff.simulation
+package liftoff.simulation.task
 
 import liftoff.coroutine.{Coroutine, Result, CoroutineScope}
+import liftoff.simulation.SimControllerYield
+import liftoff.simulation.SimController
+
+
+object Task {
+
+  val ctxVar = new liftoff.coroutine.ContextVariable[Task[?]](null)
+
+  def current: Task[?] = SimController.current.taskScope.getContext[Task[?]](ctxVar).get
+}
 
 class Task[T](
     val name: String,
     scope: CoroutineScope,
+    val order: Int,
     block: => T
 ) {
 

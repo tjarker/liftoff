@@ -13,6 +13,7 @@ object ChiselExposer {
     data.topBindingOpt
   }
 
+  @nowarn("msg=deprecated")
   def dontCareBinding(): internal.DontCareBinding = {
     internal.DontCareBinding()
   }

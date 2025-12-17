@@ -3,6 +3,7 @@ package liftoff.simulation
 import liftoff.simulation.Time.AbsoluteTime
 
 import scala.collection.mutable.{PriorityQueue, ListBuffer}
+import liftoff.simulation.task.Task
 
 
 /**
@@ -16,9 +17,8 @@ trait Event extends Ordered[Event] {
 
 
   def toInt: Int = this match {
-    case _: Event.RunActiveTask => 0
-    case _: Event.RunInactiveTask => 1
-    case _: Event.ClockEdge => 2
+    case _: Event.RunTask => 0
+    case _: Event.ClockEdge => 1
   }
 
 
@@ -31,7 +31,12 @@ trait Event extends Ordered[Event] {
   */
   def compare(that: Event): Int = {
     if (this.time.fs == that.time.fs) { // is this at the same time as that?
-      that.toInt - this.toInt // order by event type
+      (this, that) match {
+        case (e1: Event.RunTask, e2: Event.RunTask) =>
+          e2.order - e1.order // order by task order
+        case _ =>
+          that.toInt - this.toInt // order by event type
+      }
     } else {
       (that.time.fs - this.time.fs).toInt // order by time
     }
@@ -39,11 +44,8 @@ trait Event extends Ordered[Event] {
 }
 
 object Event {
-  case class RunActiveTask(time: AbsoluteTime, task: Task[_]) extends Event {
+  case class RunTask(time: AbsoluteTime, task: Task[_], order: Int) extends Event {
     override def toString(): String = s"RunTask(${time}, ${task})"
-  }
-  case class RunInactiveTask(time: AbsoluteTime, task: Task[_]) extends Event {
-    override def toString(): String = s"RunInactiveTask(${time}, ${task})"
   }
   case class ClockEdge(time: AbsoluteTime, clock: InputPortHandle, period: Time, rising: Boolean) extends Event {
     override def toString(): String = s"ClockEdge(${time}, ${clock}, ${period}, ${if (rising) "rising" else "falling"})"
@@ -80,7 +82,7 @@ class EventQueue {
 
   def containsActiveTasks: Boolean = {
     queue.exists {
-      case Event.RunActiveTask(_, _) => true
+      case Event.RunTask(_, _, order) if order < Int.MaxValue => true
       case _ => false
     }
   }

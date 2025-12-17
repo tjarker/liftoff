@@ -7,6 +7,7 @@ import scala.util.DynamicVariable
 import liftoff.misc.Reporting
 import liftoff.coroutine.Yielded
 import chisel3.Output
+import liftoff.simulation.task.Task
 
 trait SimControllerYield
 case class Step(clockPort: InputPortHandle, cycles: Int) extends SimControllerYield
@@ -106,9 +107,7 @@ class SimController(simModel: SimModel) {
           clockPort.set(0)
           eventQueue.enqueue(Event.ClockEdge((currentTime + (period / 2)).absolute, clockPort, period, true))
         }
-      case Event.RunActiveTask(_, task) =>
-        handleTask(task)
-      case Event.RunInactiveTask(_, task) =>
+      case Event.RunTask(_, task, _) =>
         handleTask(task)
     }
   }
@@ -141,17 +140,16 @@ class SimController(simModel: SimModel) {
               throw new Exception("No clock period")
             })
             val nextTime = if (nextFallingEdge == currentTime) nextFallingEdge + (period * cycles) else nextFallingEdge + (period * (cycles - 1))
-            eventQueue.enqueue(Event.RunActiveTask(nextTime.absolute, t))
+            eventQueue.enqueue(Event.RunTask(nextTime.absolute, t, t.order))
 
           case YieldedWith(TickFor(duration)) =>
             Reporting.debug(Some(currentTime), "SimController", s"Ticking task ${t.name} for duration ${duration}")
             val nextTime = currentTime + duration
-            eventQueue.enqueue(Event.RunActiveTask(nextTime.absolute, t))
+            eventQueue.enqueue(Event.RunTask(nextTime.absolute, t, t.order))
 
           case YieldedWith(TickUntil(time)) =>
             Reporting.debug(Some(currentTime), "SimController", s"Ticking task ${t.name} until time ${time}")
-            eventQueue.enqueue(Event.RunActiveTask(time.absolute, t))
-
+            eventQueue.enqueue(Event.RunTask(time.absolute, t, t.order))
           
           case Yielded => // do nothing, will be resumed manually
 
@@ -213,37 +211,31 @@ class SimController(simModel: SimModel) {
     port.set(value)
   }
 
-  def addActiveTask(name: String)(block: => Unit): Unit = {
-    Reporting.debug(Some(currentTime), "SimController", s"Adding active task: ${name}")
-    val task = new Task[Unit](name, taskScope, {
-      block
+  def addTask[T](name: String, order: Int)(block: => T): Task[T] = {
+    Reporting.debug(Some(currentTime), "SimController", s"Adding task: ${name} with order ${order}")
+    var task: Task[T] = null
+    task = new Task[T](name, taskScope, order, {
+      taskScope.withContext[Task[?], T](Task.ctxVar, task) {
+        block
+      }
     })
-    eventQueue.enqueue(Event.RunActiveTask(currentTime, task))
+    eventQueue.enqueue(Event.RunTask(currentTime, task, order))
+    task
   }
 
-  def addInactiveTask(name: String)(block: => Unit): Unit = {
-    Reporting.debug(Some(currentTime), "SimController", s"Adding inactive task: ${name}")
-    val task = new Task[Unit](name, taskScope, {
-      block
-    })
-    eventQueue.enqueue(Event.RunInactiveTask(currentTime, task))
+  def scheduleTaskAt(time: AbsoluteTime, task: Task[_]): Unit = {
+    Reporting.debug(Some(currentTime), "SimController", s"Scheduling task ${task.name} at time ${time}")
+    eventQueue.enqueue(Event.RunTask(time, task, task.order))
   }
 
-  def scheduleActiveTaskAt(time: AbsoluteTime, block: => Unit): Unit = {
-    eventQueue.enqueue(Event.RunActiveTask(time, new Task[Unit](s"task", taskScope, block)))
-  }
-  def scheduleActiveTaskNow(block: => Unit): Unit = {
-    eventQueue.enqueue(Event.RunActiveTask(currentTime, new Task[Unit](s"task", taskScope, block)))
-  }
-  def scheduleInactiveTaskAt(time: AbsoluteTime, block: => Unit): Unit = {
-    eventQueue.enqueue(Event.RunInactiveTask(time, new Task[Unit](s"task", taskScope, block)))
-  }
-  def scheduleInactiveTaskNow(block: => Unit): Unit = {
-    eventQueue.enqueue(Event.RunInactiveTask(currentTime, new Task[Unit](s"task", taskScope, block)))
-  }
+  def scheduleTaskNow(task: Task[_]): Unit = scheduleTaskAt(currentTime, task)
 
   def suspendWith(v: SimControllerYield): Unit = {
     taskScope.suspendWith(v)
+  }
+
+  def suspend(): Unit = {
+    taskScope.suspend()
   }
 
 }

@@ -70,7 +70,7 @@ class SimControllerTests extends AnyWordSpec with Matchers {
       Reporting.withOutput(buildDir.addLoggingFile("simulation.log")) {
 
         SimController.runWith(ctrl) {
-          ctrl.addActiveTask("main task") {
+          ctrl.addTask("main task", 0) {
             SimController.current.addClockDomain(Dut.clk, 10.fs, Seq(Dut.a, Dut.b, Dut.op, Dut.result))
             Dut.a.set(5)
             Dut.b.set(3)

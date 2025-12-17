@@ -73,10 +73,10 @@ class PeekPokeAPITests extends AnyWordSpec with Matchers with liftoff.chiselbrid
             dut.io.vecIn(2).getPortHandle,
           ))
 
-          controller.addActiveTask("root") {
+          controller.addTask("root", 0) {
 
 
-            SimController.current.addInactiveTask("monitor") { for (_ <- 0 until 5) {
+            SimController.current.addTask("monitor", Int.MaxValue) { for (_ <- 0 until 5) {
                 //print inputs and outputs
                 Reporting.info(Some(controller.currentTime), "Test", s"in: ${dut.io.in.peek().litValue}")
                 Reporting.info(Some(controller.currentTime), "Test", s"out: ${dut.io.out.peek().litValue}")

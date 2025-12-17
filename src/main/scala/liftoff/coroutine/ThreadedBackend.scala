@@ -59,7 +59,7 @@ class ThreadedCoroutine[I, O, R](block: => R, scope: ThreadedCoroutineScope, ini
 
   val thread = scope.threadFactory(new Runnable {
 
-      def run(): Unit = {
+      def run(): Unit = Coroutine.withScope(scope) {
         try {
           val res = block
           out = Finished(res)
