@@ -99,6 +99,7 @@ class SimController(simModel: SimModel) {
         if (rising) {
           // clear output cache on clock edges
           outputCache.clear()
+          inputDirty.clear()
           clockPort.set(1)
           eventQueue.enqueue(Event.ClockEdge((currentTime + (period / 2)).absolute, clockPort, period, false))
         } else {
@@ -182,6 +183,8 @@ class SimController(simModel: SimModel) {
     }
     port match {
       case iph: InputPortHandle =>
+        if (inputDirty.contains(iph)) Reporting.warn(Some(currentTime), "SimController", s"Reading dirty input port ${iph.name}")
+        inputDirty.add(iph)
         inputCache.getOrElseUpdate(iph, iph.get())
       case oph: OutputPortHandle =>
         outputCache.getOrElseUpdate(oph, oph.get())
@@ -202,6 +205,10 @@ class SimController(simModel: SimModel) {
       taskScope.suspendWith(TickUntil(nextDriveTime.absolute))
       Reporting.debug(Some(currentTime), "SimController", s"Resumed for driving port ${port.name} at time ${currentTime}")
     }
+    if (inputDirty.contains(port)) {
+      Reporting.error(Some(currentTime), "SimController", s"Overwriting input port ${port.name} after it has been read")
+    }
+    inputDirty.add(port)
     inputCache(port) = value
     port.set(value)
   }

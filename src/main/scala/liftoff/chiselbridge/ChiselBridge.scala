@@ -29,7 +29,7 @@ object ChiselBridge {
   }
 
   def emitSystemVerilogFile(m: => chisel3.RawModule, dir: WorkingDirectory) = {
-    ChiselStage.emitSystemVerilogFile(
+    chisel3.emitVerilog(
       m,
       Array(
         "--target-dir",

@@ -23,12 +23,18 @@ javacOptions += "--add-exports=java.base/jdk.internal.vm=ALL-UNNAMED"
 
 libraryDependencies += "net.java.dev.jna" % "jna" % "5.13.0"
 
+libraryDependencies += "org.scala-sbt" % "test-interface" % "1.0"
+
 libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.19" % "test"
 
 libraryDependencies += "com.lihaoyi" %% "fansi" % "0.5.0"
 
-val chiselVersion = "6.0.0"
-addCompilerPlugin(
-  "org.chipsalliance" % "chisel-plugin" % chiselVersion cross CrossVersion.full
-)
-libraryDependencies += "org.chipsalliance" %% "chisel" % chiselVersion
+// val chiselVersion = "6.0.0"
+// addCompilerPlugin(
+//   "org.chipsalliance" % "chisel-plugin" % chiselVersion cross CrossVersion.full
+// )
+// libraryDependencies += "org.chipsalliance" %% "chisel" % chiselVersion
+
+val chiselVersion = "3.6.1"
+addCompilerPlugin("edu.berkeley.cs" %% "chisel3-plugin" % chiselVersion cross CrossVersion.full)
+libraryDependencies += "edu.berkeley.cs" %% "chisel3" % chiselVersion

@@ -33,7 +33,7 @@ class PeekPokeAPITests extends AnyWordSpec with Matchers with liftoff.chiselbrid
   }
 
   "The Chisel PeekPokeAPI" should {
-    "not throw errors when poking and peeking ports" in {
+    "allow peeking and poking simple, structured and aggregate ports" in {
       
 
 
@@ -46,8 +46,8 @@ class PeekPokeAPITests extends AnyWordSpec with Matchers with liftoff.chiselbrid
 
       val simModel = VerilatorSimModelFactory.create(
         "MyModule",
-        workingDir.addSubDir(workingDir / "verilator"),
-        Seq(workingDir / "MyModule.sv"),
+        workingDir,
+        Seq(workingDir / "MyModule.v"),
         verilatorOptions = Seq(),
         cOptions = Seq()
       ).createModel(runDir)
