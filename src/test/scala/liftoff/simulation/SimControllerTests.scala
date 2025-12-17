@@ -1,18 +1,22 @@
-package liftoff.simulation.verilator
+package liftoff.simulation
 
 import org.scalatest.wordspec.AnyWordSpec
 import org.scalatest.matchers.should.Matchers
+
 import liftoff.misc.PathToFileOps
-import java.io.File
+import liftoff.simulation.verilator.VerilatorSimModelFactory
 import liftoff.simulation.Time._
-import liftoff.simulation.verilator.Verilator.Arguments.CustomFlag
+import liftoff.coroutine.CoroutineScope
+import liftoff.coroutine.Coroutine
+import scala.util.DynamicVariable
 import liftoff.misc.Reporting
 
-class VerilatorSimModelTests extends AnyWordSpec with Matchers {
 
-  "VerilatorSimModelFactory" should {
+class SimControllerTests extends AnyWordSpec with Matchers {
 
-    "create a VerilatorSimModel with correct name and ports" in {
+
+  "A SimController" should {
+    "Run" in {
 
       val buildDir = "build/verilator_test".toDir
       buildDir.createIfNotExists()
@@ -53,43 +57,35 @@ class VerilatorSimModelTests extends AnyWordSpec with Matchers {
       )
 
       val simModel = factory.createModel(buildDir.addSubDir(buildDir / "sim"))
+      val ctrl = new SimController(simModel)
 
       object Dut {
-        val clk = simModel.getInputPortHandle("clk").get
-        val a = simModel.getInputPortHandle("a").get
-        val b = simModel.getInputPortHandle("b").get
-        val op = simModel.getInputPortHandle("op").get
-        val result = simModel.getOutputPortHandle("result").get
+        val clk = ctrl.getInputPortHandle("clk").get
+        val a = ctrl.getInputPortHandle("a").get
+        val b = ctrl.getInputPortHandle("b").get
+        val op = ctrl.getInputPortHandle("op").get
+        val result = ctrl.getOutputPortHandle("result").get
       }
 
-      for (op <- 0 to 3) {
-        for (aval <- 0 to 15) {
-          for (bval <- 0 to 15) {
-            Dut.clk.set(0)
-            Dut.a.set(aval)
-            Dut.b.set(bval)
-            Dut.op.set(op)
-            simModel.tick(1.fs.relative)
-            Dut.clk.set(1)
-            simModel.tick(1.fs.relative)
+      Reporting.withOutput(buildDir.addLoggingFile("simulation.log")) {
 
-            val expected = op match {
-              case 0 => aval + bval
-              case 1 => aval - bval
-              case 2 => aval & bval
-              case 3 => aval | bval
-            }
-            val expectedMasked = expected & 0xF
-
-            Dut.result.get().toInt shouldBe expectedMasked
+        SimController.runWith(ctrl) {
+          ctrl.addActiveTask("main task") {
+            SimController.current.addClockDomain(Dut.clk, 10.fs, Seq(Dut.a, Dut.b, Dut.op, Dut.result))
+            Dut.a.set(5)
+            Dut.b.set(3)
+            Dut.op.set(0)
+            SimController.current.suspendWith(Step(Dut.clk, 2))
+            Dut.result.get() shouldBe 8
           }
+          
+
+          ctrl.run()
+          simModel.cleanup()
         }
       }
 
-      simModel.cleanup()
-
     }
-
   }
 
 }

@@ -9,7 +9,6 @@ import liftoff.misc.SharedObject
 
 import liftoff.misc.WorkingDirectory
 import liftoff.simulation.PortHandle
-import coursier.core.Repository.Complete.Input.Ver
 
 object VerilatorModelHarness {
 
