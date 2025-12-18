@@ -28,6 +28,7 @@ libraryDependencies += "org.scala-sbt" % "test-interface" % "1.0"
 libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.19" % "test"
 
 libraryDependencies += "com.lihaoyi" %% "fansi" % "0.5.0"
+libraryDependencies += "com.lihaoyi" %% "sourcecode" % "0.4.2"
 
 // val chiselVersion = "6.0.0"
 // addCompilerPlugin(

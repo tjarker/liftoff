@@ -7,9 +7,14 @@ import liftoff.simulation.SimController
 
 object Task {
 
-  val ctxVar = new liftoff.coroutine.ContextVariable[Task[?]](null)
+  val ctxVar = new liftoff.coroutine.InheritableCoroutineLocal[Task[?]](null)
 
-  def current: Task[?] = SimController.current.taskScope.getContext[Task[?]](ctxVar).get
+  def current: Task[?] = ctxVar.value
+  def withValue[T](task: Task[?])(block: => T): T = {
+    ctxVar.withValue[T](task) {
+      block
+    }
+  }
 }
 
 class Task[T](
@@ -22,7 +27,7 @@ class Task[T](
   val coroutine = scope.create[Unit, SimControllerYield, T](block)
 
   def runStep(): Result[SimControllerYield, T] = {
-    coroutine.resume()
+    coroutine.resume(None)
   }
 
 

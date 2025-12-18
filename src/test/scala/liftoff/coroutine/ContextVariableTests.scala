@@ -3,9 +3,12 @@ package liftoff.coroutine
 import org.scalatest.wordspec.AnyWordSpec
 import org.scalatest.matchers.should.Matchers
 import liftoff.coroutine.Coroutine
+import liftoff.coroutine.CurrentScope
 
 object ContextVariableTests {
-  val contextVar = new ContextVariable[Int](10)
+  val contextVar = new InheritableCoroutineLocal[Int](10)
+  def value: Int = contextVar.value
+  def withValue[T](newValue: Int)(block: => T): T = contextVar.withValue(newValue)(block)
 }
 
 class ContextVariableTests extends AnyWordSpec with Matchers {
@@ -31,61 +34,59 @@ class ContextVariableTests extends AnyWordSpec with Matchers {
       s"using the $backend backend" should {
         val scope = Coroutine.createScope(backend)
 
-        "hold and update values correctly" in {
-          ContextVariableTests.contextVar.withValueScoped(scope, 100) {
-            scope.getContext[Int](ContextVariableTests.contextVar) shouldBe Some(100)
+        CurrentScope.value = Some(scope)
 
-            scope.withContext(ContextVariableTests.contextVar, 200) {
-              scope.getContext[Int](ContextVariableTests.contextVar) shouldBe Some(200)
+        "hold and update values correctly" in {
+          ContextVariableTests.withValue(100) {
+            ContextVariableTests.value shouldBe 100
+
+            ContextVariableTests.withValue(200) {
+              ContextVariableTests.value shouldBe 200
             }
 
-            scope.getContext[Int](ContextVariableTests.contextVar) shouldBe Some(100)
+            ContextVariableTests.value shouldBe 100
           }
-          scope.getContext[Int](ContextVariableTests.contextVar) shouldBe Some(10)
+          ContextVariableTests.value shouldBe 10
         }
 
         "work with key-value context variables" in {
           val key = new Object()
-          scope.withContext(key, "initial") {
-            scope.getContext[String](key) shouldBe Some("initial")
+          Coroutine.withLocal(key, "initial") {
+            Coroutine.getLocal[String](key) shouldBe Some("initial")
 
-            scope.withContext(key, "updated") {
-              scope.getContext[String](key) shouldBe Some("updated")
+            Coroutine.withLocal(key, "updated") {
+              Coroutine.getLocal[String](key) shouldBe Some("updated")
             }
           }
         }
 
         "work with coroutines" in {
-          ContextVariableTests.contextVar.withValue(300) {
+          ContextVariableTests.withValue(300) {
 
             var inner: Coroutine[Unit, Unit, Unit] = null
-            scope.getContext[Int](ContextVariableTests.contextVar) shouldBe Some(300)
+            ContextVariableTests.value shouldBe 300
 
             val outer = scope.create[Unit, Unit, Unit] {
-              scope.getContext[Int](ContextVariableTests.contextVar) shouldBe Some(300)
-              ContextVariableTests.contextVar.withValueScoped(scope, 400) {
+              ContextVariableTests.value shouldBe 300
+              ContextVariableTests.withValue(400) {
                 inner = scope.create[Unit, Unit, Unit] {
-                  scope.getContext[Int](ContextVariableTests.contextVar) shouldBe Some(400)
+                  ContextVariableTests.value shouldBe 400
                 }
-                scope.suspend[Unit]()
-                scope.getContext[Int](ContextVariableTests.contextVar) shouldBe Some(400)
+                scope.suspend[Unit, Unit](None)
+                ContextVariableTests.value shouldBe 400
               }
-              scope.getContext[Int](ContextVariableTests.contextVar) shouldBe Some(300)
+              ContextVariableTests.value shouldBe 300
 
             } 
 
-            outer.resume() shouldBe Yielded
-            outer.resume() shouldBe Finished(())
+            outer.resume(None) shouldBe Yielded
+            outer.resume(None) shouldBe Finished(())
 
-            inner.resume() shouldBe Finished(())
+            inner.resume(None) shouldBe Finished(())
 
           }
         }
-
-
       }
     }
   }
-
-  
 }

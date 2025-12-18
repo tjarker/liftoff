@@ -9,7 +9,7 @@ object Gen {
     val scope = Coroutine.currentScope.getOrElse {
       throw new Exception("Calling emit outside of a generator")
     }
-    scope.suspendWith[F](v)
+    scope.suspend[F, T](Some(v))
   }
 
 
@@ -77,7 +77,7 @@ class BiGen[I, O](block: => Unit) {
   var nextValue: O = null.asInstanceOf[O]
   var notDone = true
 
-  coroutine.resume() match {
+  coroutine.resume(None) match {
     case YieldedWith(v) =>
       nextValue = v
     case Finished(_) =>

@@ -1,6 +1,25 @@
 package liftoff
 
+import scopt.Opt
+
 package object config {
+
+  abstract class Field[T] private (val default: Option[T]) {
+    def this() = this(None)
+    def this(default: T) = this(Some(default))
+  }
+
+  abstract class View {
+    final def get[T](pname: Field[T]): T = {
+      val out = find(pname)
+      require(out.isDefined, s"Required config field not found: $pname")
+      out.get
+    }
+
+    final def tryGet[T](pname: Field[T]): Option[T] = find(pname)
+
+    def find[T](pname: Field[T]): Option[T]
+  }
   
 
   trait Config {

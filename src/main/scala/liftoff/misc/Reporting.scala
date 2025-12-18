@@ -1,7 +1,7 @@
 package liftoff.misc
 
 import liftoff.simulation.Time
-import liftoff.coroutine.ContextVariable
+import liftoff.coroutine.InheritableCoroutineLocal
 
 object Reporting {
 
@@ -12,8 +12,8 @@ object Reporting {
   val debugTag   = fansi.Color.Magenta("debug")
 
 
-  val outputStream = new ContextVariable[java.io.PrintStream](System.out)
-  val coloredOutput = new ContextVariable[Boolean](true)
+  val outputStream = new InheritableCoroutineLocal[java.io.PrintStream](System.out)
+  val coloredOutput = new InheritableCoroutineLocal[Boolean](true)
 
   def withOutput[R](stream: java.io.PrintStream, colored: Boolean = true)(block: => R): R = {
     outputStream.withValue[R](stream) {

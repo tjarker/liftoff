@@ -5,16 +5,15 @@ import scala.collection.mutable
 package object coroutine {
 
   trait Coroutine[I, O, R] {
-    private[coroutine] def resume(value: Option[I]): Result[O, R]
 
-    def resumeWith(value: I): Result[O, R] = resume(Some(value))
-    def resume(): Result[O, R] = resume(None)
+    def resume(value: Option[I]): Result[O, R]
     def cancel(): Unit
+
+    def parent: Option[Coroutine[Any, Any, Any]]
+
 
     private[coroutine] var in: Option[I]
     private[coroutine] var out: Result[O, R]
-
-    private[coroutine] val context: mutable.Map[Object, Any]
   }
 
   class ResumedCancelledCoroutineException
@@ -22,69 +21,17 @@ package object coroutine {
 
   trait CoroutineScope {
     def create[I, O, R](block: => R): Coroutine[I, O, R]
-    private[coroutine] def suspend[I, O](value: Option[O]): Option[I]
-    def suspendWith[I](value: Any): Option[I] = suspend[I, Any](Some(value))
-    def suspend[I](): Option[I] = suspend[I, Any](None)
-    def current: Option[Coroutine[Any, Any, Any]]
-
-    val scopeContext = mutable.Map[Object, Any]()
-
-    def getContextMap: Map[Object, Any] = current match {
-      case Some(coroutine) => coroutine.context.toMap
-      case None            => scopeContext.toMap
-    }
-
-    def getContext[T](key: Object): Option[T] =
-      current match {
-        case Some(coroutine) =>
-          key match {
-            case sv: ContextVariable[_] =>
-              coroutine.context
-                .get(key)
-                .orElse(scopeContext.get(key))
-                .orElse(Some(sv.value))
-                .map(_.asInstanceOf[T])
-            case _ =>
-              coroutine.context
-                .get(key)
-                .orElse(scopeContext.get(key))
-                .asInstanceOf[Option[T]]
-          }
-        case None =>
-          key match {
-            case sv: ContextVariable[_] =>
-              scopeContext
-                .get(key)
-                .orElse(Some(sv.value))
-                .map(_.asInstanceOf[T])
-            case _ => scopeContext.get(key).asInstanceOf[Option[T]]
-          }
-      }
-
-    def withContext[T, R](key: Object, value: T)(block: => R): R = {
-      val oldValue = current match {
-        case Some(coroutine) => coroutine.context.get(key).orElse(scopeContext.get(key))
-        case None            => scopeContext.get(key)
-      }
-      setContext(key, value)
-      try {
-        block
-      } finally {
-        oldValue match {
-          case Some(v) => setContext(key, v)
-          case None    =>
-            current match {
-              case Some(coroutine) => coroutine.context.remove(key)
-              case None            => scopeContext.remove(key)
-            }
-        }
-      }
-    }
-    private def setContext[T](key: Object, value: T): Unit =
-      current match {
-        case Some(coroutine) => coroutine.context(key) = value
-        case None            => scopeContext(key) = value
-      }
+    def suspend[I, O](value: Option[O]): Option[I]
+    def currentCoroutine: Option[Coroutine[Any, Any, Any]]
+    def registerLocal[T](l: InheritableCoroutineLocal[T]): Unit
+    def getLocal[T](key: AnyRef): Option[T]
+    def setLocal[T](key: AnyRef, value: T): Unit
+  }
+  
+  trait CoroutineLocals {
+    def registerLocal[T](l: InheritableCoroutineLocal[T]): Unit
+    def getLocal[T](key: AnyRef): Option[T]
+    def setLocal[T](key: AnyRef, value: T): Unit
   }
 
   trait Result[+O, +R] {
@@ -148,18 +95,45 @@ package object coroutine {
       case PlatformThreadBackend => new PlatformThreadedCoroutineScope()
     }
 
-    val scopeDynamicVar = new scala.util.DynamicVariable[Option[CoroutineScope]](None)
-    def withScope[T](scope: CoroutineScope)(block: => T): T = {
-      scopeDynamicVar.withValue(Some(scope)) {
+
+    def getLocal[T](key: AnyRef): Option[T] = currentScope match {
+      case Some(scope) => scope.getLocal[T](key)
+      case None        => throw new RuntimeException("No current coroutine scope")
+    }
+    def setLocal[T](key: AnyRef, value: T): Unit = currentScope match {
+      case Some(scope) => scope.setLocal[T](key, value)
+      case None        => throw new RuntimeException("No current coroutine scope")
+    }
+    def withLocal[T, R](key: AnyRef, value: T)(block: => R): R = {
+      val oldValue = getLocal[T](key)
+      setLocal[T](key, value)
+      try {
         block
+      } finally {
+        oldValue match {
+          case Some(v) => setLocal[T](key, v)
+          case None    => () // do nothing
+        }
       }
     }
-    def currentScope: Option[CoroutineScope] = scopeDynamicVar.value
+
+
+    def currentScope: Option[CoroutineScope] = CurrentScope.value
     def currentCoroutine: Option[Coroutine[Any, Any, Any]] = currentScope match {
-      case Some(scope) => scope.current
+      case Some(scope) => scope.currentCoroutine
       case None        => None
     }
 
   }
+
+  object CurrentScope extends ContextVariable[Option[CoroutineScope]] {
+    val inheritableThreadLocal =new InheritableThreadLocal[Option[CoroutineScope]] {
+      override def initialValue(): Option[CoroutineScope] = None
+    }
+
+    def value: Option[CoroutineScope] = inheritableThreadLocal.get()
+    def value_=(newValue: Option[CoroutineScope]): Unit = inheritableThreadLocal.set(newValue)
+
+  } 
 
 }

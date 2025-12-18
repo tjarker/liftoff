@@ -176,7 +176,7 @@ class SimController(simModel: SimModel) {
     }
     if (currentTime != nextSamplingTime) {
       Reporting.debug(Some(currentTime), "SimController", s"Advancing time from ${currentTime} to ${nextSamplingTime} to sample port ${port.name}")
-      taskScope.suspendWith(TickUntil(nextSamplingTime.absolute))
+      taskScope.suspend(Some(TickUntil(nextSamplingTime.absolute)))
       Reporting.debug(Some(currentTime), "SimController", s"Resumed for sampling port ${port.name} at time ${currentTime}")
     }
     port match {
@@ -200,7 +200,7 @@ class SimController(simModel: SimModel) {
     }
     if (currentTime != nextDriveTime) {
       Reporting.debug(Some(currentTime), "SimController", s"Advancing time from ${currentTime} to ${nextDriveTime} to drive port ${port.name}")
-      taskScope.suspendWith(TickUntil(nextDriveTime.absolute))
+      taskScope.suspend(Some(TickUntil(nextDriveTime.absolute)))
       Reporting.debug(Some(currentTime), "SimController", s"Resumed for driving port ${port.name} at time ${currentTime}")
     }
     if (inputDirty.contains(port)) {
@@ -215,7 +215,7 @@ class SimController(simModel: SimModel) {
     Reporting.debug(Some(currentTime), "SimController", s"Adding task: ${name} with order ${order}")
     var task: Task[T] = null
     task = new Task[T](name, taskScope, order, {
-      taskScope.withContext[Task[?], T](Task.ctxVar, task) {
+      Task.withValue[T](task) {
         block
       }
     })
@@ -231,11 +231,11 @@ class SimController(simModel: SimModel) {
   def scheduleTaskNow(task: Task[_]): Unit = scheduleTaskAt(currentTime, task)
 
   def suspendWith(v: SimControllerYield): Unit = {
-    taskScope.suspendWith(v)
+    taskScope.suspend(Some(v))
   }
 
   def suspend(): Unit = {
-    taskScope.suspend()
+    taskScope.suspend[Unit, SimControllerYield](None)
   }
 
 }

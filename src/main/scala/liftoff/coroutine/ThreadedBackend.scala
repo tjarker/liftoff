@@ -16,51 +16,78 @@ class ThreadedCoroutineScope(val threadFactory: Runnable => Thread) extends Coro
   var shouldWait: Boolean = false
 
   var current: Option[ThreadedCoroutine[Any, Any, Any]] = None
-
-  def currentContext: Map[Object, Any] = current match {
-    case None => scopeContext.toMap
-    case Some(coroutine) => coroutine.context.toMap
-  }
+  def currentCoroutine: Option[Coroutine[Any,Any,Any]] = current
 
   def create[I, O, R](block: => R): Coroutine[I, O,R] = {
-    new ThreadedCoroutine[I, O, R](block, this, currentContext)
+    new ThreadedCoroutine[I, O, R](block, this, current)
   }
 
   // this is coroutine code
   def suspend[I, O](value: Option[O]): Option[I] = {
-    val localCurrent = this.current.get
-    localCurrent.out = value match {
+    val self = this.current.get
+    self.out = value match {
       case Some(v) => YieldedWith(v)
       case None => Yielded
     }
-    localCurrent.shouldSleep = true // setup sleeping
+    self.shouldSleep = true // setup sleeping
     this.shouldWait = false // setup caller waking
-    LockSupport.unpark(localCurrent.caller) // wake up caller
+    LockSupport.unpark(self.caller) // wake up caller
     LockSupport.park() // sleep coroutine
-    while (localCurrent.shouldSleep) LockSupport.park() // wait to be resumed
-    if (localCurrent.hasBeenCancelled) throw ThreadedCoroutineCancelledException // check for cancellation
-    localCurrent.in.asInstanceOf[Option[I]] // return input value
+    while (self.shouldSleep) LockSupport.park() // wait to be resumed
+    if (self.hasBeenCancelled) throw ThreadedCoroutineCancelledException // check for cancellation
+    self.in.asInstanceOf[Option[I]] // return input value
+  }
+
+  def registerLocal[T](l: InheritableCoroutineLocal[T]): Unit = {
+    ThreadedCoroutineLocals.registerLocal[T](l)
+  }
+
+  def getLocal[T](key: AnyRef): Option[T] = {
+    ThreadedCoroutineLocals.getLocal[T](key)
+  }
+
+  def setLocal[T](key: AnyRef, value: T): Unit = {
+    ThreadedCoroutineLocals.setLocal[T](key, value)
+  }
+
+}
+
+object ThreadedCoroutineLocals extends CoroutineLocals {
+  val locals = new scala.util.DynamicVariable[mutable.Map[AnyRef, Any]](mutable.Map())
+
+  def registerLocal[T](l: InheritableCoroutineLocal[T]): Unit = { 
+    // do nothing
+  }
+  def getLocal[T](key: AnyRef): Option[T] = {
+    key match {
+      case ctxVar: InheritableCoroutineLocal[T] => Some(ctxVar.inheritableThreadLocal.get())
+      case _ => ThreadedCoroutineLocals.locals.value.get(key).map(_.asInstanceOf[T])
+    }
+  }
+  def setLocal[T](key: AnyRef, value: T): Unit = {
+    key match {
+      case ctxVar: InheritableCoroutineLocal[T] => ctxVar.inheritableThreadLocal.set(value)
+      case _ => ThreadedCoroutineLocals.locals.value(key) = value
+    }
   }
 }
 
 
-class ThreadedCoroutine[I, O, R](block: => R, scope: ThreadedCoroutineScope, initialContext: Map[Object, Any]) extends Coroutine[I, O, R] {
+class ThreadedCoroutine[I, O, R](block: => R, scope: ThreadedCoroutineScope, val parent: Option[Coroutine[Any, Any, Any]]) extends Coroutine[I, O, R] {
 
   var hasStarted: Boolean = false
   var hasBeenCancelled: Boolean = false
   var shouldSleep: Boolean = false
   var caller: Thread = null
 
-  val context = mutable.Map[Object, Any]()
-  context.addAll(initialContext)
-
   var in: Option[I] = None
   var out: Result[O, R] = null
 
   val thread = scope.threadFactory(new Runnable {
 
-      def run(): Unit = Coroutine.withScope(scope) {
+      def run(): Unit = {
         try {
+          CurrentScope.value = Some(scope)
           val res = block
           out = Finished(res)
         } catch {
