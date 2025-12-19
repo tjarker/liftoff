@@ -34,8 +34,6 @@ class ContextVariableTests extends AnyWordSpec with Matchers {
       s"using the $backend backend" should {
         val scope = Coroutine.createScope(backend)
 
-        CurrentScope.value = Some(scope)
-
         "hold and update values correctly" in {
           ContextVariableTests.withValue(100) {
             ContextVariableTests.value shouldBe 100
@@ -77,7 +75,7 @@ class ContextVariableTests extends AnyWordSpec with Matchers {
               }
               ContextVariableTests.value shouldBe 300
 
-            } 
+            }
 
             outer.resume(None) shouldBe Yielded
             outer.resume(None) shouldBe Finished(())

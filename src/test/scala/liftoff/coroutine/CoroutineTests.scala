@@ -81,10 +81,10 @@ class CoroutineTests extends AnyWordSpec with Matchers {
           outerCoroutine.resume(None) shouldBe Finished(100)
         }
 
-        "support deamon coroutines" in {
-          var deamon = Option.empty[Coroutine[Int, Int, Int]]
+        "support daemon coroutines" in {
+          var daemon = Option.empty[Coroutine[Int, Int, Int]]
           val mainCoroutine = scope.create[Int, Int, Int] {
-            deamon = Some(scope.create[Int, Int, Int] {
+            daemon = Some(scope.create[Int, Int, Int] {
               val ret = scope.suspend[Int, Int](Some(12)).get
               ret
             })
@@ -93,8 +93,8 @@ class CoroutineTests extends AnyWordSpec with Matchers {
           }
           mainCoroutine.resume(None) shouldBe Yielded
           mainCoroutine.resume(None) shouldBe Finished(456)
-          deamon.get.resume(None) shouldBe YieldedWith(12)
-          deamon.get.resume(Some(56)) shouldBe Finished(56)
+          daemon.get.resume(None) shouldBe YieldedWith(12)
+          daemon.get.resume(Some(56)) shouldBe Finished(56)
 
         }
 
@@ -105,9 +105,9 @@ class CoroutineTests extends AnyWordSpec with Matchers {
           var nestedCont: Coroutine[Unit, Unit, Unit] = null
 
           dyn.value shouldBe -1
-          dyn.withValue(0) {
+          val root = dyn.withValue(0) {
             dyn.value shouldBe 0
-            val root = scope.create[Unit, Unit, Unit] {
+            scope.create[Unit, Unit, Unit] {
               dyn.value shouldBe 0
               dyn.withValue(1) {
                 scope.suspend(None)
@@ -132,22 +132,21 @@ class CoroutineTests extends AnyWordSpec with Matchers {
                 scope.suspend(None)
                 dyn.value shouldBe 1
               }
-              dyn.value shouldBe 0
             }
-            root.resume(None) shouldBe Yielded
-            dyn.value shouldBe 0
-            root.resume(None) shouldBe Yielded
-            dyn.value shouldBe 0
-            root.resume(None) shouldBe Finished(())
-            dyn.value shouldBe 0
-
-            nestedCont.resume(None) shouldBe Yielded
-            dyn.value shouldBe 0
-            nestedCont.resume(None) shouldBe Yielded
-            dyn.value shouldBe 0
-            nestedCont.resume(None) shouldBe Finished(())
-            dyn.value shouldBe 0
           }
+          dyn.value shouldBe -1
+          root.resume(None) shouldBe Yielded
+          dyn.value shouldBe -1
+          root.resume(None) shouldBe Yielded
+          dyn.value shouldBe -1
+          root.resume(None) shouldBe Finished(())
+          dyn.value shouldBe -1
+
+          nestedCont.resume(None) shouldBe Yielded
+          dyn.value shouldBe -1
+          nestedCont.resume(None) shouldBe Yielded
+          dyn.value shouldBe -1
+          nestedCont.resume(None) shouldBe Finished(())
           dyn.value shouldBe -1
         }
       }

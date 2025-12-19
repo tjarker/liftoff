@@ -23,6 +23,7 @@ package object coroutine {
     def create[I, O, R](block: => R): Coroutine[I, O, R]
     def suspend[I, O](value: Option[O]): Option[I]
     def currentCoroutine: Option[Coroutine[Any, Any, Any]]
+    def currentLocals: mutable.Map[AnyRef, Any] = ???
     def registerLocal[T](l: InheritableCoroutineLocal[T]): Unit
     def getLocal[T](key: AnyRef): Option[T]
     def setLocal[T](key: AnyRef, value: T): Unit
@@ -96,13 +97,22 @@ package object coroutine {
     }
 
 
+    def registerLocal[T](l: InheritableCoroutineLocal[T]): Unit = {
+      ContinuationCoroutineLocals.registerLocal[T](l)
+      ThreadedCoroutineLocals.registerLocal[T](l)
+    }
+
+
     def getLocal[T](key: AnyRef): Option[T] = currentScope match {
       case Some(scope) => scope.getLocal[T](key)
-      case None        => throw new RuntimeException("No current coroutine scope")
+      case None        => ThreadedCoroutineLocals.getLocal[T](key)
     }
     def setLocal[T](key: AnyRef, value: T): Unit = currentScope match {
       case Some(scope) => scope.setLocal[T](key, value)
-      case None        => throw new RuntimeException("No current coroutine scope")
+      case None        => {
+        ThreadedCoroutineLocals.setLocal[T](key, value)
+        ContinuationCoroutineLocals.setLocal[T](key, value)
+      }
     }
     def withLocal[T, R](key: AnyRef, value: T)(block: => R): R = {
       val oldValue = getLocal[T](key)

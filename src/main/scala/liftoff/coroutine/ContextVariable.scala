@@ -54,9 +54,7 @@ trait ContextVariable[T] {
 
 object InheritableCoroutineLocal {
 
-  val registry: mutable.ListBuffer[InheritableCoroutineLocal[?]] = mutable.ListBuffer()
 
-  def register[T](ctxVar: InheritableCoroutineLocal[T]): Unit = registry.append(ctxVar)
 
 }
 
@@ -65,6 +63,8 @@ class InheritableCoroutineLocal[T](init: T) extends ContextVariable[T] {
   val inheritableThreadLocal = new InheritableThreadLocal[T]() {
     override def initialValue(): T = init
   }
+
+  Coroutine.registerLocal[T](this)
 
   def value: T = Coroutine.currentScope match {
     case Some(coro) => Coroutine.getLocal[T](this) match {
@@ -77,7 +77,10 @@ class InheritableCoroutineLocal[T](init: T) extends ContextVariable[T] {
 
   def value_=(newValue: T): Unit = Coroutine.currentScope match {
     case Some(scope) => scope.setLocal[T](this, newValue)
-    case None       => inheritableThreadLocal.set(newValue)
+    case None       => {
+      inheritableThreadLocal.set(newValue)
+      ContinuationCoroutineLocals.setLocal(this, newValue) // also keep the mapping for continuations up to date
+    }
   }
 
 }

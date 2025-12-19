@@ -8,7 +8,7 @@ case object ThreadedCoroutineCancelledException extends Exception
 
 class PlatformThreadedCoroutineScope extends ThreadedCoroutineScope(r => new Thread(r))
 
-class VirtualThreadedCoroutineScope extends ThreadedCoroutineScope(Thread.ofVirtual().name("virt-", 0L).factory().newThread)
+class VirtualThreadedCoroutineScope extends ThreadedCoroutineScope(Thread.ofVirtual().name("liftoff-virt-", 0L).factory().newThread)
 
 class ThreadedCoroutineScope(val threadFactory: Runnable => Thread) extends CoroutineScope {
 
@@ -60,13 +60,13 @@ object ThreadedCoroutineLocals extends CoroutineLocals {
   }
   def getLocal[T](key: AnyRef): Option[T] = {
     key match {
-      case ctxVar: InheritableCoroutineLocal[T] => Some(ctxVar.inheritableThreadLocal.get())
+      case ctxVar: InheritableCoroutineLocal[T] @unchecked => Some(ctxVar.inheritableThreadLocal.get())
       case _ => ThreadedCoroutineLocals.locals.value.get(key).map(_.asInstanceOf[T])
     }
   }
   def setLocal[T](key: AnyRef, value: T): Unit = {
     key match {
-      case ctxVar: InheritableCoroutineLocal[T] => ctxVar.inheritableThreadLocal.set(value)
+      case ctxVar: InheritableCoroutineLocal[T] @unchecked => ctxVar.inheritableThreadLocal.set(value)
       case _ => ThreadedCoroutineLocals.locals.value(key) = value
     }
   }
