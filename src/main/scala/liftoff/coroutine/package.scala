@@ -24,15 +24,14 @@ package object coroutine {
     def suspend[I, O](value: Option[O]): Option[I]
     def currentCoroutine: Option[Coroutine[Any, Any, Any]]
     def currentLocals: mutable.Map[AnyRef, Any] = ???
-    def registerLocal[T](l: InheritableCoroutineLocal[T]): Unit
-    def getLocal[T](key: AnyRef): Option[T]
-    def setLocal[T](key: AnyRef, value: T): Unit
+    def locals: CoroutineLocals
   }
   
   trait CoroutineLocals {
     def registerLocal[T](l: InheritableCoroutineLocal[T]): Unit
     def getLocal[T](key: AnyRef): Option[T]
     def setLocal[T](key: AnyRef, value: T): Unit
+    def capture(): mutable.Map[AnyRef, Any]
   }
 
   trait Result[+O, +R] {
@@ -104,11 +103,11 @@ package object coroutine {
 
 
     def getLocal[T](key: AnyRef): Option[T] = currentScope match {
-      case Some(scope) => scope.getLocal[T](key)
+      case Some(scope) => scope.locals.getLocal[T](key)
       case None        => ThreadedCoroutineLocals.getLocal[T](key)
     }
     def setLocal[T](key: AnyRef, value: T): Unit = currentScope match {
-      case Some(scope) => scope.setLocal[T](key, value)
+      case Some(scope) => scope.locals.setLocal[T](key, value)
       case None        => {
         ThreadedCoroutineLocals.setLocal[T](key, value)
         ContinuationCoroutineLocals.setLocal[T](key, value)
@@ -125,6 +124,11 @@ package object coroutine {
           case None    => () // do nothing
         }
       }
+    }
+
+    def captureLocals(): mutable.Map[AnyRef, Any] = currentScope match {
+      case Some(scope) => scope.locals.capture()
+      case None        => ContinuationCoroutineLocals.capture()
     }
 
 

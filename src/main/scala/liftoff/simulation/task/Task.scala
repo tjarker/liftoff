@@ -1,9 +1,8 @@
 package liftoff.simulation.task
 
-import liftoff.coroutine.{Coroutine, Result, CoroutineScope}
+import liftoff.coroutine.{Coroutine, Result, CoroutineScope, Finished}
 import liftoff.simulation.SimControllerYield
 import liftoff.simulation.SimController
-
 
 object Task {
 
@@ -26,8 +25,18 @@ class Task[T](
 
   val coroutine = scope.create[Unit, SimControllerYield, T](block)
 
+  var result: Option[T] = None
+
+  def getResult(): Option[T] = result
+
   def runStep(): Result[SimControllerYield, T] = {
-    coroutine.resume(None)
+    coroutine.resume(None) match {
+      case r @ Finished(value) => {
+        result = Some(value)
+        r
+      }
+      case other => other
+    }
   }
 
 

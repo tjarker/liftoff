@@ -33,6 +33,47 @@ object SimController {
       }
     }
   }
+  def set(ctrl: SimController)= {
+    dynamicVariable.value = ctrl
+  }
+}
+
+object Sim {
+
+  object Model {
+    def set(port: InputPortHandle, value: BigInt): Unit = {
+      SimController.current.set(port, value)
+    }
+    def get(port: PortHandle, isSigned: Boolean = false): BigInt = {
+      SimController.current.get(port, isSigned)
+    }
+    def getInputPortHandle(portName: String): Option[InputPortHandle] = {
+      SimController.current.getInputPortHandle(portName)
+    }
+    def getOutputPortHandle(portName: String): Option[OutputPortHandle] = {
+      SimController.current.getOutputPortHandle(portName)
+    }
+  }
+  def time: AbsoluteTime = SimController.current.currentTime
+
+  object Scheduler {
+    def suspendTask(v: SimControllerYield): Unit = {
+      SimController.current.suspendWith(v)
+    }
+    def suspendTask(): Unit = {
+      SimController.current.suspend()
+    }
+    def addTask[T](name: String, order: Int)(block: => T): Task[T] = {
+      SimController.current.addTask[T](name, order)(block)
+    }
+    def scheduleTaskAt(time: AbsoluteTime, task: Task[_]): Unit = {
+      SimController.current.scheduleTaskAt(time, task)
+    }
+    def scheduleTaskNow(task: Task[_]): Unit = {
+      SimController.current.scheduleTaskNow(task)
+    }
+  }
+
 }
 
 class SimControllerInputHandle(p: InputPortHandle, ctrl: SimController) extends InputPortHandle {

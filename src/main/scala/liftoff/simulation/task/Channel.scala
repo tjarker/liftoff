@@ -1,7 +1,7 @@
 package liftoff.simulation.task
 
 import scala.collection.mutable
-import liftoff.simulation.SimController
+import liftoff.simulation.Sim
 import liftoff.misc.Reporting
 
 object Channel {
@@ -17,14 +17,14 @@ class Channel[T] {
     valueQueue.enqueue(value)
     if (waitingReaders.nonEmpty) {
       val reader = waitingReaders.dequeue()
-      SimController.current.scheduleTaskNow(reader)
+      Sim.Scheduler.scheduleTaskNow(reader)
     }
   }
 
   def receive(): T = {
     if (valueQueue.isEmpty) {
       waitingReaders.enqueue(Task.current)
-      SimController.current.suspend()
+      Sim.Scheduler.suspendTask()
     }
     assert(!valueQueue.isEmpty, "Value queue is empty after waking up")
     Reporting.debug(None, "Channel", s"Receiving value ${valueQueue.head} from channel")

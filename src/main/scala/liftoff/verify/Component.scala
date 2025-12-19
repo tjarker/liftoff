@@ -6,14 +6,13 @@ import liftoff.coroutine.Coroutine
 
 trait Component {
 
-  val context: mutable.Map[AnyRef, Any] = Coroutine.currentScope match {
-    case Some(scope) => scope.currentLocals
-    case None        => mutable.Map()
-  }
+  val context: mutable.Map[AnyRef, Any] = Coroutine.captureLocals()
+
+
   
 }
 
 
 object Component {
-  def create[C <: Component](c: C): C = ???
+  def create[C <: Component](c: C)(implicit name: sourcecode.Name): C = ???
 }

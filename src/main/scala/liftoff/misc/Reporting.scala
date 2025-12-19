@@ -22,6 +22,10 @@ object Reporting {
       }
     }
   }
+  def setOutput(stream: java.io.PrintStream, colored: Boolean = true): Unit = {
+    outputStream.value = stream
+    coloredOutput.value = colored
+  }
 
   object NullStream extends java.io.PrintStream(new java.io.OutputStream {
     def write(b: Int): Unit = {}

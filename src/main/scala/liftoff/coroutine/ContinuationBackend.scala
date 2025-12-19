@@ -31,17 +31,7 @@ class ContinuationCoroutineScope extends CoroutineScope {
     self.in.asInstanceOf[Option[I]]
   }
 
-  def registerLocal[T](l: InheritableCoroutineLocal[T]): Unit = {
-    ContinuationCoroutineLocals.registerLocal[T](l)
-  }
-
-  def getLocal[T](key: AnyRef): Option[T] = {
-    ContinuationCoroutineLocals.getLocal[T](key)
-  }
-
-  def setLocal[T](key: AnyRef, value: T): Unit = {
-    ContinuationCoroutineLocals.setLocal[T](key, value)
-  }
+  def locals: CoroutineLocals = ContinuationCoroutineLocals
 
 }
 
@@ -61,6 +51,10 @@ object ContinuationCoroutineLocals extends CoroutineLocals{
 
   def setLocal[T](key: AnyRef, value: T): Unit = {
     locals.value(key) = value
+  }
+
+  def capture(): mutable.Map[AnyRef, Any] = {
+    locals.value.clone()
   }
 }
 

@@ -38,17 +38,7 @@ class ThreadedCoroutineScope(val threadFactory: Runnable => Thread) extends Coro
     self.in.asInstanceOf[Option[I]] // return input value
   }
 
-  def registerLocal[T](l: InheritableCoroutineLocal[T]): Unit = {
-    ThreadedCoroutineLocals.registerLocal[T](l)
-  }
-
-  def getLocal[T](key: AnyRef): Option[T] = {
-    ThreadedCoroutineLocals.getLocal[T](key)
-  }
-
-  def setLocal[T](key: AnyRef, value: T): Unit = {
-    ThreadedCoroutineLocals.setLocal[T](key, value)
-  }
+  def locals: CoroutineLocals = ThreadedCoroutineLocals
 
 }
 
@@ -69,6 +59,10 @@ object ThreadedCoroutineLocals extends CoroutineLocals {
       case ctxVar: InheritableCoroutineLocal[T] @unchecked => ctxVar.inheritableThreadLocal.set(value)
       case _ => ThreadedCoroutineLocals.locals.value(key) = value
     }
+  }
+
+  def capture(): mutable.Map[AnyRef, Any] = {
+    locals.value.clone()
   }
 }
 
