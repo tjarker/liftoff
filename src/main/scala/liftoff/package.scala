@@ -1,26 +1,31 @@
 import liftoff.misc.WorkingDirectory
-import liftoff.chiselbridge.ChiselBridge
+import liftoff.chisel.ChiselBridge
 import liftoff.simulation.SimController
 import chisel3.reflect.DataMirror
 import Chisel.Data
-import liftoff.chiselbridge.PeekPokeAPI
+import liftoff.chisel.PeekPokeAPI
 import liftoff.simulation.Time._
 import chisel3.Element
+import liftoff.verilog.VerilogModule
+import liftoff.simulation.verilator.VerilatorSimModelFactory
+import java.io.File
 
 package object liftoff {
   
 
-  def simulate[M <: chisel3.Module, T](m: => M, workingDir: WorkingDirectory)(testFn: M => T): T = {
+  def simulateChisel[M <: chisel3.Module, T](m: => M, workingDir: WorkingDirectory)(block: M => T): T = {
 
-    ChiselBridge.emitSystemVerilogFile(m, workingDir)
+
     val runDir = workingDir.addSubDir(workingDir / "sim")
 
     val dut = ChiselBridge.elaborate(m)
 
+    val files = ChiselBridge.emitSystemVerilogFile(dut.name, m, workingDir)
+
     val simModel = liftoff.simulation.verilator.VerilatorSimModelFactory.create(
       dut.name,
       workingDir,
-      Seq(workingDir / s"${dut.name}.v"),
+      files,
       verilatorOptions = Seq(),
       cOptions = Seq()
     ).createModel(runDir)
@@ -34,15 +39,39 @@ package object liftoff {
 
       controller.addClockDomain(
         controller.getInputPortHandle("clock").get, 
-        10.fs, 
+        1.ns, 
         ports.map(ChiselBridge.Port.fromData).map(_.handle).toSeq
       )
 
-      val root = controller.addTask("root", 0)(testFn(dut))
+      val root = controller.addTask("root", 0)(block(dut))
       try {
         controller.run()
       } finally {
-        println(s"Cleaning up simulation model...")
+        simModel.cleanup()
+      }
+      root.getResult().get
+    }
+  }
+
+  def simulateVerilog[T](top: String, files: Seq[File], workingDir: WorkingDirectory)(block: VerilogModule => T): T = {
+    val runDir = workingDir.addSubDir(workingDir / "sim")
+
+    val simModel = VerilatorSimModelFactory.create(
+      top,
+      workingDir,
+      files,
+      verilatorOptions = Seq(),
+      cOptions = Seq()
+    ).createModel(runDir)
+
+    val controller = new SimController(simModel)
+    val verilogModule = new VerilogModule(controller)
+
+    SimController.runWith(controller) {
+      val root = controller.addTask("root", 0)(block(verilogModule))
+      try {
+        controller.run()
+      } finally {
         simModel.cleanup()
       }
       root.getResult().get

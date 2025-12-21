@@ -1,4 +1,4 @@
-package liftoff.chiselbridge
+package liftoff.chisel
 
 /* 
   This PeekPokeAPI implementation is a modified version of the Chisel3 PeekPokeAPI.
@@ -19,6 +19,8 @@ import liftoff.simulation.Time.TimeUnit.s
 import liftoff.simulation.{SimController}
 import liftoff.simulation.InputPortHandle
 import liftoff.simulation.PortHandle
+import liftoff.misc.Reporting
+import liftoff.simulation.Sim
 
 trait Peekable[T <: Data] {
 
@@ -293,22 +295,12 @@ object PeekPokeAPI {
   implicit class TestableClock(clock: Clock) extends AnyTestableData[Clock] {
     val data = clock
 
-    def step(cycles: Int = 1, period: Int = 10): Unit = {
-      require(
-        period >= 2,
-        s"specified period, '${period}', must be 2 or greater because an integer half period must be non-zero"
-      )
+    def step(cycles: Int = 1): Unit = {
 
       if (cycles == 0) {
         // do nothing
       } else {
-        simulationPort.tick(
-          timestepsPerPhase = period / 2,
-          maxCycles = cycles,
-          inPhaseValue = 0,
-          outOfPhaseValue = 1,
-          sentinel = None
-        )
+        simulationPort.tick(cycles)
       }
     }
 
@@ -316,19 +308,18 @@ object PeekPokeAPI {
     *
     * Stops early if the `sentinelPort` is equal to the `sentinelValue`.
     */
-    def stepUntil(sentinelPort: Data, sentinelValue: BigInt, maxCycles: Int, period: Int = 10): Unit = {
-      require(
-        period >= 2,
-        s"specified period, '${period}', must be 2 or greater because an integer half period must be non-zero"
-      )
+    def stepUntil(sentinelPort: Data, sentinelValue: BigInt, maxCycles: Int): Unit = {
 
-      simulationPort.tick(
-        timestepsPerPhase = period / 2,
-        maxCycles = maxCycles,
-        inPhaseValue = 0,
-        outOfPhaseValue = 1,
-        sentinel = Some(ChiselBridge.Port.fromData(sentinelPort), sentinelValue)
-      )
+      var cycles = 0
+      while (cycles < maxCycles) {
+        val portHandle = ChiselBridge.Port.fromData(sentinelPort).handle
+        if (portHandle.get() == sentinelValue) {
+          return
+        }
+        cycles += 1
+        simulationPort.tick(1)
+      }
+      Reporting.warn(Some(Sim.time), "PeekPokeAPI", s"stepUntil reached maxCycles ($maxCycles) without hitting sentinel")
     }
   }
 

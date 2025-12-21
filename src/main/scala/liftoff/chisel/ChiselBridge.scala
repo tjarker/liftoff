@@ -1,4 +1,4 @@
-package liftoff.chiselbridge
+package liftoff.chisel
 
 import chisel3.Data
 import chisel3.experimental.{SourceInfo, SourceLine}
@@ -28,7 +28,7 @@ object ChiselBridge {
     dut
   }
 
-  def emitSystemVerilogFile(m: => chisel3.RawModule, dir: WorkingDirectory) = {
+  def emitSystemVerilogFile(name: String, m: => chisel3.RawModule, dir: WorkingDirectory): Seq[java.io.File] = {
     chisel3.emitVerilog(
       m,
       Array(
@@ -36,19 +36,26 @@ object ChiselBridge {
         dir.toString,
       )
     )
+    val mainFile = dir.addFile(s"${name}.v")
+    // load firrtl_black_box_resource_files.f
+    val blackBoxFiles = try {
+      scala.io.Source
+      .fromFile(dir / "firrtl_black_box_resource_files.f")
+      .getLines()
+      .map(new java.io.File(_))
+      .toSeq
+    } catch {
+      case _: java.io.FileNotFoundException => Seq()
+    } finally { Seq() }
+    blackBoxFiles.foreach(f => dir.addFile(f.getName()))
+    mainFile +: blackBoxFiles
   }
 
   trait Port {
     def get(isSigned: Boolean): Value
     def set(value: BigInt): Unit
     def check(isSigned: Boolean)(checkFn: Value => Unit): Unit
-    def tick(
-      timestepsPerPhase: Int,
-      maxCycles:         Int,
-      inPhaseValue:      BigInt,
-      outOfPhaseValue:   BigInt,
-      sentinel:         Option[(Port, BigInt)]
-    ): Unit
+    def tick(cycles: Int): Unit
     def handle: PortHandle
   }
   object Port {
@@ -86,13 +93,7 @@ object ChiselBridge {
       val v = get(isSigned)
       checkFn(v)
     }
-    def tick(
-      timestepsPerPhase: Int,
-      maxCycles:         Int,
-      inPhaseValue:      BigInt,
-      outOfPhaseValue:   BigInt,
-      sentinel:         Option[(Port, BigInt)]
-    ): Unit = SimController.current.suspendWith(Step(handle, 1))
+    def tick(cycles: Int): Unit = SimController.current.suspendWith(Step(handle, cycles))
 
     def handle: PortHandle = this.handle
   }
@@ -109,7 +110,7 @@ object ChiselBridge {
       val v = get(isSigned)
       checkFn(v)
     }
-    def tick(timestepsPerPhase: Int, maxCycles: Int, inPhaseValue: BigInt, outOfPhaseValue: BigInt, sentinel: Option[(Port, BigInt)]): Unit = 
+    def tick(cycles: Int): Unit = 
       throw new Exception(s"Cannot tick output port handle: ${handle.name}")
 
     def handle: PortHandle = this.handle

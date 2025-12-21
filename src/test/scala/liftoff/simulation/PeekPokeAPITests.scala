@@ -7,14 +7,15 @@ import chisel3._
 import chisel3.experimental.BundleLiterals._
 import chisel3.experimental.VecLiterals._
 
-import liftoff.chiselbridge.ChiselBridge
+import liftoff.chisel.ChiselBridge
 import liftoff.simulation.Time._
 import liftoff.misc.PathToFileOps
 import liftoff.simulation.verilator.VerilatorSimModelFactory
 import liftoff.misc.Reporting
 import liftoff.coroutine.ContinuationBackend
+import liftoff.chisel.ChiselPeekPokeAPI
 
-class PeekPokeAPITests extends AnyWordSpec with Matchers with liftoff.chiselbridge.ChiselPeekPokeAPI {
+class PeekPokeAPITests extends AnyWordSpec with Matchers with liftoff.chisel.ChiselPeekPokeAPI {
 
   class MyBundle extends Bundle {
     val a = UInt(4.W)
@@ -40,7 +41,7 @@ class PeekPokeAPITests extends AnyWordSpec with Matchers with liftoff.chiselbrid
       val workingDir = "build/peekpoke_test".toDir
       workingDir.createIfNotExists()
       workingDir.clean()
-      ChiselBridge.emitSystemVerilogFile(new MyModule, workingDir)
+      ChiselBridge.emitSystemVerilogFile("MyModule", new MyModule, workingDir)
 
       val runDir = workingDir.addSubDir(workingDir / "sim")
 
@@ -84,7 +85,7 @@ class PeekPokeAPITests extends AnyWordSpec with Matchers with liftoff.chiselbrid
                   s" b=${dut.io.bundleIn.b.peek().litValue}")
                 Reporting.info(Some(controller.currentTime), "Test", s"vecIn: ${dut.io.vecIn.map(_.peek().litValue).mkString(",")}")
                 
-                dut.clock.step(1, 10)
+                dut.clock.step(1)
               }
             }
 
@@ -100,20 +101,20 @@ class PeekPokeAPITests extends AnyWordSpec with Matchers with liftoff.chiselbrid
 
             dut.io.vecIn.poke(Vec.Lit(4.U, 3.U, 5.U))
 
-            dut.clock.step(1, 10)
+            dut.clock.step(1)
 
             val outValue2 = dut.io.out.peek().litValue
 
             dut.io.in.poke(10.U)
 
-            dut.clock.step(1, 10)
+            dut.clock.step(1)
 
             dut.io.bundleIn.a.poke(7.U)
             dut.io.bundleIn.b.poke(4.S)
             dut.io.vecIn(0).poke(0.U)
             dut.io.vecIn(1).poke(1.U)
             dut.io.vecIn(2).poke(2.U)
-            dut.clock.step(1, 10)
+            dut.clock.step(1)
 
             dut.io.bundleIn.peek().a.litValue shouldBe 7
             dut.io.bundleIn.peek().b.litValue shouldBe 4

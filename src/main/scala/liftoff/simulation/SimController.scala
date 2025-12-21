@@ -113,6 +113,8 @@ class SimController(simModel: SimModel) {
   val inputHandles = simModel.inputs.map(p => p.name -> new SimControllerInputHandle(p, this)).toMap
   val outputHandles = simModel.outputs.map(p => p.name -> new SimControllerOutputHandle(p, this)).toMap
 
+  def ports: Seq[PortHandle] = (inputHandles.values ++ outputHandles.values).toSeq
+
   val clockPeriods = collection.mutable.Map.empty[InputPortHandle, Time]
   val portToClock = collection.mutable.Map.empty[PortHandle, InputPortHandle]
 
@@ -123,7 +125,7 @@ class SimController(simModel: SimModel) {
       val event = eventQueue.pop().get
 
       Reporting.debug(Some(currentTime), "SimController", s"Handling event: ${event}")
-      Reporting.debug(Some(currentTime), "SimController", s"Event queue:\n - ${eventQueue.queue.mkString("\n - ")}")
+      
       val delta = event.time - currentTime
       if (delta > 0.fs) {
         simModel.tick(delta.relative)
@@ -131,6 +133,8 @@ class SimController(simModel: SimModel) {
       }
 
       handleEvent(event)
+
+      Reporting.debug(Some(currentTime), "SimController", s"Event queue:\n - ${eventQueue.queue.mkString("\n - ")}")
     }
     
   }
@@ -181,6 +185,7 @@ class SimController(simModel: SimModel) {
               throw new Exception("No clock period")
             })
             val nextTime = if (nextFallingEdge == currentTime) nextFallingEdge + (period * cycles) else nextFallingEdge + (period * (cycles - 1))
+            Reporting.debug(Some(currentTime), "SimController", s"Scheduling task ${t.name} at time ${nextTime} after ${cycles}x${period}")
             eventQueue.enqueue(Event.RunTask(nextTime.absolute, t, t.order))
 
           case YieldedWith(TickFor(duration)) =>
@@ -207,6 +212,7 @@ class SimController(simModel: SimModel) {
   def getOutputPortHandle(portName: String): Option[OutputPortHandle] = outputHandles.get(portName)
   
   def get(port: PortHandle, isSigned: Boolean): BigInt = {
+    Reporting.debug(Some(currentTime), "SimController", s"Getting value of port: ${port.name}")
     val nextSamplingTime = portToClock.get(port) match {
       case Some(clockPort) =>
         eventQueue.nextFallingEdge(clockPort).getOrElse {
@@ -231,6 +237,7 @@ class SimController(simModel: SimModel) {
   }
 
   def set(port: InputPortHandle, value: BigInt): Unit = {
+    Reporting.debug(Some(currentTime), "SimController", s"Setting value of port: ${port.name} to ${value}")
     val nextDriveTime = portToClock.get(port) match {
       case Some(clockPort) =>
         eventQueue.nextFallingEdge(clockPort).getOrElse {
@@ -244,7 +251,7 @@ class SimController(simModel: SimModel) {
       taskScope.suspend(Some(TickUntil(nextDriveTime.absolute)))
       Reporting.debug(Some(currentTime), "SimController", s"Resumed for driving port ${port.name} at time ${currentTime}")
     }
-    if (inputDirty.contains(port)) {
+    if (!clockPeriods.exists { case (clockPort, _) => clockPort.name == port.name } && inputDirty.contains(port)) {
       Reporting.error(Some(currentTime), "SimController", s"Overwriting input port ${port.name} after it has been read")
     }
     inputDirty.add(port)
