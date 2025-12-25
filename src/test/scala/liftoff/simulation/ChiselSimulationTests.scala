@@ -88,7 +88,6 @@ class ChiselSimulationTests extends AnyWordSpec with Matchers with ChiselPeekPok
       }
 
       val c = ChiselStage.convert(new Dummy(new MyBlackBox), Array())
-      println(c)
 
       
 

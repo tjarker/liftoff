@@ -120,9 +120,12 @@ object Verilator {
         .flatMap(_.toStrings) ++
       files.map(_.getAbsolutePath)
 
+    val ext = if (System.getProperty("os.name").toLowerCase.contains("mac")) ".a"
+    else ".o"
+
     // TODO: add/remove libs, such as fst, based on verilator flags
     val targets = Seq(
-      dir / s"V${name}__ALL.a",
+      dir / (s"V${name}__ALL" + ext),
       dir / "verilated.o",
       dir / "verilated_fst_c.o",
       dir / "verilated_threads.o",

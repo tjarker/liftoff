@@ -7,12 +7,12 @@ import liftoff.coroutine.CoroutineContextVariable
 
 object Task {
 
-  val currentTaskVar = new CoroutineContextVariable[Option[Task[?]]](None)
+  val currentTaskVar = new CoroutineContextVariable[Option[Task[_]]](None)
 
-  def current: Task[?] = currentTaskVar.value.getOrElse {
+  def current: Task[_] = currentTaskVar.value.getOrElse {
     throw new Exception("No current Task found in context")
   }
-  def withValue[T](task: Task[?])(block: => T): T = {
+  def withValue[T](task: Task[_])(block: => T): T = {
     currentTaskVar.withValue[T](Some(task)) {
       block
     }
