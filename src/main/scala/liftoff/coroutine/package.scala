@@ -1,6 +1,8 @@
 package liftoff
 
 import scala.collection.mutable
+import upickle.default
+import os.copy.over
 
 package object coroutine {
 
@@ -9,7 +11,7 @@ package object coroutine {
     def resume(value: Option[I]): Result[O, R]
     def cancel(): Unit
 
-    def parent: Option[Coroutine[Any, Any, Any]]
+    def parent: Option[Coroutine[_, _, _]]
 
 
     private[coroutine] var in: Option[I]
@@ -22,17 +24,22 @@ package object coroutine {
   trait CoroutineScope {
     def create[I, O, R](block: => R): Coroutine[I, O, R]
     def suspend[I, O](value: Option[O]): Option[I]
-    def currentCoroutine: Option[Coroutine[Any, Any, Any]]
-    def currentLocals: mutable.Map[AnyRef, Any] = ???
-    def locals: CoroutineLocals
+    def currentCoroutine: Option[Coroutine[_, _, _]]
+    def currentContext: CoroutineContext
+    def restoreContext(ctx: CoroutineContext): Unit
   }
-  
-  trait CoroutineLocals {
-    def registerLocal[T](l: InheritableCoroutineLocal[T]): Unit
-    def getLocal[T](key: AnyRef): Option[T]
-    def setLocal[T](key: AnyRef, value: T): Unit
-    def capture(): mutable.Map[AnyRef, Any]
+
+  class CoroutineContext(mapping: mutable.Map[AnyRef, Any]) {
+    def get[T](key: AnyRef): Option[T] = mapping.get(key).asInstanceOf[Option[T]]
+    def set[T](key: AnyRef, value: T): Unit = mapping.update(key, value)
+    private [coroutine] def capture(): CoroutineContext = new CoroutineContext(mutable.Map.from(mapping))
+    private [coroutine] def map: mutable.Map[AnyRef, Any] = mapping
+    override def toString(): String = {
+      val entries = mapping.map { case (k, v) => s"$k -> $v" }.mkString(", ")
+      s"CoroutineContext@${this.hashCode().toHexString}($entries)"
+    }
   }
+
 
   trait Result[+O, +R] {
 
@@ -95,45 +102,53 @@ package object coroutine {
       case PlatformThreadBackend => new PlatformThreadedCoroutineScope()
     }
 
+    object Context {
 
-    def registerLocal[T](l: InheritableCoroutineLocal[T]): Unit = {
-      ContinuationCoroutineLocals.registerLocal[T](l)
-      ThreadedCoroutineLocals.registerLocal[T](l)
-    }
+      import java.lang.{InheritableThreadLocal, ThreadLocal}
 
 
-    def getLocal[T](key: AnyRef): Option[T] = currentScope match {
-      case Some(scope) => scope.locals.getLocal[T](key)
-      case None        => ThreadedCoroutineLocals.getLocal[T](key)
-    }
-    def setLocal[T](key: AnyRef, value: T): Unit = currentScope match {
-      case Some(scope) => scope.locals.setLocal[T](key, value)
-      case None        => {
-        ThreadedCoroutineLocals.setLocal[T](key, value)
-        ContinuationCoroutineLocals.setLocal[T](key, value)
-      }
-    }
-    def withLocal[T, R](key: AnyRef, value: T)(block: => R): R = {
-      val oldValue = getLocal[T](key)
-      setLocal[T](key, value)
-      try {
-        block
-      } finally {
-        oldValue match {
-          case Some(v) => setLocal[T](key, v)
-          case None    => () // do nothing
+      val defaultContext = new CustomInheritableThreadLocal[CoroutineContext] {
+        override def initialValue(): CoroutineContext = new CoroutineContext(mutable.Map.empty)
+        override protected def inheritance(parentValue: CoroutineContext): CoroutineContext = {
+          parentValue.capture()
         }
       }
-    }
 
-    def captureLocals(): mutable.Map[AnyRef, Any] = currentScope match {
-      case Some(scope) => scope.locals.capture()
-      case None        => ContinuationCoroutineLocals.capture()
-    }
+      def get[T](key: AnyRef): Option[T] = {
+        currentScope match {
+          case Some(scope) => scope.currentContext.get[T](key)
+          case None        => defaultContext.get().get[T](key)
+        }
+      }
+      def set[T](key: AnyRef, value: T): Unit = {
+        currentScope match {
+          case Some(scope) => scope.currentContext.set[T](key, value)
+          case None        => defaultContext.get().set[T](key, value)
+        }
+      }
+      def withValue[T, R](key: AnyRef, value: T)(block: => R): R = {
+        val oldValue = get[T](key)
+        set[T](key, value)
+        try {
+          block
+        } finally {
+          oldValue match {
+            case Some(v) => set[T](key, v)
+            case None    => () // do nothing
+          }
+        }
+      }
+      def capture(): CoroutineContext = currentScope match {
+        case Some(scope) => scope.currentContext
+        case None        => defaultContext.get().capture()
+      }
+      def apply(): CoroutineContext = defaultContext.get()
 
+      def restore(ctx: CoroutineContext): Unit = defaultContext.set(ctx)
+    }
 
     def currentScope: Option[CoroutineScope] = CurrentScope.value
-    def currentCoroutine: Option[Coroutine[Any, Any, Any]] = currentScope match {
+    def currentCoroutine: Option[Coroutine[_, _, _]] = currentScope match {
       case Some(scope) => scope.currentCoroutine
       case None        => None
     }

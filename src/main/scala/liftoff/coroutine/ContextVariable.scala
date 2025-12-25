@@ -20,29 +20,23 @@ trait ContextVariable[T] {
   }
 }
 
-class InheritableCoroutineLocal[T](init: T) extends ContextVariable[T] {
+class CoroutineContextVariable[T](init: T)(implicit name: sourcecode.Name) extends ContextVariable[T] {
 
-  val inheritableThreadLocal = new InheritableThreadLocal[T]() {
-    override def initialValue(): T = init
-  }
+  // Register this context variable in the coroutine context system
+  Coroutine.Context.set(this, init)
 
-  Coroutine.registerLocal[T](this)
-
-  def value: T = Coroutine.currentScope match {
-    case Some(coro) => Coroutine.getLocal[T](this) match {
-      case Some(v) => v
-      case None    => inheritableThreadLocal.get()
-    }
-    case None       => inheritableThreadLocal.get()
+  def value: T = Coroutine.Context.get[T](this) match {
+    case Some(v) => v
+    case None    => throw new Exception(s"No intialization for ContextVariable ${name.value} found")
   }
 
 
-  def value_=(newValue: T): Unit = Coroutine.currentScope match {
-    case Some(scope) => scope.locals.setLocal[T](this, newValue)
-    case None       => {
-      inheritableThreadLocal.set(newValue)
-      ContinuationCoroutineLocals.setLocal(this, newValue) // also keep the mapping for continuations up to date
-    }
+  def value_=(newValue: T): Unit = {
+    Coroutine.Context.set[T](this, newValue)
+  }
+
+  override def toString(): String = {
+    s"CoroutineContextVariable(${name.value})"
   }
 
 }

@@ -5,7 +5,7 @@ import liftoff.coroutine.Coroutine
 object Config {
 
   def tryGet[T](c: Config[T]): Option[T] = {
-    Coroutine.getLocal[T](c).orElse(c.default)
+    Coroutine.Context.get[T](c).orElse(c.default)
   }
   def get[T](c: Config[T]): T = {
     val out = tryGet[T](c)
@@ -17,7 +17,7 @@ object Config {
     out.getOrElse(default)
   }
   def set[T](c: Config[T], value: T): Unit = {
-    Coroutine.setLocal[T](c, value)
+    Coroutine.Context.set[T](c, value)
   }
 
 }

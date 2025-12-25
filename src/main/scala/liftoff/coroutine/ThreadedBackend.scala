@@ -3,6 +3,8 @@ package liftoff.coroutine
 import java.util.concurrent.locks.LockSupport
 
 import scala.collection.mutable
+import scala.util.DynamicVariable
+import liftoff.coroutine.Coroutine
 
 case object ThreadedCoroutineCancelledException extends Exception
 
@@ -16,7 +18,7 @@ class ThreadedCoroutineScope(val threadFactory: Runnable => Thread) extends Coro
   var shouldWait: Boolean = false
 
   var current: Option[ThreadedCoroutine[Any, Any, Any]] = None
-  def currentCoroutine: Option[Coroutine[Any,Any,Any]] = current
+  def currentCoroutine: Option[Coroutine[_, _, _]] = current
 
   def create[I, O, R](block: => R): Coroutine[I, O,R] = {
     new ThreadedCoroutine[I, O, R](block, this, current)
@@ -31,48 +33,26 @@ class ThreadedCoroutineScope(val threadFactory: Runnable => Thread) extends Coro
     }
     self.shouldSleep = true // setup sleeping
     this.shouldWait = false // setup caller waking
-    LockSupport.unpark(self.caller) // wake up caller
+    LockSupport.unpark(self.callerThread) // wake up caller
     LockSupport.park() // sleep coroutine
     while (self.shouldSleep) LockSupport.park() // wait to be resumed
     if (self.hasBeenCancelled) throw ThreadedCoroutineCancelledException // check for cancellation
     self.in.asInstanceOf[Option[I]] // return input value
   }
 
-  def locals: CoroutineLocals = ThreadedCoroutineLocals
+  def currentContext = Coroutine.Context()
+  def restoreContext(ctx: CoroutineContext): Unit = {
+    Coroutine.Context.restore(ctx)
+  }
 
 }
-
-object ThreadedCoroutineLocals extends CoroutineLocals {
-  val locals = new scala.util.DynamicVariable[mutable.Map[AnyRef, Any]](mutable.Map())
-
-  def registerLocal[T](l: InheritableCoroutineLocal[T]): Unit = { 
-    // do nothing
-  }
-  def getLocal[T](key: AnyRef): Option[T] = {
-    key match {
-      case ctxVar: InheritableCoroutineLocal[T] @unchecked => Some(ctxVar.inheritableThreadLocal.get())
-      case _ => ThreadedCoroutineLocals.locals.value.get(key).map(_.asInstanceOf[T])
-    }
-  }
-  def setLocal[T](key: AnyRef, value: T): Unit = {
-    key match {
-      case ctxVar: InheritableCoroutineLocal[T] @unchecked => ctxVar.inheritableThreadLocal.set(value)
-      case _ => ThreadedCoroutineLocals.locals.value(key) = value
-    }
-  }
-
-  def capture(): mutable.Map[AnyRef, Any] = {
-    locals.value.clone()
-  }
-}
-
 
 class ThreadedCoroutine[I, O, R](block: => R, scope: ThreadedCoroutineScope, val parent: Option[Coroutine[Any, Any, Any]]) extends Coroutine[I, O, R] {
 
   var hasStarted: Boolean = false
   var hasBeenCancelled: Boolean = false
   var shouldSleep: Boolean = false
-  var caller: Thread = null
+  var callerThread: Thread = null
 
   var in: Option[I] = None
   var out: Result[O, R] = null
@@ -93,7 +73,7 @@ class ThreadedCoroutine[I, O, R](block: => R, scope: ThreadedCoroutineScope, val
           // No-op for now
         }
         scope.shouldWait = false
-        LockSupport.unpark(caller)
+        LockSupport.unpark(callerThread)
       
       }
     })
@@ -101,9 +81,12 @@ class ThreadedCoroutine[I, O, R](block: => R, scope: ThreadedCoroutineScope, val
   // this is caller code
   def resume(value: Option[I]): Result[O, R] = {
     if (hasBeenCancelled) throw new ResumedCancelledCoroutineException
-    val parentCoroutine = scope.current
+
+    val caller = scope.current
+    val callerContext = scope.currentContext
+
     scope.current = Some(this.asInstanceOf[ThreadedCoroutine[Any, Any, Any]])
-    caller = Thread.currentThread()
+    callerThread = Thread.currentThread()
     in = value
 
     if (!hasStarted) {
@@ -122,7 +105,7 @@ class ThreadedCoroutine[I, O, R](block: => R, scope: ThreadedCoroutineScope, val
       while (scope.shouldWait) LockSupport.park()
     }
 
-    scope.current = parentCoroutine
+    scope.current = caller
 
     out
   }
@@ -131,13 +114,13 @@ class ThreadedCoroutine[I, O, R](block: => R, scope: ThreadedCoroutineScope, val
     hasBeenCancelled = true
     shouldSleep = false
     scope.shouldWait = true
-    val parentCoroutine = scope.current
-    caller = Thread.currentThread()
+    val caller = scope.current
+    callerThread = Thread.currentThread()
     scope.current = Some(this.asInstanceOf[ThreadedCoroutine[Any, Any, Any]])
     LockSupport.unpark(thread)
     LockSupport.park()
     while (scope.shouldWait) LockSupport.park()
-    scope.current = parentCoroutine
+    scope.current = caller
   }
   
 }

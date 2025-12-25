@@ -15,7 +15,7 @@ class ContinuationCoroutineScope extends CoroutineScope {
   val scope: ContinuationScope = new ContinuationScope("liftoff-cont-scope-" + ContinuationCoroutineScope.nextId())
   var current: Option[ContinuationCoroutine[Any, Any, Any]] = None
 
-  def currentCoroutine: Option[Coroutine[Any,Any,Any]] = current
+  def currentCoroutine: Option[Coroutine[_, _, _]] = current
 
   def create[I, O, R](block: => R): Coroutine[I, O, R] = {
     new ContinuationCoroutine[I, O, R](this, current, block)
@@ -31,39 +31,22 @@ class ContinuationCoroutineScope extends CoroutineScope {
     self.in.asInstanceOf[Option[I]]
   }
 
-  def locals: CoroutineLocals = ContinuationCoroutineLocals
-
-}
-
-object ContinuationCoroutineLocals extends CoroutineLocals{
-  val locals = new scala.util.DynamicVariable[mutable.Map[AnyRef, Any]](mutable.Map())
-
-  def registerLocal[T](l: InheritableCoroutineLocal[T]): Unit = {
-    locals.value(l) = l.value
+  var currentContext = Coroutine.Context()
+  def restoreContext(ctx: CoroutineContext): Unit = {
+    currentContext = ctx
   }
-
-  def getLocal[T](key: AnyRef): Option[T] = {
-    locals.value.get(key) match {
-      case Some(v) => Some(v.asInstanceOf[T])
-      case None    => None
-    }
-  }
-
-  def setLocal[T](key: AnyRef, value: T): Unit = {
-    locals.value(key) = value
-  }
-
-  def capture(): mutable.Map[AnyRef, Any] = {
-    locals.value.clone()
-  }
+  
 }
 
 
-class ContinuationCoroutine[I, O, R](scope: ContinuationCoroutineScope, val parent: Option[Coroutine[Any, Any, Any]], block: => R) extends Coroutine[I, O, R] {
+class ContinuationCoroutine[I, O, R](scope: ContinuationCoroutineScope, val parent: Option[Coroutine[_, _, _]], block: => R) extends Coroutine[I, O, R] {
   var in: Option[I] = None
   var out: Result[O, R] = null
 
-  val locals: mutable.Map[AnyRef, Any] = ContinuationCoroutineLocals.locals.value.clone()
+  val context = parent match {
+    case Some(_) => scope.currentContext.capture()
+    case None    => Coroutine.Context.capture() 
+  }
 
   var hasBeenCancelled: Boolean = false
 
@@ -78,15 +61,18 @@ class ContinuationCoroutine[I, O, R](scope: ContinuationCoroutineScope, val pare
 
   def resume(value: Option[I]): Result[O, R] = {
     if (hasBeenCancelled) throw new ResumedCancelledCoroutineException
+
     val caller = scope.current
-    val callerLocals= ContinuationCoroutineLocals.locals.value
-    val callerScope = CurrentScope.value
+    val callerContext = scope.currentContext
+    val callerScope = Coroutine.currentScope
+
     scope.current = Some(this.asInstanceOf[ContinuationCoroutine[Any, Any, Any]])
     in = value
+
     try {
       // setup context
       CurrentScope.value = Some(scope)
-      ContinuationCoroutineLocals.locals.value = this.locals
+      scope.restoreContext(this.context)
 
       // resume continuation
       continuation.run()
@@ -98,7 +84,7 @@ class ContinuationCoroutine[I, O, R](scope: ContinuationCoroutineScope, val pare
 
       // restore caller context
       scope.current = caller
-      ContinuationCoroutineLocals.locals.value = callerLocals
+      scope.restoreContext(callerContext)
       CurrentScope.value = callerScope
 
     }

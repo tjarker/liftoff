@@ -6,7 +6,7 @@ import liftoff.coroutine.Coroutine
 import liftoff.coroutine.CurrentScope
 
 object ContextVariableTests {
-  val contextVar = new InheritableCoroutineLocal[Int](10)
+  val contextVar = new CoroutineContextVariable[Int](10)
   def value: Int = contextVar.value
   def withValue[T](newValue: Int)(block: => T): T = contextVar.withValue(newValue)(block)
 }
@@ -49,11 +49,11 @@ class ContextVariableTests extends AnyWordSpec with Matchers {
 
         "work with key-value context variables" in {
           val key = new Object()
-          Coroutine.withLocal(key, "initial") {
-            Coroutine.getLocal[String](key) shouldBe Some("initial")
+          Coroutine.Context.withValue(key, "initial") {
+            Coroutine.Context.get[String](key) shouldBe Some("initial")
 
-            Coroutine.withLocal(key, "updated") {
-              Coroutine.getLocal[String](key) shouldBe Some("updated")
+            Coroutine.Context.withValue(key, "updated") {
+              Coroutine.Context.get[String](key) shouldBe Some("updated")
             }
           }
         }

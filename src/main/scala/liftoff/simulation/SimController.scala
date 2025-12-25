@@ -262,11 +262,7 @@ class SimController(simModel: SimModel) {
   def addTask[T](name: String, order: Int)(block: => T): Task[T] = {
     Reporting.debug(Some(currentTime), "SimController", s"Adding task: ${name} with order ${order}")
     var task: Task[T] = null
-    task = new Task[T](name, taskScope, order, {
-      Task.withValue[T](task) {
-        block
-      }
-    })
+    task = new Task[T](name, taskScope, order, block)
     eventQueue.enqueue(Event.RunTask(currentTime, task, order))
     task
   }

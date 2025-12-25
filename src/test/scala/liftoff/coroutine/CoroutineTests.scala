@@ -100,7 +100,7 @@ class CoroutineTests extends AnyWordSpec with Matchers {
 
         "work with nested ContextVariables" in {
 
-          val dyn = new InheritableCoroutineLocal[Int](-1)
+          val dyn = new CoroutineContextVariable[Int](-1)
           
           var nestedCont: Coroutine[Unit, Unit, Unit] = null
 
