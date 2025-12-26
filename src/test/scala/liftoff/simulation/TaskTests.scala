@@ -3,6 +3,7 @@ package liftoff.simulation
 import org.scalatest.wordspec.AnyWordSpec
 import org.scalatest.matchers.should.Matchers
 import liftoff.misc.Reporting
+import liftoff.simulation.task.Task
 
 class TaskTests extends AnyWordSpec with Matchers {
 
@@ -13,13 +14,13 @@ class TaskTests extends AnyWordSpec with Matchers {
 
     "be joinable" in SimController.runWith(ctrl) {
 
-      val root = Sim.Scheduler.addTask("root", 0) {
+      val root = Task.root {
 
-        val task1 = Sim.Scheduler.addTask("task1", 0) {
+        val task1 = Task.fork {
           42
         }
 
-        val task2 = Sim.Scheduler.addTask("task2", 0) {
+        val task2 = Task.fork {
           val res = task1.join()
           res shouldBe 42
           res + 1

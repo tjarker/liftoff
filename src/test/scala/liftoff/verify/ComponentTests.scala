@@ -6,6 +6,7 @@ import liftoff.simulation.DummySimModel
 import liftoff.simulation.SimController
 import liftoff.simulation.Sim
 import liftoff.misc.Reporting
+import liftoff.simulation.task.Task
 
 class MyComponent(hello: Int, world: String) extends Component {
   def quack(): String = s"$hello $world"
@@ -88,7 +89,7 @@ class ComponentTests extends AnyWordSpec with Matchers {
 
       SimController.runWith(ctrl) {
 
-        Sim.Scheduler.addTask("root", 0) {
+        Task.root {
 
           Config.set(Key, 42)
           val comp = Component.create[NestedComponent]()
@@ -96,7 +97,26 @@ class ComponentTests extends AnyWordSpec with Matchers {
 
           comp.createTask {
             Config.get(Key) shouldBe 42
+
+            Config.set(Key, 7)
+            Task.fork {
+              Config.get(Key) shouldBe 7
+              Config.set(Key, 3)
+              Task.current.name shouldBe "comp.task[0].task[0]"
+            }
+            Config.set(Key, 11)
+            Config.get(Key) shouldBe 11
+
           }.join()
+
+          comp.child1.createTask {
+            Task.fork {
+              Task.current.name shouldBe "comp.child1.task[0].task[0]"
+            }
+          }
+          comp.child1.createTask {
+            Task.current.name shouldBe "comp.child1.task[1]"
+          }
 
         }
 

@@ -18,6 +18,21 @@ object Task {
       block
     }
   }
+
+  def fork[T](block: => T): Task[T] = {
+    val parentTask = currentTaskVar.value.getOrElse {
+      throw new Exception("Fork can only be called from within a Task")
+    }
+    val childName = parentTask.nextChildName()
+    val childTask = Sim.Scheduler.addTask[T](childName, parentTask.order)(block)
+    childTask
+  }
+
+
+  def root[T](block: => T): Task[T] = {
+    Sim.Scheduler.addTask[T]("root", 0)(block)
+  }
+
 }
 
 class Task[T](
@@ -33,6 +48,13 @@ class Task[T](
       waitingTasks.foreach(t => Sim.Scheduler.scheduleTaskNow(t))
       res
     }
+  }
+
+  var childCount = 0
+  def nextChildName(): String = {
+    val childName = s"${name}.task[${childCount}]"
+    childCount += 1
+    childName
   }
 
   var result: Option[T] = None

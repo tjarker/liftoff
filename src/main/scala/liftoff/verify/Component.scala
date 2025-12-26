@@ -32,7 +32,7 @@ abstract class Component {
   var taskCounter = 0
 
   def createTask[T](block: => T): Task[T] = {
-    val name = s"${this.getClass.getSimpleName}-task-${taskCounter}"
+    val name = s"${path}.task[${taskCounter}]"
     taskCounter += 1
     simCtrl.addTask[T](name, 0, Some(context))(block)
   }
