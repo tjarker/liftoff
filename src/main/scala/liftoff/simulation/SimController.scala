@@ -121,7 +121,7 @@ class SimController(simModel: SimModel) {
 
   def run(): Unit = {
     
-    while (eventQueue.containsActiveTasks) {
+    while (eventQueue.containsTasks) {
      
       val event = eventQueue.pop().get
 
@@ -137,6 +137,9 @@ class SimController(simModel: SimModel) {
 
       Reporting.debug(Some(currentTime), "SimController", s"Event queue:\n - ${eventQueue.queue.mkString("\n - ")}")
     }
+
+
+    Reporting.debug(Some(currentTime), "SimController", s"No more active tasks in event queue, simulation complete.")
     
   }
 
@@ -168,42 +171,42 @@ class SimController(simModel: SimModel) {
   def handleTask(t: Task[_]) = {
 
     t.runStep() match {
-          case Finished(result) => // do nothing
-            Reporting.debug(Some(currentTime), "SimController", s"Task $t finished")
+      case Finished(result) => // do nothing
+        Reporting.debug(Some(currentTime), "SimController", s"Task $t finished")
 
 
-          case YieldedWith(Step(clockPort, cycles)) =>
-            Reporting.debug(Some(currentTime), "SimController", s"Stepping task ${t.name} for ${cycles} cycles on clock ${clockPort}")
+      case YieldedWith(Step(clockPort, cycles)) =>
+        Reporting.debug(Some(currentTime), "SimController", s"Stepping task ${t.name} for ${cycles} cycles on clock ${clockPort}")
 
 
-            val nextFallingEdge = eventQueue.nextFallingEdge(clockPort).getOrElse {
-              Reporting.error(Some(currentTime), "SimController", s"No falling edge scheduled for clock ${clockPort.name} when trying to step task ${t.name}")
-              0.fs.absolute
-            }
-            val period = clockPeriods.getOrElse(clockPort, {
-              Reporting.error(Some(currentTime), "SimController", s"No period recorded for clock ${clockPort.name} when trying to step task ${t.name}")
-              throw new Exception("No clock period")
-            })
-            val nextTime = if (nextFallingEdge == currentTime) nextFallingEdge + (period * cycles) else nextFallingEdge + (period * (cycles - 1))
-            Reporting.debug(Some(currentTime), "SimController", s"Scheduling task ${t.name} at time ${nextTime} after ${cycles}x${period}")
-            eventQueue.enqueue(Event.RunTask(nextTime.absolute, t, t.order))
-
-          case YieldedWith(TickFor(duration)) =>
-            Reporting.debug(Some(currentTime), "SimController", s"Ticking task ${t.name} for duration ${duration}")
-            val nextTime = currentTime + duration
-            eventQueue.enqueue(Event.RunTask(nextTime.absolute, t, t.order))
-
-          case YieldedWith(TickUntil(time)) =>
-            Reporting.debug(Some(currentTime), "SimController", s"Ticking task ${t.name} until time ${time}")
-            eventQueue.enqueue(Event.RunTask(time.absolute, t, t.order))
-          
-          case Yielded => // do nothing, will be resumed manually
-
-
-          case Failed(e) =>
-            Reporting.error(Some(currentTime), "SimController", s"Active task ${t.name} failed with exception: ${e}")
-            throw e
+        val nextFallingEdge = eventQueue.nextFallingEdge(clockPort).getOrElse {
+          Reporting.error(Some(currentTime), "SimController", s"No falling edge scheduled for clock ${clockPort.name} when trying to step task ${t.name}")
+          0.fs.absolute
         }
+        val period = clockPeriods.getOrElse(clockPort, {
+          Reporting.error(Some(currentTime), "SimController", s"No period recorded for clock ${clockPort.name} when trying to step task ${t.name}")
+          throw new Exception("No clock period")
+        })
+        val nextTime = if (nextFallingEdge == currentTime) nextFallingEdge + (period * cycles) else nextFallingEdge + (period * (cycles - 1))
+        Reporting.debug(Some(currentTime), "SimController", s"Scheduling task ${t.name} at time ${nextTime} after ${cycles}x${period}")
+        eventQueue.enqueue(Event.RunTask(nextTime.absolute, t, t.order))
+
+      case YieldedWith(TickFor(duration)) =>
+        Reporting.debug(Some(currentTime), "SimController", s"Ticking task ${t.name} for duration ${duration}")
+        val nextTime = currentTime + duration
+        eventQueue.enqueue(Event.RunTask(nextTime.absolute, t, t.order))
+
+      case YieldedWith(TickUntil(time)) =>
+        Reporting.debug(Some(currentTime), "SimController", s"Ticking task ${t.name} until time ${time}")
+        eventQueue.enqueue(Event.RunTask(time.absolute, t, t.order))
+      
+      case Yielded => // do nothing, will be resumed manually
+        Reporting.debug(Some(currentTime), "SimController", s"Task ${t.name} yielded, waiting for manual resume")
+
+      case Failed(e) =>
+        Reporting.error(Some(currentTime), "SimController", s"Active task ${t.name} failed with exception: ${e}")
+        throw e
+    }
   }
 
   
@@ -283,6 +286,13 @@ class SimController(simModel: SimModel) {
 
   def suspend(): Unit = {
     taskScope.suspend[Unit, SimControllerYield](None)
+  }
+
+
+  def root[T](block: => T): T = SimController.runWith(this) {
+    val root = Task.root(block)
+    this.run()
+    root.result.get
   }
 
 }

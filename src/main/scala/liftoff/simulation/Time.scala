@@ -116,6 +116,13 @@ class Time(private[liftoff] var valueFs: Long = 0) extends Ordered[Time] {
     this.valueFs != that.valueFs
   }
 
+  override def equals(obj: Any): Boolean = {
+    obj match {
+      case that: Time => this.valueFs == that.valueFs
+      case _          => false
+    }
+  }
+
   def fs: Long = valueFs
   def ps: Long = valueFs / 1000
   def ns: Long = valueFs / 1000000

@@ -3,6 +3,7 @@ package liftoff
 import scala.collection.mutable
 import upickle.default
 import os.copy.over
+import liftoff.misc.Reporting
 
 package object coroutine {
 
@@ -126,7 +127,12 @@ package object coroutine {
       }
       def set[T](key: AnyRef, value: T): Unit = {
         currentScope match {
-          case Some(scope) => scope.currentContext.set[T](key, value)
+          case Some(scope) => {
+            scope.currentContext.set[T](key, value)
+            if (defaultContext.get().get[T](key).isEmpty) {
+              defaultContext.get().set[T](key, value)
+            }
+          }
           case None        => defaultContext.get().set[T](key, value)
         }
       }

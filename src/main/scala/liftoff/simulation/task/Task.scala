@@ -5,6 +5,7 @@ import liftoff.simulation.SimControllerYield
 import liftoff.simulation.SimController
 import liftoff.coroutine.CoroutineContextVariable
 import liftoff.simulation.Sim
+import liftoff.misc.Reporting
 
 object Task {
 
@@ -19,18 +20,33 @@ object Task {
     }
   }
 
-  def fork[T](block: => T): Task[T] = {
+  def apply[T](block: => T): Task[T] = {
     val parentTask = currentTaskVar.value.getOrElse {
       throw new Exception("Fork can only be called from within a Task")
     }
     val childName = parentTask.nextChildName()
     val childTask = Sim.Scheduler.addTask[T](childName, parentTask.order)(block)
+    TaskScope.current.foreach(_.addTask(childTask))
+    childTask
+  }
+
+  def withRegion[T](region: Region)(block: => T): Task[T] = {
+    val parentTask = currentTaskVar.value.getOrElse {
+      throw new Exception("Fork can only be called from within a Task")
+    }
+    val childName = parentTask.nextChildName()
+    val childTask = Sim.Scheduler.addTask[T](childName, region.id)(block)
+    TaskScope.current.foreach(_.addTask(childTask))
     childTask
   }
 
 
   def root[T](block: => T): Task[T] = {
     Sim.Scheduler.addTask[T]("root", 0)(block)
+  }
+
+  def scope[T](block: => T): T = {
+    TaskScope.apply[T](block)
   }
 
 }
@@ -45,7 +61,10 @@ class Task[T](
   val coroutine = Task.withValue(this) {
     scope.create[Unit, SimControllerYield, T] {
       val res = block
-      waitingTasks.foreach(t => Sim.Scheduler.scheduleTaskNow(t))
+      waitingTasks.foreach(t => {
+        Reporting.debug(None, "Task",s"Scheduling waiting task ${t.name} after completion of ${this.name}")
+        Sim.Scheduler.scheduleTaskNow(t)
+      })
       res
     }
   }
@@ -66,6 +85,7 @@ class Task[T](
   def runStep(): Result[SimControllerYield, T] = {
     coroutine.resume(None) match {
       case r @ Finished(value) => {
+        Reporting.debug(None, "Task",s"Task $name finished with result $value")
         result = Some(value)
         r
       }
@@ -73,7 +93,7 @@ class Task[T](
     }
   }
 
-  def join(): T = {
+  def join(): T = if (result.isDefined) { result.get } else {
     waitingTasks += Task.current
     Sim.Scheduler.suspendTask()
     result.get

@@ -99,7 +99,7 @@ class ComponentTests extends AnyWordSpec with Matchers {
             Config.get(Key) shouldBe 42
 
             Config.set(Key, 7)
-            Task.fork {
+            Task {
               Config.get(Key) shouldBe 7
               Config.set(Key, 3)
               Task.current.name shouldBe "comp.task[0].task[0]"
@@ -110,7 +110,7 @@ class ComponentTests extends AnyWordSpec with Matchers {
           }.join()
 
           comp.child1.createTask {
-            Task.fork {
+            Task {
               Task.current.name shouldBe "comp.child1.task[0].task[0]"
             }
           }

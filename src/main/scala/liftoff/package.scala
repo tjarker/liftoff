@@ -9,6 +9,7 @@ import chisel3.Element
 import liftoff.verilog.VerilogModule
 import liftoff.simulation.verilator.VerilatorSimModelFactory
 import java.io.File
+import liftoff.simulation.task.Task
 
 package object liftoff {
   

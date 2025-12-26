@@ -80,9 +80,9 @@ class EventQueue {
   def empty: Boolean = queue.isEmpty
   def nonEmpty: Boolean = queue.nonEmpty
 
-  def containsActiveTasks: Boolean = {
+  def containsTasks: Boolean = {
     queue.exists {
-      case Event.RunTask(_, _, order) if order < Int.MaxValue => true
+      case Event.RunTask(_, _, order) => true
       case _ => false
     }
   }
