@@ -16,7 +16,7 @@ class SimControllerTests extends AnyWordSpec with Matchers {
 
 
   "A SimController" should {
-    "Run" in {
+    "run an ALU simulation" in {
 
       val buildDir = "build/verilator_test".toDir
       buildDir.createIfNotExists()
@@ -86,6 +86,7 @@ class SimControllerTests extends AnyWordSpec with Matchers {
       }
 
     }
+
   }
 
 }

@@ -43,7 +43,7 @@ package object liftoff {
         ports.map(ChiselBridge.Port.fromData).map(_.handle).toSeq
       )
 
-      val root = controller.addTask("root", 0)(block(dut))
+      val root = controller.addTask("root", 0, None)(block(dut))
       try {
         controller.run()
       } finally {
@@ -68,7 +68,7 @@ package object liftoff {
     val verilogModule = new VerilogModule(controller)
 
     SimController.runWith(controller) {
-      val root = controller.addTask("root", 0)(block(verilogModule))
+      val root = controller.addTask("root", 0, None)(block(verilogModule))
       try {
         controller.run()
       } finally {

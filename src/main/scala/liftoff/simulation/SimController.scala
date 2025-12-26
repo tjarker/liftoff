@@ -8,6 +8,7 @@ import liftoff.misc.Reporting
 import liftoff.coroutine.Yielded
 import chisel3.Output
 import liftoff.simulation.task.Task
+import liftoff.coroutine.CoroutineContext
 
 trait SimControllerYield
 case class Step(clockPort: InputPortHandle, cycles: Int) extends SimControllerYield
@@ -63,8 +64,8 @@ object Sim {
     def suspendTask(): Unit = {
       SimController.current.suspend()
     }
-    def addTask[T](name: String, order: Int)(block: => T): Task[T] = {
-      SimController.current.addTask[T](name, order)(block)
+    def addTask[T](name: String, order: Int, ctx: Option[CoroutineContext] = None)(block: => T): Task[T] = {
+      SimController.current.addTask[T](name, order, ctx)(block)
     }
     def scheduleTaskAt(time: AbsoluteTime, task: Task[_]): Unit = {
       SimController.current.scheduleTaskAt(time, task)
@@ -165,9 +166,8 @@ class SimController(simModel: SimModel) {
   }
 
   def handleTask(t: Task[_]) = {
+
     t.runStep() match {
-
-
           case Finished(result) => // do nothing
             Reporting.debug(Some(currentTime), "SimController", s"Task $t finished")
 
@@ -259,10 +259,13 @@ class SimController(simModel: SimModel) {
     port.set(value)
   }
 
-  def addTask[T](name: String, order: Int)(block: => T): Task[T] = {
+  def addTask[T](name: String, order: Int, ctx: Option[CoroutineContext] = None)(block: => T): Task[T] = {
     Reporting.debug(Some(currentTime), "SimController", s"Adding task: ${name} with order ${order}")
     var task: Task[T] = null
+    val context = Coroutine.Context()
+    ctx.foreach(c => taskScope.restoreContext(c))
     task = new Task[T](name, taskScope, order, block)
+    Coroutine.Context.restore(context)
     eventQueue.enqueue(Event.RunTask(currentTime, task, order))
     task
   }

@@ -43,10 +43,7 @@ class ContinuationCoroutine[I, O, R](scope: ContinuationCoroutineScope, val pare
   var in: Option[I] = None
   var out: Result[O, R] = null
 
-  val context = parent match {
-    case Some(_) => scope.currentContext.capture()
-    case None    => Coroutine.Context.capture() 
-  }
+  val context = scope.currentContext.capture()
 
   var hasBeenCancelled: Boolean = false
 

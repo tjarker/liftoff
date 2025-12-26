@@ -32,11 +32,15 @@ package object coroutine {
   class CoroutineContext(mapping: mutable.Map[AnyRef, Any]) {
     def get[T](key: AnyRef): Option[T] = mapping.get(key).asInstanceOf[Option[T]]
     def set[T](key: AnyRef, value: T): Unit = mapping.update(key, value)
-    private [coroutine] def capture(): CoroutineContext = new CoroutineContext(mutable.Map.from(mapping))
+    def capture(): CoroutineContext = new CoroutineContext(mutable.Map.from(mapping))
     private [coroutine] def map: mutable.Map[AnyRef, Any] = mapping
     override def toString(): String = {
       val entries = mapping.map { case (k, v) => s"$k -> $v" }.mkString(", ")
       s"CoroutineContext@${this.hashCode().toHexString}($entries)"
+    }
+    def pretty: String = {
+      val entries = mapping.map { case (k, v) => s"  $k -> $v" }.mkString("\n")
+      s"CoroutineContext@${this.hashCode().toHexString}:\n$entries"
     }
   }
 
@@ -139,7 +143,7 @@ package object coroutine {
         }
       }
       def capture(): CoroutineContext = currentScope match {
-        case Some(scope) => scope.currentContext
+        case Some(scope) => scope.currentContext.capture()
         case None        => defaultContext.get().capture()
       }
       def apply(): CoroutineContext = defaultContext.get()

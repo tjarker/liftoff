@@ -4,6 +4,7 @@ import liftoff.coroutine.{Coroutine, Result, CoroutineScope, Finished}
 import liftoff.simulation.SimControllerYield
 import liftoff.simulation.SimController
 import liftoff.coroutine.CoroutineContextVariable
+import liftoff.simulation.Sim
 
 object Task {
 
@@ -27,10 +28,16 @@ class Task[T](
 ) {
 
   val coroutine = Task.withValue(this) {
-    scope.create[Unit, SimControllerYield, T](block)
+    scope.create[Unit, SimControllerYield, T] {
+      val res = block
+      waitingTasks.foreach(t => Sim.Scheduler.scheduleTaskNow(t))
+      res
+    }
   }
 
   var result: Option[T] = None
+
+  val waitingTasks = scala.collection.mutable.ListBuffer.empty[Task[_]]
 
   def getResult(): Option[T] = result
 
@@ -42,6 +49,12 @@ class Task[T](
       }
       case other => other
     }
+  }
+
+  def join(): T = {
+    waitingTasks += Task.current
+    Sim.Scheduler.suspendTask()
+    result.get
   }
 
 
