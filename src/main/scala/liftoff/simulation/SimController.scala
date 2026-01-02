@@ -9,6 +9,7 @@ import liftoff.coroutine.Yielded
 import chisel3.Output
 import liftoff.simulation.task.Task
 import liftoff.coroutine.CoroutineContext
+import liftoff.simulation.task.TaskScope
 
 trait SimControllerYield
 case class Step(clockPort: InputPortHandle, cycles: Int) extends SimControllerYield
@@ -265,7 +266,7 @@ class SimController(simModel: SimModel) {
   def addTask[T](name: String, order: Int, ctx: Option[CoroutineContext] = None)(block: => T): Task[T] = {
     Reporting.debug(Some(currentTime), "SimController", s"Adding task: ${name} with order ${order}")
     var task: Task[T] = null
-    val context = Coroutine.Context()
+    val context = Coroutine.Context.current()
     ctx.foreach(c => taskScope.restoreContext(c))
     task = new Task[T](name, taskScope, order, block)
     Coroutine.Context.restore(context)
@@ -289,7 +290,9 @@ class SimController(simModel: SimModel) {
   }
 
 
-  def root[T](block: => T): T = SimController.runWith(this) {
+  def run[T](block: => T): T = SimController.runWith(this) {
+    TaskScope
+    Task
     val root = Task.root(block)
     this.run()
     root.result.get

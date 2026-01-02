@@ -13,7 +13,7 @@ class TaskTests extends AnyWordSpec with Matchers {
   "A Task" should {
     val ctrl = new SimController(new DummySimModel)
 
-    "be joinable" in ctrl.root {
+    "be joinable" in ctrl.run {
 
       val task1 = Task {
         42
@@ -30,7 +30,7 @@ class TaskTests extends AnyWordSpec with Matchers {
 
     }
 
-    "run tasks in the monitor region after other regions" in ctrl.root {
+    "run tasks in the monitor region after other regions" in ctrl.run {
 
       val log = scala.collection.mutable.ArrayBuffer[String]()
 
@@ -58,7 +58,7 @@ class TaskTests extends AnyWordSpec with Matchers {
 
     }
 
-    "wait for tasks in scope" in ctrl.root {
+    "wait for tasks in scope" in ctrl.run {
 
       val log = scala.collection.mutable.ArrayBuffer[String]()
 
@@ -92,7 +92,7 @@ class TaskTests extends AnyWordSpec with Matchers {
 
   "A TaskScope" should {
     val ctrl = new SimController(new DummySimModel)
-    "take no time without any tasks" in ctrl.root {
+    "take no time without any tasks" in ctrl.run {
 
       val startTime = Sim.time
 
@@ -106,7 +106,7 @@ class TaskTests extends AnyWordSpec with Matchers {
 
     }
 
-    "take as long as the longest task" in ctrl.root {
+    "take as long as the longest task" in ctrl.run {
 
       Task.scope {
 

@@ -152,9 +152,18 @@ package object coroutine {
         case Some(scope) => scope.currentContext.capture()
         case None        => defaultContext.get().capture()
       }
+
+      def current(): CoroutineContext = currentScope match {
+        case Some(scope) => scope.currentContext
+        case None        => defaultContext.get()
+      }
+
       def apply(): CoroutineContext = defaultContext.get()
 
-      def restore(ctx: CoroutineContext): Unit = defaultContext.set(ctx)
+      def restore(ctx: CoroutineContext): Unit = currentScope match {
+        case Some(scope) => scope.restoreContext(ctx)
+        case None        => defaultContext.set(ctx)
+      }
     }
 
     def currentScope: Option[CoroutineScope] = CurrentScope.value

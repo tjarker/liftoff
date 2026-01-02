@@ -4,6 +4,7 @@ package liftoff.coroutine
 import jdk.internal.vm.{Continuation, ContinuationScope}
 
 import scala.collection.mutable
+import liftoff.misc.Reporting
 
 object ContinuationCoroutineScope {
   val atomicId = new java.util.concurrent.atomic.AtomicLong(0L)
@@ -44,6 +45,8 @@ class ContinuationCoroutine[I, O, R](scope: ContinuationCoroutineScope, val pare
   var out: Result[O, R] = null
 
   val context = scope.currentContext.capture()
+
+  Reporting.debug(None, "Scheduler", s"Created ContinuationCoroutine $this with context:\n${context.pretty}")
 
   var hasBeenCancelled: Boolean = false
 

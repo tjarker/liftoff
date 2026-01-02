@@ -2,8 +2,11 @@ package liftoff.coroutine
 
 import org.scalatest.wordspec.AnyWordSpec
 import org.scalatest.matchers.should.Matchers
+import liftoff.misc.Reporting
 
 class GeneratorTests extends AnyWordSpec with Matchers {
+
+  Reporting.setOutput(Reporting.NullStream)
   
   "A Generator" should {
     "produce values correctly" in {

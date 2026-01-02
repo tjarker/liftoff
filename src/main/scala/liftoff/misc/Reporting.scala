@@ -14,6 +14,7 @@ object Reporting {
 
   val outputStream = new CoroutineContextVariable[java.io.PrintStream](System.out)
   val coloredOutput = new CoroutineContextVariable[Boolean](true)
+  val providerName = new CoroutineContextVariable[String]("unknown")
 
   def withOutput[R](stream: java.io.PrintStream, colored: Boolean = true)(block: => R): R = {
     outputStream.withValue[R](stream) {
@@ -25,6 +26,13 @@ object Reporting {
   def setOutput(stream: java.io.PrintStream, colored: Boolean = true): Unit = {
     outputStream.value = stream
     coloredOutput.value = colored
+  }
+
+  def setProvider(name: String): Unit = {
+    providerName.value = name
+  }
+  def getCurrentProvider(): String = {
+    providerName.value
   }
 
   object NullStream extends java.io.PrintStream(new java.io.OutputStream {
@@ -77,12 +85,18 @@ object Reporting {
   def info(time: Option[Time], provider: String, message: String): Unit = {
     outputStream.value.println(infoStr(time, provider, message))
   }
+  def info(time: Option[Time], message: String): Unit = {
+    info(time, providerName.value, message)
+  }
 
   def warnStr(time: Option[Time], provider: String, message: String): String = {
     reportString(warnTag, time, provider, message)
   }
   def warn(time: Option[Time], provider: String, message: String): Unit = {
     outputStream.value.println(warnStr(time, provider, message))
+  }
+  def warn(time: Option[Time], message: String): Unit = {
+    warn(time, providerName.value, message)
   }
 
   def errorStr(time: Option[Time], provider: String, message: String): String = {
@@ -91,6 +105,9 @@ object Reporting {
   def error(time: Option[Time], provider: String, message: String): Unit = {
     outputStream.value.println(errorStr(time, provider, message))
   }
+  def error(time: Option[Time], message: String): Unit = {
+    error(time, providerName.value, message)
+  }
 
   def successStr(time: Option[Time], provider: String, message: String): String = {
     reportString(successTag, time, provider, message)
@@ -98,12 +115,18 @@ object Reporting {
   def success(time: Option[Time], provider: String, message: String): Unit = {
     outputStream.value.println(successStr(time, provider, message))
   }
+  def success(time: Option[Time], message: String): Unit = {
+    success(time, providerName.value, message)
+  }
 
   def debugStr(time: Option[Time], provider: String, message: String): String = {
     reportString(debugTag, time, provider, message)
   }
   def debug(time: Option[Time], provider: String, message: String): Unit = {
     outputStream.value.println(debugStr(time, provider, message))
+  }
+  def debug(time: Option[Time], message: String): Unit = {
+    debug(time, providerName.value, message)
   }
 
 

@@ -8,6 +8,8 @@ import liftoff.simulation.task.Task
 import scala.reflect.ClassTag
 import liftoff.simulation.SimController
 import liftoff.coroutine.CoroutineContextVariable
+import liftoff.misc.Reporting
+import liftoff.simulation.Sim
 
 case class CompPath(val name: String, val hiearchy: Seq[Component]) {
   override def toString(): String = {
@@ -23,18 +25,29 @@ case class CompPath(val name: String, val hiearchy: Seq[Component]) {
 
 abstract class Component {
 
-  val context: CoroutineContext = Coroutine.Context.capture()
-  val simCtrl = SimController.current
-  val path = Coroutine.Context.get[Option[CompPath]](Component.currentPath).get.get
+  val path = Component.currentPath.value.getOrElse {
+    throw new Exception("Component created outside of Component.create")
+  }
   val name = path.name
-  Component.currentComponent.value = Some(this)
+
+  Component.currentComponent.value = Some(this) // set this so that child components can find their parent
+                                                           // it will be undone by the Component.create method
+
+  Reporting.setProvider(path.toString()) // set reporting provider to this component's path
+                                              // will be undone by Component.create method
+  // Capture the coroutine context for spawning tasks later on
+  val componentContext: CoroutineContext = Coroutine.Context.capture()
 
   var taskCounter = 0
 
   def createTask[T](block: => T): Task[T] = {
     val name = s"${path}.task[${taskCounter}]"
     taskCounter += 1
-    simCtrl.addTask[T](name, 0, Some(context))(block)
+    Sim.Scheduler.addTask[T](name, 0, Some(componentContext))(block)
+  }
+
+  override def toString(): String = {
+    s"Component(${path.toString()})"
   }
   
 }
@@ -52,12 +65,14 @@ object Component {
   }
 
   def create[C <: Component](c: => C)(implicit name: sourcecode.Name): C = {
+    val previousProvider = Reporting.getCurrentProvider()
     val path = Component.currentPath.value match {
       case Some(CompPath(_, hiearchy)) => CompPath(name.value, hiearchy :+ Component.currentComponent.value.get)
       case None                        => CompPath(name.value, Seq.empty)
     }
     val comp = currentPath.withValue(Some(path))(c)
     Component.currentComponent.value = path.hiearchy.lastOption
+    Reporting.setProvider(previousProvider)
     comp
   }
 

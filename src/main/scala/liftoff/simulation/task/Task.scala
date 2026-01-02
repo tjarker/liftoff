@@ -94,6 +94,7 @@ class Task[T](
   }
 
   def join(): T = if (result.isDefined) { result.get } else {
+    Reporting.debug(None, "Task",s"Task ${Task.current} is joining $this, suspending until completion")
     waitingTasks += Task.current
     Sim.Scheduler.suspendTask()
     result.get
