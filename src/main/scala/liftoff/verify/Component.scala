@@ -28,6 +28,8 @@ abstract class Component {
   val path = Component.currentPath.value.getOrElse {
     throw new Exception("Component created outside of Component.create")
   }
+  val parent = path.hiearchy.lastOption
+  val children = mutable.Buffer.empty[Component]
   val name = path.name
 
   Component.currentComponent.value = Some(this) // set this so that child components can find their parent
@@ -44,6 +46,12 @@ abstract class Component {
     val name = s"${path}.task[${taskCounter}]"
     taskCounter += 1
     Sim.Scheduler.addTask[T](name, 0, Some(componentContext))(block)
+  }
+
+  def createPhaseTask(phaseName: String)(block: => Unit): Task[Unit] = {
+    val name = s"${path}.${phaseName}.task[${taskCounter}]"
+    taskCounter += 1
+    Sim.Scheduler.addTask[Unit](name, 0, Some(componentContext))(block)
   }
 
   override def toString(): String = {
@@ -71,7 +79,9 @@ object Component {
       case None                        => CompPath(name.value, Seq.empty)
     }
     val comp = currentPath.withValue(Some(path))(c)
-    Component.currentComponent.value = path.hiearchy.lastOption
+    val current = path.hiearchy.lastOption
+    current.foreach(_.children += comp)
+    Component.currentComponent.value = current
     Reporting.setProvider(previousProvider)
     comp
   }
