@@ -25,5 +25,12 @@ package object misc {
       }
     }
   }
+
+  def forever(block: => Unit): Nothing = {
+    while (true) {
+      block
+    }
+    throw new Exception("Unreachable")
+  }
   
 }

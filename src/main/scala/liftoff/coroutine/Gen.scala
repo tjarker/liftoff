@@ -40,8 +40,9 @@ object Gen {
 }
 
 
-class Gen[T](block: => Unit) extends BiGen[Unit, T](block) with Iterator[T] {
+class Gen[T](block: => Unit) extends BiGen[Nothing, T](block) with Iterator[T] {
 
+  override def expectsFeedback: Boolean = false
 
   override def next(): T = {
     val ret = super.next()
@@ -95,6 +96,8 @@ class BiGen[I, O](block: => Unit) {
     openHandshake = true
     nextValue
   }
+
+  def expectsFeedback: Boolean = openHandshake
 
   protected def _feedback(in: Option[I]): Unit = {
     if (!openHandshake) {

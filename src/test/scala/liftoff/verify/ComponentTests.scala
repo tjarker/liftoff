@@ -7,6 +7,11 @@ import liftoff.simulation.SimController
 import liftoff.simulation.Sim
 import liftoff.misc.Reporting
 import liftoff.simulation.task.Task
+import liftoff.verify.component.Driver
+import liftoff.simulation.task.Channel
+import liftoff.coroutine.Gen.emit
+import liftoff.coroutine.Gen
+import liftoff.coroutine.BiGen
 
 class MyComponent(hello: Int, world: String) extends Component {
   def quack(): String = s"$hello $world"
@@ -19,6 +24,45 @@ class MyOtherComponent(hello: Int, world: String) extends MyComponent(hello, wor
 class NestedComponent extends Component {
   val child1 = Component.create[MyComponent](1, "one")
   val child2 = Component.create[MyComponent](2, "two")
+}
+
+class ComponentWithPorts extends Component {
+
+  val in = Port.receiver[Int]
+  val out = Port.sender[Int]
+
+  createTask {
+    val value = in.receive()
+    out.send(value + 1)
+  }
+}
+
+case class Tx(value: Int) extends Transaction
+case class Rs(value: Int) extends Transaction
+
+class SimpleTestDriver(ch: Channel[Int]) extends Driver[Tx, Nothing] {
+
+  def sim(): Unit = {
+    for (_ <- 0 until 5) {
+      val tx = next()
+      assert(shouldRespond == false)
+      ch.send(tx.value)
+    }
+  }
+
+}
+
+class ComplexTestDriver extends Driver[Tx, Rs] {
+
+  def sim(): Unit = {
+    for (_ <- 0 until 5) {
+      val tx = next()
+      assert(shouldRespond == true)
+      val rs = Rs(tx.value * 2)
+      respond(rs)
+    }
+  }
+
 }
 
 
@@ -147,6 +191,80 @@ class ComponentTests extends AnyWordSpec with Matchers {
       outStr should include ("comp")
       outStr should include ("comp.child1")
       outStr should include ("comp.child2")
+
+    }
+
+    "use allow sending and receiving through ports" in {
+
+      val ctrl = new SimController(new DummySimModel)
+
+      ctrl.run {
+
+        val comp = Component.create[ComponentWithPorts]()
+
+        val sender = Port.sender[Int]
+        val receiver = Port.receiver[Int]
+
+        sender <> comp.in
+        comp.out <> receiver
+
+        sender.send(10)
+        receiver.receive() shouldBe 11
+
+      }
+
+    }
+  }
+
+  "A Driver" should {
+
+    "pull and drive transactions from simple generator" in {
+
+
+      val ctrl = new SimController(new DummySimModel)
+
+      ctrl.run {
+
+        val ch = Channel[Int]()
+
+        val driver = Component.create[SimpleTestDriver](ch)
+
+        Phase.run[SimPhase](driver)
+
+        val gen = Gen.tabulate(5)(i => Tx(i))
+        val completion = driver.enqueue(gen)
+
+        completion.awaitDone()
+
+        val results = (0 until 5).map(_ => ch.receive())
+
+        results shouldEqual Seq(0, 1, 2, 3, 4)
+
+      }
+    }
+
+    "pull and drive transactions from complex generator with responses" in {
+
+      val ctrl = new SimController(new DummySimModel)
+
+      ctrl.run {
+
+        val driver = Component.create[ComplexTestDriver]()
+
+        Phase.run[SimPhase](driver)
+
+        val gen = BiGen[Rs, Tx] {
+          for (i <- 0 until 5) {
+            val rs = Gen.emit[Tx, Rs](Tx(i)).get
+            rs.value shouldBe i * 2
+          }
+        }
+
+        val completion = driver.enqueue(gen)
+
+        completion.awaitDone()
+
+      }
 
     }
 
