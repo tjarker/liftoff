@@ -7,7 +7,7 @@ import liftoff.simulation.SimController
 import liftoff.simulation.Sim
 import liftoff.misc.Reporting
 import liftoff.simulation.task.Task
-import liftoff.verify.component.Driver
+import liftoff.verify.component._
 import liftoff.simulation.task.Channel
 import liftoff.coroutine.Gen.emit
 import liftoff.coroutine.Gen
@@ -60,6 +60,16 @@ class ComplexTestDriver extends Driver[Tx, Rs] {
       assert(shouldRespond == true)
       val rs = Rs(tx.value * 2)
       respond(rs)
+    }
+  }
+
+}
+
+class TestMonitor extends Monitor[Tx] {
+
+  def sim() = {
+    for (i <- 0 until 5) {
+      publish(Tx(i))
     }
   }
 
@@ -263,6 +273,32 @@ class ComponentTests extends AnyWordSpec with Matchers {
         val completion = driver.enqueue(gen)
 
         completion.awaitDone()
+
+      }
+
+    }
+
+  }
+
+
+  "A Monitor" should {
+
+    "publish transactions to subscribers" in {
+
+      val ctrl = new SimController(new DummySimModel)
+
+      ctrl.run {
+
+        val monitor = Component.create[TestMonitor]()
+
+        val receiverPort = Port.receiver[Tx]
+        monitor.subscribe(receiverPort)
+
+        Phase.run[SimPhase](monitor)
+
+        val received = (0 until 5).map(_ => receiverPort.receive())
+
+        received.toSeq shouldEqual Seq(Tx(0), Tx(1), Tx(2), Tx(3), Tx(4))
 
       }
 
