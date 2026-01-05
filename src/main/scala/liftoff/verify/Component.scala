@@ -41,21 +41,36 @@ abstract class Component {
   val componentContext: CoroutineContext = Coroutine.Context.capture()
 
   var taskCounter = 0
+  val tasks = mutable.Buffer.empty[Task[_]]
 
   def createTask[T](block: => T): Task[T] = {
     val name = s"${path}.task[${taskCounter}]"
     taskCounter += 1
-    Sim.Scheduler.addTask[T](name, 0, Some(componentContext))(block)
+    val t = Sim.Scheduler.addTask[T](name, 0, Some(componentContext))(block)
+    tasks += t
+    t
   }
 
   def createPhaseTask(phaseName: String)(block: => Unit): Task[Unit] = {
     val name = s"${path}.${phaseName}.task[${taskCounter}]"
     taskCounter += 1
-    Sim.Scheduler.addTask[Unit](name, 0, Some(componentContext))(block)
+    val t = Sim.Scheduler.addTask[Unit](name, 0, Some(componentContext))(block)
+    tasks += t
+    t
   }
 
   override def toString(): String = {
     s"Component(${path.toString()})"
+  }
+
+  def cancelTasks(): Unit = {
+    tasks.foreach(_.cancelWithChildren())
+    tasks.clear()
+  }
+
+  def joinTasks(): Unit = {
+    tasks.foreach(_.join())
+    tasks.clear()
   }
   
 }

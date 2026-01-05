@@ -321,6 +321,8 @@ object PeekPokeAPI {
       }
       Reporting.warn(Some(Sim.time), "PeekPokeAPI", s"stepUntil reached maxCycles ($maxCycles) without hitting sentinel")
     }
+
+    def cycle: Int = simulationPort.cycle
   }
 
   implicit final class TestableSInt(val data: SInt) extends TestableElement[SInt] {

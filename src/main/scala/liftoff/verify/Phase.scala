@@ -51,9 +51,9 @@ object Phase {
     }
   }
 
-  def run[P <: Phase: ClassTag](root: Component): Map[Component, Task[_]] = {
+  def run[P <: Phase: ClassTag](root: Component): Seq[Component] = {
     val runner = getRunner[P]
-    def inner(comp: Component, collector: mutable.Map[Component, Task[_]]): Unit = {
+    def inner(comp: Component, collector: mutable.Buffer[Component]): Unit = {
       comp match {
         case c: P => {
           val phaseName = lookUpPhaseName[P]
@@ -62,15 +62,15 @@ object Phase {
             runner(c)
             Reporting.debug(Some(Sim.time), s"Phase[${phaseName}]", s"Completed phase ${phaseName} for component ${comp.path}")
           }
-          collector(comp) = task
+          collector.append(comp)
         }
         case _ => ()
       }
       comp.children.foreach(child => inner(child, collector))
     }
-    val tasks = mutable.Map.empty[Component, Task[_]]
+    val tasks = mutable.Buffer.empty[Component]
     inner(root, tasks)
-    tasks.toMap
+    tasks.toSeq
   }
 
 

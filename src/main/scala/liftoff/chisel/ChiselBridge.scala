@@ -57,6 +57,7 @@ object ChiselBridge {
     def check(isSigned: Boolean)(checkFn: Value => Unit): Unit
     def tick(cycles: Int): Unit
     def handle: PortHandle
+    def cycle: Int
   }
   object Port {
     def fromHandle(handle: PortHandle): Port = handle match {
@@ -101,6 +102,7 @@ object ChiselBridge {
     def tick(cycles: Int): Unit = throw new Exception(s"Cannot tick input port handle: ${handle.name}")
 
     def handle: PortHandle = this.handle
+    def cycle: Int = throw new Exception(s"Cannot get cycle of input port handle: ${handle.name}")
   }
 
   class ClockPort(handle: ClockPortHandle) extends Port {
@@ -115,6 +117,7 @@ object ChiselBridge {
     }
     override def tick(cycles: Int): Unit = handle.step(cycles)
     def handle: PortHandle = this.handle
+    def cycle: Int = handle.cycle
   }
 
   class OutputPort(handle: OutputPortHandle) extends Port {
@@ -133,6 +136,8 @@ object ChiselBridge {
       throw new Exception(s"Cannot tick output port handle: ${handle.name}")
 
     def handle: PortHandle = this.handle
+
+    def cycle: Int = throw new Exception(s"Cannot get cycle of output port handle: ${handle.name}")
   }
 
   class Value(bits: Int, value: BigInt) {

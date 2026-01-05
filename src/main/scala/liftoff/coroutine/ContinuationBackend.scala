@@ -46,7 +46,7 @@ class ContinuationCoroutine[I, O, R](scope: ContinuationCoroutineScope, val pare
 
   val context = scope.currentContext.capture()
 
-  Reporting.debug(None, "Scheduler", s"Created ContinuationCoroutine $this with context:\n${context.pretty}")
+  //Reporting.debug(None, "Scheduler", s"Created ContinuationCoroutine $this with context:\n${context.pretty}")
 
   var hasBeenCancelled: Boolean = false
 

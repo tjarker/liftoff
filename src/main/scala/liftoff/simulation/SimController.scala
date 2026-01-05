@@ -58,6 +58,9 @@ object Sim {
     def addClockDomain(clockPortName: String, period: Time, ports: Seq[PortHandle]): ClockPortHandle = {
       SimController.current.addClockDomain(clockPortName, period, ports)
     }
+    def getCycles(c: ClockPortHandle): Int = {
+      SimController.current.getCycle(c)
+    }
   }
   def time: AbsoluteTime = SimController.current.currentTime
 
@@ -109,7 +112,11 @@ class SimControllerClockHandle(p: InputPortHandle, ctrl: SimController, val peri
     ctrl.set(p, value)
   }
 
-  def doStep(n: Int): Unit = {
+  def cycle: Int = {
+    ctrl.getCycle(this)
+  }
+
+  def step(n: Int = 1): Unit = {
     ctrl.taskScope.suspend(Some(Step(this, n)))
   }
 }
@@ -139,6 +146,8 @@ class SimController(simModel: SimModel) {
   val outputHandles = simModel.outputs.map(p => p.name -> new SimControllerOutputHandle(p, this)).toMap
   val clockHandles = collection.mutable.Map.empty[String, ClockPortHandle]
 
+  val clockCycles = collection.mutable.Map.empty[ClockPortHandle, Int]
+
   def ports: Seq[PortHandle] = (inputHandles.values ++ outputHandles.values).toSeq
 
   val portToClock = collection.mutable.Map.empty[PortHandle, ClockPortHandle]
@@ -149,8 +158,8 @@ class SimController(simModel: SimModel) {
      
       val event = eventQueue.pop().get
 
-      Reporting.debug(Some(currentTime), "SimController", s"Handling event: ${event}")
-      
+      Reporting.debug(Some(currentTime), "SimController.Loop", s"Handling event: ${event}")
+
       val delta = event.time - currentTime
       if (delta > 0.fs) {
         simModel.tick(delta.relative)
@@ -159,7 +168,7 @@ class SimController(simModel: SimModel) {
 
       handleEvent(event)
 
-      Reporting.debug(Some(currentTime), "SimController", s"Event queue:\n - ${eventQueue.queue.mkString("\n - ")}")
+      Reporting.debug(Some(currentTime), "SimController.Queue", s"Event queue:\n - ${eventQueue.queue.mkString("\n - ")}")
     }
 
 
@@ -176,11 +185,15 @@ class SimController(simModel: SimModel) {
           inputDirty.clear()
           clockPort.set(1)
           eventQueue.enqueue(Event.ClockEdge((currentTime + (clockPort.period / 2)).absolute, clockPort, false))
+          val cycle = clockCycles.getOrElse(clockPort, 0) + 1
+          Reporting.debug(Some(currentTime), "ClockTick", s"Clock ${clockPort.name} cycle ${cycle}")
+          clockCycles(clockPort) = cycle
         } else {
           clockPort.set(0)
           eventQueue.enqueue(Event.ClockEdge((currentTime + (clockPort.period / 2)).absolute, clockPort, true))
         }
       case Event.RunTask(_, task, _) =>
+        Reporting.debug(Some(currentTime), "Task", s"${task.name}")
         handleTask(task)
     }
   }
@@ -195,7 +208,12 @@ class SimController(simModel: SimModel) {
     ports.foreach(p => portToClock(p) = handle)
     eventQueue.enqueue(Event.ClockEdge(currentTime.absolute, handle, false))
     clockHandles(clockPortName) = handle
+    clockCycles(handle) = 0
     handle
+  }
+
+  def getCycle(c: ClockPortHandle): Int = {
+    clockCycles.get(c).getOrElse(throw new Exception(s"Clock ${c.name} has no cycle count"))
   }
 
   def handleTask(t: Task[_]) = {
@@ -292,10 +310,10 @@ class SimController(simModel: SimModel) {
   }
 
   def addTask[T](name: String, order: Int, ctx: Option[CoroutineContext] = None)(block: => T): Task[T] = {
-    Reporting.debug(Some(currentTime), "SimController", s"Adding task: ${name} with order ${order}")
     var task: Task[T] = null
     val context = Coroutine.Context.current()
     ctx.foreach(c => taskScope.restoreContext(c))
+    Reporting.debug(Some(currentTime), "SimController", s"Adding task: ${name} with order ${order} and context ${Coroutine.Context.current().pretty}")
     task = new Task[T](name, taskScope, order, block)
     Coroutine.Context.restore(context)
     eventQueue.enqueue(Event.RunTask(currentTime, task, order))

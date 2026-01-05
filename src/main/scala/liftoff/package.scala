@@ -10,8 +10,12 @@ import liftoff.verilog.VerilogModule
 import liftoff.simulation.verilator.VerilatorSimModelFactory
 import java.io.File
 import liftoff.simulation.task.Task
+import liftoff.simulation.task.TaskScope
 
 package object liftoff {
+
+  TaskScope
+  Task
   
 
   def simulateChisel[M <: chisel3.Module, T](m: => M, workingDir: WorkingDirectory)(block: M => T): T = {
@@ -44,7 +48,7 @@ package object liftoff {
         ports.map(ChiselBridge.Port.fromData).map(_.handle).toSeq
       )
 
-      val root = controller.addTask("root", 0, None)(block(dut))
+      val root = controller.addTask("rootTask", 0, None)(block(dut))
       try {
         controller.run()
       } finally {

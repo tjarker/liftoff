@@ -56,7 +56,10 @@ abstract class Monitor[T <: Transaction] extends Component with SimPhase {
   }
 
   def waitForCount(n: Int): Unit = {
-    countingWaiters.append((n + seenTxs, Task.current))
+    if (n <= seenTxs) {
+      return
+    }
+    countingWaiters.append((n, Task.current))
     Sim.Scheduler.suspendTask()
   }
 

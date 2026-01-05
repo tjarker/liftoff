@@ -15,6 +15,7 @@ object Reporting {
   val outputStream = new CoroutineContextVariable[java.io.PrintStream](System.out)
   val coloredOutput = new CoroutineContextVariable[Boolean](true)
   val providerName = new CoroutineContextVariable[String]("unknown")
+  val providerFilters = new CoroutineContextVariable[Set[String]](Set())
 
   def withOutput[R](stream: java.io.PrintStream, colored: Boolean = true)(block: => R): R = {
     outputStream.withValue[R](stream) {
@@ -33,6 +34,15 @@ object Reporting {
   }
   def getCurrentProvider(): String = {
     providerName.value
+  }
+
+  def addProviderFilter(filter: String): Unit = {
+    val filters = providerFilters.value
+    providerFilters.value = filters + filter
+  }
+  def removeProviderFilter(filter: String): Unit = {
+    val filters = providerFilters.value
+    providerFilters.value = filters - filter
   }
 
   object NullStream extends java.io.PrintStream(new java.io.OutputStream {
@@ -83,7 +93,7 @@ object Reporting {
     reportString(infoTag, time, provider, message)
   }
   def info(time: Option[Time], provider: String, message: String): Unit = {
-    outputStream.value.println(infoStr(time, provider, message))
+    if (!providerFilters.value.contains(provider)) outputStream.value.println(infoStr(time, provider, message))
   }
   def info(time: Option[Time], message: String): Unit = {
     info(time, providerName.value, message)
@@ -93,7 +103,7 @@ object Reporting {
     reportString(warnTag, time, provider, message)
   }
   def warn(time: Option[Time], provider: String, message: String): Unit = {
-    outputStream.value.println(warnStr(time, provider, message))
+    if (!providerFilters.value.contains(provider)) outputStream.value.println(warnStr(time, provider, message))
   }
   def warn(time: Option[Time], message: String): Unit = {
     warn(time, providerName.value, message)
@@ -103,7 +113,7 @@ object Reporting {
     reportString(errorTag, time, provider, message)
   }
   def error(time: Option[Time], provider: String, message: String): Unit = {
-    outputStream.value.println(errorStr(time, provider, message))
+    if (!providerFilters.value.contains(provider)) outputStream.value.println(errorStr(time, provider, message))
   }
   def error(time: Option[Time], message: String): Unit = {
     error(time, providerName.value, message)
@@ -113,7 +123,7 @@ object Reporting {
     reportString(successTag, time, provider, message)
   }
   def success(time: Option[Time], provider: String, message: String): Unit = {
-    outputStream.value.println(successStr(time, provider, message))
+    if (!providerFilters.value.contains(provider)) outputStream.value.println(successStr(time, provider, message))
   }
   def success(time: Option[Time], message: String): Unit = {
     success(time, providerName.value, message)
@@ -123,7 +133,7 @@ object Reporting {
     reportString(debugTag, time, provider, message)
   }
   def debug(time: Option[Time], provider: String, message: String): Unit = {
-    outputStream.value.println(debugStr(time, provider, message))
+    if (!providerFilters.value.contains(provider)) outputStream.value.println(debugStr(time, provider, message))
   }
   def debug(time: Option[Time], message: String): Unit = {
     debug(time, providerName.value, message)

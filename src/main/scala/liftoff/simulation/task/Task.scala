@@ -26,6 +26,7 @@ object Task {
     }
     val childName = parentTask.nextChildName()
     val childTask = Sim.Scheduler.addTask[T](childName, parentTask.order)(block)
+    parentTask.children += childTask
     TaskScope.current.foreach(_.addTask(childTask))
     childTask
   }
@@ -36,6 +37,7 @@ object Task {
     }
     val childName = parentTask.nextChildName()
     val childTask = Sim.Scheduler.addTask[T](childName, region.id)(block)
+    parentTask.children += childTask
     TaskScope.current.foreach(_.addTask(childTask))
     childTask
   }
@@ -70,6 +72,7 @@ class Task[T](
   }
 
   var childCount = 0
+  val children = scala.collection.mutable.Buffer[Task[_]]()
   def nextChildName(): String = {
     val childName = s"${name}.task[${childCount}]"
     childCount += 1
@@ -101,8 +104,14 @@ class Task[T](
   }
 
   def cancel(): Unit = {
+    Reporting.debug(None, "Task",s"Cancelling task $this")
     Sim.Scheduler.purgeTask(this)
     coroutine.cancel()
+  }
+
+  def cancelWithChildren(): Unit = {
+    cancel()
+    children.foreach(_.cancelWithChildren())
   }
 
 

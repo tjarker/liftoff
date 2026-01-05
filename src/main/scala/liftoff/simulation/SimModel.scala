@@ -44,15 +44,10 @@ trait ClockPortHandle extends InputPortHandle {
 
   override def toString(): String = s"Clock($name, $width.W)"
 
-  var cycleCount = 0
 
-  def cycle: Int = cycleCount
+  def cycle: Int
   def period: Time
-  def step(n: Int = 1): Unit = {
-    doStep(n)
-    cycleCount += n
-  }
-  protected def doStep(n: Int): Unit
+  def step(n: Int = 1): Unit
   def stepUntil(port: OutputPortHandle, value: BigInt, maxCycles: Int) = {
     var cycles = 0
     while (port.get() != value && cycles < maxCycles) {
