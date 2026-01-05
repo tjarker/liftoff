@@ -14,11 +14,11 @@ class EventQueueTests extends AnyWordSpec with Matchers {
       val t2 = 200.ns.absolute
 
       val e1 = Event.RunTask(t1, null, 10)
-      val e2 = Event.ClockEdge(t1, null, 20.ns, true)
+      val e2 = Event.ClockEdge(t1, null, true)
       val e3 = Event.RunTask(t2, null, Int.MaxValue)
       val e4 = Event.RunTask(t2, null, 0)
       val e5 = Event.RunTask(t2, null, 0)
-      val e6 = Event.ClockEdge(t1, null, 20.ns, false)
+      val e6 = Event.ClockEdge(t1, null, false)
       eq.enqueue(e3)
       eq.enqueue(e1)
       eq.enqueue(e5)

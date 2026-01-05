@@ -20,6 +20,12 @@ object Config {
     Coroutine.Context.set[T](c, value)
   }
 
+  def scoped[T, R](c: Config[T], value: T)(block: => R): R = {
+    Coroutine.Context.withValue[T, R](c, value) {
+      block
+    }
+  }
+
 }
 
 abstract class Config[T](val default: Option[T]) {

@@ -100,6 +100,11 @@ class Task[T](
     result.get
   }
 
+  def cancel(): Unit = {
+    Sim.Scheduler.purgeTask(this)
+    coroutine.cancel()
+  }
+
 
   override def toString(): String = {
     s"Task($name)"

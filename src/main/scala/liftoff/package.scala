@@ -33,13 +33,13 @@ package object liftoff {
 
     val ports = DataMirror.fullModulePorts(dut).collect {
       case (_, el: Element) => el // only collect leaf ports
-    }
+    }.filterNot(p => p.name == "clock")
 
     val controller = new SimController(simModel)
     SimController.runWith(controller) {
 
       controller.addClockDomain(
-        controller.getInputPortHandle("clock").get, 
+        "clock", 
         1.ns, 
         ports.map(ChiselBridge.Port.fromData).map(_.handle).toSeq
       )
@@ -68,15 +68,7 @@ package object liftoff {
     val controller = new SimController(simModel)
     val verilogModule = new VerilogModule(controller)
 
-    SimController.runWith(controller) {
-      val root = controller.addTask("root", 0, None)(block(verilogModule))
-      try {
-        controller.run()
-      } finally {
-        simModel.cleanup()
-      }
-      root.getResult().get
-    }
+    controller.run(block(verilogModule))
   }
 
 

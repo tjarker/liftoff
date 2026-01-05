@@ -63,7 +63,7 @@ class PeekPokeAPITests extends AnyWordSpec with Matchers with liftoff.chisel.Chi
 
         SimController.runWith(controller) {
 
-          controller.addClockDomain(controller.getInputPortHandle("clock").get, 10.fs, Seq(
+          controller.addClockDomain("clock", 10.fs, Seq(
             dut.reset.getPortHandle,
             dut.io.in.getPortHandle,
             dut.io.out.getPortHandle,

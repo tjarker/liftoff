@@ -1,6 +1,7 @@
 package liftoff.simulation
 
 import liftoff.simulation.Time.RelativeTime
+import liftoff.misc.Reporting
 
 
 
@@ -37,6 +38,32 @@ trait InputPortHandle extends PortHandle {
   def set(value: BigInt): Unit
 
   override def toString(): String = s"Input($name, $width.W)"
+}
+
+trait ClockPortHandle extends InputPortHandle {
+
+  override def toString(): String = s"Clock($name, $width.W)"
+
+  var cycleCount = 0
+
+  def cycle: Int = cycleCount
+  def period: Time
+  def step(n: Int = 1): Unit = {
+    doStep(n)
+    cycleCount += n
+  }
+  protected def doStep(n: Int): Unit
+  def stepUntil(port: OutputPortHandle, value: BigInt, maxCycles: Int) = {
+    var cycles = 0
+    while (port.get() != value && cycles < maxCycles) {
+      step(1)
+      cycles += 1
+    }
+    if (cycles == maxCycles) {
+      Reporting.error(Some(Sim.time), s"ClockPortHandle.stepUntil: Reached maxCycles ($maxCycles) without seeing desired value ($value) on port ${port.name}")
+    }
+  }
+
 }
 
 trait OutputPortHandle extends PortHandle {

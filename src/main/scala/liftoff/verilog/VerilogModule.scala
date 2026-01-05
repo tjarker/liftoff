@@ -23,10 +23,6 @@ object Verilog {
 
     def set(value: BigInt): Unit = handle.set(value)
 
-    def step(cycles: Int = 1) = {
-      Sim.Scheduler.suspendTask(Step(this, cycles))
-    }
-
     import chisel3._
     def :=(rhs: BigInt) = {
       rhs.U(handle.width.W) // TODO: check width

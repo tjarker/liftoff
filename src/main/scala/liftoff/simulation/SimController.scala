@@ -12,7 +12,7 @@ import liftoff.coroutine.CoroutineContext
 import liftoff.simulation.task.TaskScope
 
 trait SimControllerYield
-case class Step(clockPort: InputPortHandle, cycles: Int) extends SimControllerYield
+case class Step(clockPort: ClockPortHandle, cycles: Int) extends SimControllerYield
 //case class StepUntil(clockPort: InputPortHandle, port: OutputPortHandle, value: BigInt, maxCycles: Int) extends SimControllerYield
 case class TickFor(duration: RelativeTime) extends SimControllerYield
 case class TickUntil(time: AbsoluteTime) extends SimControllerYield
@@ -55,6 +55,9 @@ object Sim {
     def getOutputPortHandle(portName: String): Option[OutputPortHandle] = {
       SimController.current.getOutputPortHandle(portName)
     }
+    def addClockDomain(clockPortName: String, period: Time, ports: Seq[PortHandle]): ClockPortHandle = {
+      SimController.current.addClockDomain(clockPortName, period, ports)
+    }
   }
   def time: AbsoluteTime = SimController.current.currentTime
 
@@ -74,6 +77,9 @@ object Sim {
     def scheduleTaskNow(task: Task[_]): Unit = {
       SimController.current.scheduleTaskNow(task)
     }
+    def purgeTask(task: Task[_]): Unit = {
+      SimController.current.purgeTask(task)
+    }
   }
 
 }
@@ -88,6 +94,23 @@ class SimControllerInputHandle(p: InputPortHandle, ctrl: SimController) extends 
   }
   def set(value: BigInt): Unit = {
     ctrl.set(p, value)
+  }
+}
+
+class SimControllerClockHandle(p: InputPortHandle, ctrl: SimController, val period: Time) extends ClockPortHandle {
+  
+  def width: Int = p.width
+  def name: String = p.name
+
+  def get(): BigInt = {
+    ctrl.get(p, isSigned = false)
+  }
+  def set(value: BigInt): Unit = {
+    ctrl.set(p, value)
+  }
+
+  def doStep(n: Int): Unit = {
+    ctrl.taskScope.suspend(Some(Step(this, n)))
   }
 }
 
@@ -114,11 +137,11 @@ class SimController(simModel: SimModel) {
 
   val inputHandles = simModel.inputs.map(p => p.name -> new SimControllerInputHandle(p, this)).toMap
   val outputHandles = simModel.outputs.map(p => p.name -> new SimControllerOutputHandle(p, this)).toMap
+  val clockHandles = collection.mutable.Map.empty[String, ClockPortHandle]
 
   def ports: Seq[PortHandle] = (inputHandles.values ++ outputHandles.values).toSeq
 
-  val clockPeriods = collection.mutable.Map.empty[InputPortHandle, Time]
-  val portToClock = collection.mutable.Map.empty[PortHandle, InputPortHandle]
+  val portToClock = collection.mutable.Map.empty[PortHandle, ClockPortHandle]
 
   def run(): Unit = {
     
@@ -146,27 +169,33 @@ class SimController(simModel: SimModel) {
 
   def handleEvent(event: Event): Unit = {
     event match {
-      case Event.ClockEdge(_, clockPort, period, rising) =>
+      case Event.ClockEdge(_, clockPort, rising) =>
         if (rising) {
           // clear output cache on clock edges
           outputCache.clear()
           inputDirty.clear()
           clockPort.set(1)
-          eventQueue.enqueue(Event.ClockEdge((currentTime + (period / 2)).absolute, clockPort, period, false))
+          eventQueue.enqueue(Event.ClockEdge((currentTime + (clockPort.period / 2)).absolute, clockPort, false))
         } else {
           clockPort.set(0)
-          eventQueue.enqueue(Event.ClockEdge((currentTime + (period / 2)).absolute, clockPort, period, true))
+          eventQueue.enqueue(Event.ClockEdge((currentTime + (clockPort.period / 2)).absolute, clockPort, true))
         }
       case Event.RunTask(_, task, _) =>
         handleTask(task)
     }
   }
 
-  def addClockDomain(clock: InputPortHandle, period: Time, ports: Seq[PortHandle]): Unit = {
+  def addClockDomain(clockPortName: String, period: Time, ports: Seq[PortHandle]): ClockPortHandle = {
+    val clock = getInputPortHandle(clockPortName).getOrElse {
+      Reporting.error(Some(currentTime), "SimController", s"addClockDomain: No input port named ${clockPortName} found in SimModel ${simModel.name}")
+      throw new Exception("No such clock port")
+    }
     Reporting.debug(Some(currentTime), "SimController", s"Adding clock: ${clock.name} with period ${period}")
-    clockPeriods(clock) = period
-    ports.foreach(p => portToClock(p) = clock)
-    eventQueue.enqueue(Event.ClockEdge(currentTime.absolute, clock, period, false))
+    val handle = new SimControllerClockHandle(clock, this, period)
+    ports.foreach(p => portToClock(p) = handle)
+    eventQueue.enqueue(Event.ClockEdge(currentTime.absolute, handle, false))
+    clockHandles(clockPortName) = handle
+    handle
   }
 
   def handleTask(t: Task[_]) = {
@@ -184,10 +213,7 @@ class SimController(simModel: SimModel) {
           Reporting.error(Some(currentTime), "SimController", s"No falling edge scheduled for clock ${clockPort.name} when trying to step task ${t.name}")
           0.fs.absolute
         }
-        val period = clockPeriods.getOrElse(clockPort, {
-          Reporting.error(Some(currentTime), "SimController", s"No period recorded for clock ${clockPort.name} when trying to step task ${t.name}")
-          throw new Exception("No clock period")
-        })
+        val period = clockPort.period
         val nextTime = if (nextFallingEdge == currentTime) nextFallingEdge + (period * cycles) else nextFallingEdge + (period * (cycles - 1))
         Reporting.debug(Some(currentTime), "SimController", s"Scheduling task ${t.name} at time ${nextTime} after ${cycles}x${period}")
         eventQueue.enqueue(Event.RunTask(nextTime.absolute, t, t.order))
@@ -214,6 +240,8 @@ class SimController(simModel: SimModel) {
   def getInputPortHandle(portName: String): Option[InputPortHandle] = inputHandles.get(portName)
 
   def getOutputPortHandle(portName: String): Option[OutputPortHandle] = outputHandles.get(portName)
+
+  def getClockPortHandle(portName: String): Option[ClockPortHandle] = clockHandles.get(portName)
   
   def get(port: PortHandle, isSigned: Boolean): BigInt = {
     Reporting.debug(Some(currentTime), "SimController", s"Getting value of port: ${port.name}")
@@ -255,9 +283,9 @@ class SimController(simModel: SimModel) {
       taskScope.suspend(Some(TickUntil(nextDriveTime.absolute)))
       Reporting.debug(Some(currentTime), "SimController", s"Resumed for driving port ${port.name} at time ${currentTime}")
     }
-    if (!clockPeriods.exists { case (clockPort, _) => clockPort.name == port.name } && inputDirty.contains(port)) {
-      Reporting.error(Some(currentTime), "SimController", s"Overwriting input port ${port.name} after it has been read")
-    }
+    // if (!port.isInstanceOf[ClockPortHandle] && inputDirty.contains(port)) {
+    //   Reporting.error(Some(currentTime), "SimController", s"Overwriting input port ${port.name} after it has been read")
+    // }
     inputDirty.add(port)
     inputCache(port) = value
     port.set(value)
@@ -280,6 +308,10 @@ class SimController(simModel: SimModel) {
   }
 
   def scheduleTaskNow(task: Task[_]): Unit = scheduleTaskAt(currentTime, task)
+
+  def purgeTask(task: Task[_]): Unit = {
+    eventQueue.purgeTask(task)
+  }
 
   def suspendWith(v: SimControllerYield): Unit = {
     taskScope.suspend(Some(v))

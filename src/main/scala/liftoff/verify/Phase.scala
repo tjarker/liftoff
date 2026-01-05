@@ -8,14 +8,7 @@ import liftoff.misc.Reporting
 import liftoff.simulation.Sim
 
 trait Phase {
-  override def toString(): String = s"Phase($lookUpPhaseName)"
 
-  def lookUpPhaseName: String = this match {
-    case p: SimPhase    => "SimPhase"
-    case p: ResetPhase  => "ResetPhase"
-    case p: TestPhase   => "TestPhase"
-    case p: ReportPhase => "ReportPhase"
-  }
 }
 
 trait SimPhase extends Phase {
@@ -47,12 +40,23 @@ object Phase {
     }
   }
 
+  def lookUpPhaseName[P <: Phase: ClassTag]: String = {
+    val ct = implicitly[ClassTag[P]]
+    ct.runtimeClass match {
+      case c if c == classOf[SimPhase]    => "SimPhase"
+      case c if c == classOf[ResetPhase]  => "ResetPhase"
+      case c if c == classOf[TestPhase]   => "TestPhase"
+      case c if c == classOf[ReportPhase] => "ReportPhase"
+      case _  => throw new Exception(s"Unknown phase type: ${ct.runtimeClass}")
+    }
+  }
+
   def run[P <: Phase: ClassTag](root: Component): Map[Component, Task[_]] = {
     val runner = getRunner[P]
     def inner(comp: Component, collector: mutable.Map[Component, Task[_]]): Unit = {
       comp match {
         case c: P => {
-          val phaseName = c.lookUpPhaseName
+          val phaseName = lookUpPhaseName[P]
           val task = c.createPhaseTask(phaseName) {
             Reporting.debug(Some(Sim.time), s"Phase[${phaseName}]", s"Starting phase ${phaseName} for component ${comp.path}")
             runner(c)

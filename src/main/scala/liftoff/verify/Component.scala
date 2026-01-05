@@ -86,6 +86,13 @@ object Component {
     comp
   }
 
+  def createSeq[C <: Component: ClassTag](n: Int)(args: Int => Seq[Any])(implicit name: sourcecode.Name): Seq[C] = {
+    (0 until n).map { i =>
+      val idxName: sourcecode.Name = sourcecode.Name(s"${name.value}[$i]")
+      create[C](args(i): _*)(implicitly[ClassTag[C]], idxName)
+    }
+  }
+
   def overrideType[C <: Component: ClassTag, D <: C: ClassTag]: Unit = {
     val map = overrideMap.value
     map(implicitly[ClassTag[C]]) = implicitly[ClassTag[D]]

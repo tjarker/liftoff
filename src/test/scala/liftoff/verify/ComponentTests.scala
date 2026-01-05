@@ -47,6 +47,7 @@ class SimpleTestDriver(ch: Channel[Int]) extends Driver[Tx, Nothing] {
       val tx = next()
       assert(shouldRespond == false)
       ch.send(tx.value)
+      done()
     }
   }
 
@@ -59,7 +60,7 @@ class ComplexTestDriver extends Driver[Tx, Rs] {
       val tx = next()
       assert(shouldRespond == true)
       val rs = Rs(tx.value * 2)
-      respond(rs)
+      done(rs)
     }
   }
 

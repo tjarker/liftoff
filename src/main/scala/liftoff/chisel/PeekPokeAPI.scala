@@ -567,3 +567,4 @@ trait ChiselPeekPokeAPI {
   implicit def toTestableData[T <: Data](data: T): PeekPokeAPI.TestableData[T] = new PeekPokeAPI.TestableData(data)
 }
 
+

@@ -45,7 +45,7 @@ class VerilogSimulationTests extends AnyWordSpec with Matchers {
       Reporting.setOutput(Reporting.NullStream)
 
       simulateVerilog(topName, Seq(verilogFile), buildDir) { alu =>
-        SimController.current.addClockDomain(alu.in("clk"), 2.ns, Seq(
+        val clk = Sim.Model.addClockDomain("clk", 2.ns, Seq(
           alu("a"), alu("b"), alu("op"), alu("result")
         ))
 
@@ -55,7 +55,7 @@ class VerilogSimulationTests extends AnyWordSpec with Matchers {
               alu("a") := aval
               alu("b") := bval
               alu("op") := op
-              alu.in("clk").step()
+              clk.step()
 
               val expected = op match {
                 case 0 => aval + bval

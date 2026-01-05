@@ -60,22 +60,21 @@ class SimControllerTests extends AnyWordSpec with Matchers {
       val ctrl = new SimController(simModel)
 
       object Dut {
-        val clk = ctrl.getInputPortHandle("clk").get
         val a = ctrl.getInputPortHandle("a").get
         val b = ctrl.getInputPortHandle("b").get
         val op = ctrl.getInputPortHandle("op").get
         val result = ctrl.getOutputPortHandle("result").get
+        val clk = ctrl.addClockDomain("clk", 10.fs, Seq(a, b, op, result))
       }
 
       Reporting.withOutput(buildDir.addLoggingFile("simulation.log")) {
 
         SimController.runWith(ctrl) {
           ctrl.addTask("main task", 0) {
-            SimController.current.addClockDomain(Dut.clk, 10.fs, Seq(Dut.a, Dut.b, Dut.op, Dut.result))
             Dut.a.set(5)
             Dut.b.set(3)
             Dut.op.set(0)
-            SimController.current.suspendWith(Step(Dut.clk, 2))
+            Dut.clk.step()
             Dut.result.get() shouldBe 8
           }
           

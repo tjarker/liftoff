@@ -60,6 +60,7 @@ object ChiselBridge {
   }
   object Port {
     def fromHandle(handle: PortHandle): Port = handle match {
+      case ch: ClockPortHandle   => new ClockPort(ch)
       case ih: InputPortHandle   => new InputPort(ih)
       case oh: OutputPortHandle  => new OutputPort(oh)
     }
@@ -73,12 +74,16 @@ object ChiselBridge {
         val finalName = noBrackets
 
         val controller = SimController.current
-        ChiselBridge.Port.fromHandle(controller.getInputPortHandle(finalName) match {
-        case Some(port) => port
-        case None       => controller.getOutputPortHandle(finalName) match {
-          case Some(port) => port
-          case None       => throw new Exception(s"Could not find port handle for port: $finalName")
-        }
+        ChiselBridge.Port.fromHandle(controller.getClockPortHandle(finalName) match { // first try to find clock
+          case Some(clockPort) => clockPort
+          case None => 
+            controller.getInputPortHandle(finalName) match { // then input
+            case Some(inputPort) => inputPort
+            case None       => controller.getOutputPortHandle(finalName) match { // finally output
+              case Some(outputPort) => outputPort
+              case None       => throw new Exception(s"Could not find port handle for port: $finalName")
+            }
+          }
       })
     }
   }
@@ -93,8 +98,22 @@ object ChiselBridge {
       val v = get(isSigned)
       checkFn(v)
     }
-    def tick(cycles: Int): Unit = SimController.current.suspendWith(Step(handle, cycles))
+    def tick(cycles: Int): Unit = throw new Exception(s"Cannot tick input port handle: ${handle.name}")
 
+    def handle: PortHandle = this.handle
+  }
+
+  class ClockPort(handle: ClockPortHandle) extends Port {
+
+    def set(value: BigInt): Unit = 
+      throw new Exception(s"Cannot set clock port handle: ${handle.name}")
+    def get(isSigned: Boolean): Value = {
+      throw new Exception(s"Cannot get clock port handle: ${handle.name}")
+    }
+    def check(isSigned: Boolean)(checkFn: Value => Unit): Unit = {
+      throw new Exception(s"Cannot check clock port handle: ${handle.name}")
+    }
+    override def tick(cycles: Int): Unit = handle.step(cycles)
     def handle: PortHandle = this.handle
   }
 

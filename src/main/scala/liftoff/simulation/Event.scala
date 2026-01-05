@@ -47,8 +47,8 @@ object Event {
   case class RunTask(time: AbsoluteTime, task: Task[_], order: Int) extends Event {
     override def toString(): String = s"RunTask(${time}, ${task})"
   }
-  case class ClockEdge(time: AbsoluteTime, clock: InputPortHandle, period: Time, rising: Boolean) extends Event {
-    override def toString(): String = s"ClockEdge(${time}, ${clock}, ${period}, ${if (rising) "rising" else "falling"})"
+  case class ClockEdge(time: AbsoluteTime, clock: ClockPortHandle, rising: Boolean) extends Event {
+    override def toString(): String = s"ClockEdge(${time}, ${clock}, ${clock.period}, ${if (rising) "rising" else "falling"})"
   }
 }
 
@@ -89,15 +89,22 @@ class EventQueue {
 
   def nextFallingEdge(clock: InputPortHandle): Option[Time] = {
     queue.collectFirst {
-      case e @ Event.ClockEdge(_, c, p, false) if c == clock => e.time
-      case e @ Event.ClockEdge(_, c, p, true) if c == clock => e.time + (p / 2)
+      case e @ Event.ClockEdge(_, cp, false) if cp == clock => e.time
+      case e @ Event.ClockEdge(_, cp, true) if cp == clock => e.time + (cp.period / 2)
     }
   }
   def nextRisingEdge(clock: InputPortHandle): Option[Time] = {
     queue.collectFirst {
-      case e @ Event.ClockEdge(_, c, p, true) if c == clock => e.time
-      case e @ Event.ClockEdge(_, c, p, false) if c == clock => e.time + (p / 2)
+      case e @ Event.ClockEdge(_, cp, true) if cp == clock => e.time
+      case e @ Event.ClockEdge(_, cp, false) if cp == clock => e.time + (cp.period / 2)
     }
+  }
+
+  def purgeTask(task: Task[_]): Unit = {
+    queue.dequeueAll[Event].filter {
+      case Event.RunTask(_, t, _) if t == task => false
+      case _ => true
+    }.foreach(queue.enqueue(_))
   }
 
 }

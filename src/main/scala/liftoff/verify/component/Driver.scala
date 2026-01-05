@@ -44,12 +44,7 @@ abstract class Driver[T <: Transaction, R <: Transaction] extends Component with
 
     currentGen match {
       case Some((gen, flag)) => {
-        val v = gen.next()
-        if (!gen.hasNext) {
-          flag.markFinished()
-          currentGen = None
-        }
-        v
+        gen.next()
       }
       case None      => throw new Exception(s"Unreachable")
     }
@@ -60,10 +55,22 @@ abstract class Driver[T <: Transaction, R <: Transaction] extends Component with
     case None    => false
   }
 
-  def respond(resp: R): Unit = {
+  def done(resp: R): Unit = {
     currentGen match {
       case Some((gen, flag)) => {
         gen.feedback(resp)
+        if (!gen.hasNext) {
+          flag.markFinished()
+          currentGen = None
+        }
+      }
+      case None      => throw new Exception(s"No current generator to respond to")
+    }
+  }
+
+  def done(): Unit = {
+    currentGen match {
+      case Some((gen, flag)) => {
         if (!gen.hasNext) {
           flag.markFinished()
           currentGen = None
