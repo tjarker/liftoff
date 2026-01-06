@@ -1,6 +1,6 @@
 [![Scala Test CI](https://github.com/tjarker/liftoff/actions/workflows/scala.yml/badge.svg)](https://github.com/tjarker/liftoff/actions/workflows/scala.yml)
 
-# 🛫 **LiftOff** *Hardware Verification Framework* 
+# 🛫 **Liftoff** *Hardware Verification Framework* 
 *Getting your designs off the ground - safely*
 
 
@@ -10,7 +10,7 @@ class ChiselSimulationTests extends AnyWordSpec with Matchers with ChiselPeekPok
 
   "A Chisel simulation" should {
 
-    "automatcially create clock domain for Modules" in {
+    "work with Modules" in {
 
       import chisel3._
 
@@ -26,12 +26,12 @@ class ChiselSimulationTests extends AnyWordSpec with Matchers with ChiselPeekPok
         io.out := io.in.a + io.in.b + io.vecin.reduce(_ +& _)
       }
 
-      simulate(new MyModule, "build/chisel_simulation".toDir) { dut =>
+      simulateChisel(new MyModule, "build/chisel_simulation".toDir) { dut =>
 
         dut.io.in.a.poke(10.U)
         dut.io.in.b.poke(20.U)
         dut.io.vecin.poke(Vec.Lit(1.U, 2.U, 3.U, 4.U))
-        //dut.io.out.expect(40.U) // TODO: we need to reevaluate comb outputs after pokes
+        dut.io.out.expect(40.U)
 
         dut.clock.step(5)
 
@@ -40,15 +40,16 @@ class ChiselSimulationTests extends AnyWordSpec with Matchers with ChiselPeekPok
           _.b -> 15.U
         ))
         dut.io.vecin.poke(Vec.Lit(2.U, 3.U, 4.U, 5.U))
-        //dut.io.out.expect(52.U)
+        dut.io.out.expect(52.U)
 
         dut.clock.step(5)
         
       }
-
     }
-
   }
-
 }
 ```
+
+
+# TODO
+- [ ] reevaluate model for combinational paths from inputs to outputs when input changes
