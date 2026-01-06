@@ -11,6 +11,7 @@ import liftoff.simulation.verilator.VerilatorSimModelFactory
 import java.io.File
 import liftoff.simulation.task.Task
 import liftoff.simulation.task.TaskScope
+import liftoff.misc.Reporting
 
 package object liftoff {
 
@@ -27,6 +28,7 @@ package object liftoff {
 
     val files = ChiselBridge.emitSystemVerilogFile(dut.name, m, workingDir)
 
+    val startTime = System.nanoTime()
     val simModel = liftoff.simulation.verilator.VerilatorSimModelFactory.create(
       dut.name,
       workingDir,
@@ -34,6 +36,8 @@ package object liftoff {
       verilatorOptions = Seq(),
       cOptions = Seq()
     ).createModel(runDir)
+    val endTime = System.nanoTime()
+    Reporting.info(None, "ChiselSimulation", f"Elaboration and Verilator model compilation took ${(endTime - startTime) / 1e6.toDouble}%.2f ms")
 
     val ports = DataMirror.fullModulePorts(dut).collect {
       case (_, el: Element) => el // only collect leaf ports
@@ -50,7 +54,16 @@ package object liftoff {
 
       val root = controller.addTask("rootTask", 0, None)(block(dut))
       try {
+        val startSimTime = System.nanoTime()
         controller.run()
+        val endSimTime = System.nanoTime()
+        val timeOverview = Seq(
+          f"Total:     ${(endSimTime - startSimTime) / 1e6.toDouble}%5.2f ms",
+          f"Verilator: ${controller.getModelRunTimeMillis()}%5.2f ms",
+          f"Tasks:     ${controller.getTaskRunTimeMillis()}%5.2f ms",
+          f"Overhead:  ${(endSimTime - startSimTime)/1e6.toDouble - controller.getModelRunTimeMillis() - controller.getTaskRunTimeMillis()}%5.2f ms"
+        )
+        Reporting.info(None, "ChiselSimulation", timeOverview.mkString("\n"))
       } finally {
         simModel.cleanup()
       }
@@ -72,7 +85,11 @@ package object liftoff {
     val controller = new SimController(simModel)
     val verilogModule = new VerilogModule(controller)
 
-    controller.run(block(verilogModule))
+    try {
+      controller.run(block(verilogModule))
+    } finally {
+      simModel.cleanup()
+    }
   }
 
 

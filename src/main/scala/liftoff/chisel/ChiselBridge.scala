@@ -56,6 +56,7 @@ object ChiselBridge {
     def set(value: BigInt): Unit
     def check(isSigned: Boolean)(checkFn: Value => Unit): Unit
     def tick(cycles: Int): Unit
+    def tickUntil(port: Data, value: BigInt, maxCycles: Int): StepUntilResult
     def handle: PortHandle
     def cycle: Int
   }
@@ -100,6 +101,7 @@ object ChiselBridge {
       checkFn(v)
     }
     def tick(cycles: Int): Unit = throw new Exception(s"Cannot tick input port handle: ${handle.name}")
+    def tickUntil(port: Data, value: BigInt, maxCycles: Int): StepUntilResult = throw new Exception(s"Cannot tickUntil on input port handle: ${handle.name}")
 
     def handle: PortHandle = this.handle
     def cycle: Int = throw new Exception(s"Cannot get cycle of input port handle: ${handle.name}")
@@ -115,29 +117,44 @@ object ChiselBridge {
     def check(isSigned: Boolean)(checkFn: Value => Unit): Unit = {
       throw new Exception(s"Cannot check clock port handle: ${handle.name}")
     }
-    override def tick(cycles: Int): Unit = handle.step(cycles)
+    def tick(cycles: Int): Unit = handle.step(cycles)
+    def tickUntil(port: Data, value: BigInt, maxCycles: Int): StepUntilResult = {
+
+      val outPort = ChiselBridge.Port.fromData(port).handle
+      val result = handle.stepUntil(
+        outPort,
+        value,
+        maxCycles
+      )
+      result
+    }
+
     def handle: PortHandle = this.handle
     def cycle: Int = handle.cycle
   }
 
-  class OutputPort(handle: OutputPortHandle) extends Port {
+  class OutputPort(val phandle: OutputPortHandle) extends Port {
     def get(isSigned: Boolean): Value = {
-      val v = handle.get()
-      new Value(handle.width, v)
+      val v = phandle.get()
+      new Value(phandle.width, v)
     }
     def set(value: BigInt): Unit = {
-      throw new Exception(s"Cannot set output port handle: ${handle.name}")
+      throw new Exception(s"Cannot set output port handle: ${phandle.name}")
     }
     def check(isSigned: Boolean)(checkFn: Value => Unit): Unit = {
       val v = get(isSigned)
       checkFn(v)
     }
     def tick(cycles: Int): Unit = 
-      throw new Exception(s"Cannot tick output port handle: ${handle.name}")
+      throw new Exception(s"Cannot tick output port handle: ${phandle.name}")
 
-    def handle: PortHandle = this.handle
+    def tickUntil(port: Data, value: BigInt, maxCycles: Int): StepUntilResult = {
+      throw new Exception(s"Cannot tickUntil on output port handle: ${phandle.name}")
+    }
 
-    def cycle: Int = throw new Exception(s"Cannot get cycle of output port handle: ${handle.name}")
+    def handle: PortHandle = this.phandle
+
+    def cycle: Int = throw new Exception(s"Cannot get cycle of output port handle: ${phandle.name}")
   }
 
   class Value(bits: Int, value: BigInt) {

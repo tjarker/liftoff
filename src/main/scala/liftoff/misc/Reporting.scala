@@ -164,7 +164,15 @@ object Reporting {
     }
   }
 
-    def liftoffBanner: String = {
+  def showBanner(): Unit = {
+    if (coloredOutput.value) {
+      outputStream.value.println(fansi.Str(liftoffBanner).plainText)
+    } else {
+      outputStream.value.println(liftoffBanner)
+    }
+  }
+
+  def liftoffBanner: String = {
     import Console._
     s"""
 ${BLUE}╔════════════════════════════════════════════════════════════════════════════════╗${RESET}

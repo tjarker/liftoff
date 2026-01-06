@@ -21,6 +21,7 @@ import liftoff.simulation.InputPortHandle
 import liftoff.simulation.PortHandle
 import liftoff.misc.Reporting
 import liftoff.simulation.Sim
+import liftoff.simulation.StepUntilResult
 
 trait Peekable[T <: Data] {
 
@@ -308,18 +309,14 @@ object PeekPokeAPI {
     *
     * Stops early if the `sentinelPort` is equal to the `sentinelValue`.
     */
-    def stepUntil(sentinelPort: Data, sentinelValue: BigInt, maxCycles: Int): Unit = {
+    def stepUntil(sentinelPort: Data, sentinelValue: BigInt, maxCycles: Int): StepUntilResult = {
 
-      var cycles = 0
-      while (cycles < maxCycles) {
-        val portHandle = ChiselBridge.Port.fromData(sentinelPort).handle
-        if (portHandle.get() == sentinelValue) {
-          return
-        }
-        cycles += 1
-        simulationPort.tick(1)
-      }
-      Reporting.warn(Some(Sim.time), "PeekPokeAPI", s"stepUntil reached maxCycles ($maxCycles) without hitting sentinel")
+      val result = simulationPort.tickUntil(
+        sentinelPort,
+        sentinelValue,
+        maxCycles
+      )
+      result
     }
 
     def cycle: Int = simulationPort.cycle

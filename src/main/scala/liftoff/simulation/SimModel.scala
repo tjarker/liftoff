@@ -40,6 +40,19 @@ trait InputPortHandle extends PortHandle {
   override def toString(): String = s"Input($name, $width.W)"
 }
 
+trait StepUntilResult {
+  def succeeded: Boolean
+  def waitedCycles: Int
+}
+object StepUntilResult {
+  case class Success(waitedCycles: Int) extends StepUntilResult {
+    val succeeded: Boolean = true
+  }
+  case class Failure(waitedCycles: Int) extends StepUntilResult {
+    val succeeded: Boolean = false
+  }
+}
+
 trait ClockPortHandle extends InputPortHandle {
 
   override def toString(): String = s"Clock($name, $width.W)"
@@ -48,16 +61,7 @@ trait ClockPortHandle extends InputPortHandle {
   def cycle: Int
   def period: Time
   def step(n: Int = 1): Unit
-  def stepUntil(port: OutputPortHandle, value: BigInt, maxCycles: Int) = {
-    var cycles = 0
-    while (port.get() != value && cycles < maxCycles) {
-      step(1)
-      cycles += 1
-    }
-    if (cycles == maxCycles) {
-      Reporting.error(Some(Sim.time), s"ClockPortHandle.stepUntil: Reached maxCycles ($maxCycles) without seeing desired value ($value) on port ${port.name}")
-    }
-  }
+  def stepUntil(port: PortHandle, value: BigInt, maxCycles: Int): StepUntilResult
 
 }
 

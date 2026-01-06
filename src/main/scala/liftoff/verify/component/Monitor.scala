@@ -37,7 +37,7 @@ abstract class Monitor[T <: Transaction] extends Component with SimPhase {
 
     // Notify counting waiters
     countingWaiters.zipWithIndex.foreach { case ((count, task), idx) =>
-      if (seenTxs + 1 >= count) {
+      if (seenTxs >= count) {
         Sim.Scheduler.scheduleTaskNow(task)
         countingWaiters.remove(idx)
       }

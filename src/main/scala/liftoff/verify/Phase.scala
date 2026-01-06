@@ -58,9 +58,9 @@ object Phase {
         case c: P => {
           val phaseName = lookUpPhaseName[P]
           val task = c.createPhaseTask(phaseName) {
-            Reporting.debug(Some(Sim.time), s"Phase[${phaseName}]", s"Starting phase ${phaseName} for component ${comp.path}")
+            //Reporting.debug(Some(Sim.time), s"Phase[${phaseName}]", s"Starting phase ${phaseName} for component ${comp.path}")
             runner(c)
-            Reporting.debug(Some(Sim.time), s"Phase[${phaseName}]", s"Completed phase ${phaseName} for component ${comp.path}")
+            //Reporting.debug(Some(Sim.time), s"Phase[${phaseName}]", s"Completed phase ${phaseName} for component ${comp.path}")
           }
           collector.append(comp)
         }

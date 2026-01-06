@@ -6,6 +6,7 @@ import liftoff.simulation.SimController
 import liftoff.coroutine.CoroutineContextVariable
 import liftoff.simulation.Sim
 import liftoff.misc.Reporting
+import liftoff.simulation.SimControllerResponse
 
 object Task {
 
@@ -35,6 +36,9 @@ object Task {
     val parentTask = currentTaskVar.value.getOrElse {
       throw new Exception("Fork can only be called from within a Task")
     }
+    if (region.id < parentTask.order) {
+      throw new Exception(s"Cannot create task for region that has already been run (region id: ${region.id}, parent task order: ${parentTask.order})")
+    }
     val childName = parentTask.nextChildName()
     val childTask = Sim.Scheduler.addTask[T](childName, region.id)(block)
     parentTask.children += childTask
@@ -61,7 +65,7 @@ class Task[T](
 ) {
 
   val coroutine = Task.withValue(this) {
-    scope.create[Unit, SimControllerYield, T] {
+    scope.create[SimControllerResponse, SimControllerYield, T] {
       val res = block
       waitingTasks.foreach(t => {
         Reporting.debug(None, "Task",s"Scheduling waiting task ${t.name} after completion of ${this.name}")
@@ -85,8 +89,8 @@ class Task[T](
 
   def getResult(): Option[T] = result
 
-  def runStep(): Result[SimControllerYield, T] = {
-    coroutine.resume(None) match {
+  def runStep(resp: SimControllerResponse): Result[SimControllerYield, T] = {
+    coroutine.resume(Some(resp)) match {
       case r @ Finished(value) => {
         Reporting.debug(None, "Task",s"Task $name finished with result $value")
         result = Some(value)

@@ -13,9 +13,13 @@ import liftoff.simulation.task.TaskScope
 
 trait SimControllerYield
 case class Step(clockPort: ClockPortHandle, cycles: Int) extends SimControllerYield
-//case class StepUntil(clockPort: InputPortHandle, port: OutputPortHandle, value: BigInt, maxCycles: Int) extends SimControllerYield
+case class StepUntil(clockPort: ClockPortHandle, port: PortHandle, value: BigInt, maxCycles: Int) extends SimControllerYield
 case class TickFor(duration: RelativeTime) extends SimControllerYield
 case class TickUntil(time: AbsoluteTime) extends SimControllerYield
+
+trait SimControllerResponse
+case class StepUntilResponse(res: StepUntilResult) extends SimControllerResponse
+case object EmptyResponse extends SimControllerResponse
 
 object SimController {
 
@@ -119,6 +123,20 @@ class SimControllerClockHandle(p: InputPortHandle, ctrl: SimController, val peri
   def step(n: Int = 1): Unit = {
     ctrl.taskScope.suspend(Some(Step(this, n)))
   }
+
+  def stepUntil(port: PortHandle, value: BigInt, maxCycles: Int): StepUntilResult = {
+
+    if (port.get() == value) {
+      return StepUntilResult.Success(0)
+    }
+
+    val response: Option[SimControllerResponse] = ctrl.taskScope.suspend[SimControllerResponse, SimControllerYield](Some(StepUntil(this, port, value, maxCycles)))
+    val res = response match {
+      case Some(StepUntilResponse(res)) => res
+      case _ => throw new Exception("Invalid response to stepUntil")
+    }
+    res
+  }
 }
 
 class SimControllerOutputHandle(p: OutputPortHandle, ctrl: SimController) extends OutputPortHandle {
@@ -152,6 +170,17 @@ class SimController(simModel: SimModel) {
 
   val portToClock = collection.mutable.Map.empty[PortHandle, ClockPortHandle]
 
+  var modelRunTime = 0L
+  var taskRunTime = 0L
+
+  def getModelRunTimeMillis(): Double = {
+    modelRunTime / 1e6.toDouble
+  }
+
+  def getTaskRunTimeMillis(): Double = {
+    taskRunTime / 1e6.toDouble
+  }
+
   def run(): Unit = {
     
     while (eventQueue.containsTasks) {
@@ -162,7 +191,10 @@ class SimController(simModel: SimModel) {
 
       val delta = event.time - currentTime
       if (delta > 0.fs) {
+        val startTime = System.nanoTime()
         simModel.tick(delta.relative)
+        val endTime = System.nanoTime()
+        modelRunTime = modelRunTime + (endTime - startTime)
         currentTime = event.time
       }
 
@@ -194,7 +226,23 @@ class SimController(simModel: SimModel) {
         }
       case Event.RunTask(_, task, _) =>
         Reporting.debug(Some(currentTime), "Task", s"${task.name}")
-        handleTask(task)
+        handleTask(task, EmptyResponse)
+        
+      
+      case Event.CondRunTask(_, task, order, cond@StepUntil(clockPort, port, value, maxCycles), waited) =>
+        Reporting.debug(Some(currentTime), "Task", s"Checking conditional run of task ${task.name} (waited ${waited}/${maxCycles})")
+        val portValue = port.get()
+        if (portValue == value) {
+          Reporting.debug(Some(currentTime), "Task", s"Condition met for task ${task.name} (port ${port.name} == ${value}), scheduling task")
+          handleTask(task, StepUntilResponse(StepUntilResult.Success(waited)))
+        } else if (waited >= maxCycles) {
+          Reporting.error(Some(currentTime), "SimController", s"StepUntil: Reached maxCycles (${maxCycles}) without seeing desired value (${value}) on port ${port.name} for task ${task.name}")
+          handleTask(task, StepUntilResponse(StepUntilResult.Failure(waited)))
+        } else {
+          Reporting.debug(Some(currentTime), "Task", s"Condition not met for task ${task.name} (port ${port.name} == ${portValue}), rescheduling check")
+          val nextFallingEdge = nthFallingEdge(clockPort, 1)
+          eventQueue.enqueue(Event.CondRunTask(nextFallingEdge.absolute, task, order, cond, waited + 1))
+        }
     }
   }
 
@@ -216,25 +264,35 @@ class SimController(simModel: SimModel) {
     clockCycles.get(c).getOrElse(throw new Exception(s"Clock ${c.name} has no cycle count"))
   }
 
-  def handleTask(t: Task[_]) = {
+  def nthFallingEdge(clockPort: ClockPortHandle, cycles: Int): Time = {
+    val nextFallingEdge = eventQueue.nextFallingEdge(clockPort).getOrElse {
+      Reporting.error(Some(currentTime), "SimController", s"No falling edge scheduled for clock ${clockPort.name}")
+      0.fs.absolute
+    }
+    val period = clockPort.period
+    val nextTime = if (nextFallingEdge == currentTime) nextFallingEdge + (period * cycles) else nextFallingEdge + (period * (cycles - 1))
+    nextTime
+  }
 
-    t.runStep() match {
+  def handleTask(t: Task[_], response: SimControllerResponse) = {
+
+    val startTime = System.nanoTime()
+
+    t.runStep(response) match {
       case Finished(result) => // do nothing
         Reporting.debug(Some(currentTime), "SimController", s"Task $t finished")
 
 
       case YieldedWith(Step(clockPort, cycles)) =>
         Reporting.debug(Some(currentTime), "SimController", s"Stepping task ${t.name} for ${cycles} cycles on clock ${clockPort}")
-
-
-        val nextFallingEdge = eventQueue.nextFallingEdge(clockPort).getOrElse {
-          Reporting.error(Some(currentTime), "SimController", s"No falling edge scheduled for clock ${clockPort.name} when trying to step task ${t.name}")
-          0.fs.absolute
-        }
-        val period = clockPort.period
-        val nextTime = if (nextFallingEdge == currentTime) nextFallingEdge + (period * cycles) else nextFallingEdge + (period * (cycles - 1))
-        Reporting.debug(Some(currentTime), "SimController", s"Scheduling task ${t.name} at time ${nextTime} after ${cycles}x${period}")
+        val nextTime = nthFallingEdge(clockPort, cycles)
+        Reporting.debug(Some(currentTime), "SimController", s"Scheduling task ${t.name} at time ${nextTime} after ${cycles}x${clockPort.period}")
         eventQueue.enqueue(Event.RunTask(nextTime.absolute, t, t.order))
+
+      case YieldedWith(cond@StepUntil(clockPort, port, value, maxCycles)) =>
+        Reporting.debug(Some(currentTime), "SimController", s"Stepping task ${t.name} until port ${port.name} == ${value} on clock ${clockPort} for up to ${maxCycles} cycles")
+        val nextFallingEdge = nthFallingEdge(clockPort, 1)
+        eventQueue.enqueue(Event.CondRunTask(nextFallingEdge.absolute, t, t.order, cond, 1))
 
       case YieldedWith(TickFor(duration)) =>
         Reporting.debug(Some(currentTime), "SimController", s"Ticking task ${t.name} for duration ${duration}")
@@ -252,6 +310,9 @@ class SimController(simModel: SimModel) {
         Reporting.error(Some(currentTime), "SimController", s"Active task ${t.name} failed with exception: ${e}")
         throw e
     }
+
+    val endTime = System.nanoTime()
+    taskRunTime = taskRunTime + (endTime - startTime)
   }
 
   

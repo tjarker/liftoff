@@ -18,6 +18,7 @@ trait Event extends Ordered[Event] {
 
   def toInt: Int = this match {
     case _: Event.RunTask => 0
+    case _: Event.CondRunTask => 0
     case _: Event.ClockEdge => 1
   }
 
@@ -32,7 +33,7 @@ trait Event extends Ordered[Event] {
   def compare(that: Event): Int = {
     if (this.time.fs == that.time.fs) { // is this at the same time as that?
       (this, that) match {
-        case (e1: Event.RunTask, e2: Event.RunTask) =>
+        case (e1: Event.TaskRelease, e2: Event.TaskRelease) =>
           e2.order - e1.order // order by task order
         case _ =>
           that.toInt - this.toInt // order by event type
@@ -44,8 +45,15 @@ trait Event extends Ordered[Event] {
 }
 
 object Event {
-  case class RunTask(time: AbsoluteTime, task: Task[_], order: Int) extends Event {
+
+  trait TaskRelease extends Event {
+    def order: Int
+  }
+  case class RunTask(time: AbsoluteTime, task: Task[_], order: Int) extends TaskRelease {
     override def toString(): String = s"RunTask(${time}, ${task})"
+  }
+  case class CondRunTask(time: AbsoluteTime, task: Task[_], order: Int, cond: StepUntil, waited: Int) extends TaskRelease {
+    override def toString(): String = s"CondRunTask(${time}, ${task}, ${cond.port} == ${cond.value}, waited: ${waited}/${cond.maxCycles})"
   }
   case class ClockEdge(time: AbsoluteTime, clock: ClockPortHandle, rising: Boolean) extends Event {
     override def toString(): String = s"ClockEdge(${time}, ${clock}, ${clock.period}, ${if (rising) "rising" else "falling"})"
@@ -82,7 +90,7 @@ class EventQueue {
 
   def containsTasks: Boolean = {
     queue.exists {
-      case Event.RunTask(_, _, order) => true
+      case e: Event.TaskRelease => true
       case _ => false
     }
   }
@@ -103,6 +111,7 @@ class EventQueue {
   def purgeTask(task: Task[_]): Unit = {
     queue.dequeueAll[Event].filter {
       case Event.RunTask(_, t, _) if t == task => false
+      case Event.CondRunTask(_, t, _, _, _) if t == task => false
       case _ => true
     }.foreach(queue.enqueue(_))
   }
