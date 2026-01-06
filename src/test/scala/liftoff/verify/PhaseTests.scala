@@ -67,9 +67,9 @@ class PhaseTests extends AnyWordSpec with Matchers {
         }
 
         Phase.run[SimPhase](root)
-        Phase.run[ResetPhase](root).foreach(_._2.join())
-        Phase.run[TestPhase](root).foreach(_._2.join())
-        Phase.run[ReportPhase](root).foreach(_._2.join())
+        Phase.run[ResetPhase](root).foreach(_.joinTasks())
+        Phase.run[TestPhase](root).foreach(_.joinTasks())
+        Phase.run[ReportPhase](root).foreach(_.joinTasks())
 
       }
 
