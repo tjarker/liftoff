@@ -10,6 +10,8 @@ import liftoff.coroutine.CoroutineScope
 import liftoff.coroutine.Coroutine
 import scala.util.DynamicVariable
 import liftoff.misc.Reporting
+import liftoff.intToTime
+import liftoff.pathToFileOps
 
 
 class SimControllerTests extends AnyWordSpec with Matchers {

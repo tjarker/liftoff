@@ -2,11 +2,8 @@ package liftoff.simulation.verilator
 
 import org.scalatest.wordspec.AnyWordSpec
 import org.scalatest.matchers.should.Matchers
-import liftoff.misc.PathToFileOps
 import java.io.File
-import liftoff.simulation.Time._
-import liftoff.simulation.verilator.Verilator.Arguments.CustomFlag
-import liftoff.misc.Reporting
+import liftoff._
 
 class VerilatorSimModelTests extends AnyWordSpec with Matchers {
 

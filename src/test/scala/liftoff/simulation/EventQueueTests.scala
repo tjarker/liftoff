@@ -2,7 +2,7 @@ package liftoff.simulation
 
 import org.scalatest.wordspec.AnyWordSpec
 import org.scalatest.matchers.should.Matchers
-import liftoff.simulation.Time.IntToTime
+import liftoff._
 
 class EventQueueTests extends AnyWordSpec with Matchers {
 

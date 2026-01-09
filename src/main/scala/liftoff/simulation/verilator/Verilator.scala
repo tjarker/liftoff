@@ -4,7 +4,7 @@ import java.io.File
 import scala.util.{Try, Success, Failure}
 import scala.collection.mutable.ListBuffer
 import java.nio.file.Path
-import liftoff.misc.PathToFileOps
+import liftoff.pathToFileOps
 import liftoff.misc.WorkingDirectory
 
 object Verilator {

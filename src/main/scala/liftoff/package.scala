@@ -14,10 +14,9 @@ import liftoff.simulation.task.Task
 import liftoff.simulation.task.TaskScope
 import liftoff.misc.Reporting
 
-package object liftoff {
+package object liftoff extends misc.Misc with chisel.ChiselPeekPokeAPI with simulation.TimeImplicits {
 
   TaskScope
-  Task
 
   type AnalysisComponent[T] = liftoff.verify.component.AnalysisComponent[T]
   type Driver[T, R] = liftoff.verify.component.Driver[T, R]
@@ -38,17 +37,16 @@ package object liftoff {
   type Config[T] = liftoff.verify.Config[T]
   type VerilogModule = liftoff.verilog.VerilogModule
   val Reporting = liftoff.misc.Reporting
+  type BiGen[T1, T2] = liftoff.coroutine.BiGen[T1, T2]
+  type Gen[T] = liftoff.coroutine.Gen[T]
+  val BiGen = liftoff.coroutine.BiGen
+  val Gen = liftoff.coroutine.Gen
+
+
 
   val Config = liftoff.verify.Config
-
-  def forever[T](block: => T): Unit = {
-    while (true) {
-      block
-    }
-  }
-
-
-  object ChiselPeekPokeAPI extends liftoff.chisel.ChiselPeekPokeAPI
+  val Region = liftoff.simulation.task.Region
+  val Task = liftoff.simulation.task.Task
   
 
   def simulateChisel[M <: chisel3.Module, T](m: => M, workingDir: WorkingDirectory)(block: M => T): T = {

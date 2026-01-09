@@ -10,6 +10,7 @@ import chisel3.Output
 import liftoff.simulation.task.Task
 import liftoff.coroutine.CoroutineContext
 import liftoff.simulation.task.TaskScope
+import liftoff.intToTime
 
 trait SimControllerYield
 case class Step(clockPort: ClockPortHandle, cycles: Int) extends SimControllerYield

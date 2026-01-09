@@ -4,8 +4,8 @@ package liftoff.simulation.verilator
 import liftoff.simulation._
 import liftoff.misc.SharedObject
 import liftoff.misc.WorkingDirectory
-import liftoff.misc.WordArrayOps
-import liftoff.misc.BigIntOps
+import liftoff.wordArrayOps
+import liftoff.bigIntOps
 import liftoff.simulation.Time._
 
 import java.io.File

@@ -2,16 +2,14 @@ package liftoff.simulation
 
 import org.scalatest.wordspec.AnyWordSpec
 import org.scalatest.matchers.should.Matchers
-import liftoff.simulateChisel
-import liftoff.misc.PathToFileOps
-import liftoff.chisel.ChiselPeekPokeAPI
+import liftoff._
 
 import chisel3.experimental.VecLiterals._
 import chisel3.experimental.BundleLiterals._
 import chisel3.util.HasBlackBoxPath
 import circt.stage.ChiselStage
 
-class ChiselSimulationTests extends AnyWordSpec with Matchers with ChiselPeekPokeAPI {
+class ChiselSimulationTests extends AnyWordSpec with Matchers {
 
   "A Chisel simulation" should {
 

@@ -14,6 +14,8 @@ import liftoff.simulation.verilator.VerilatorSimModelFactory
 import liftoff.misc.Reporting
 import liftoff.coroutine.ContinuationBackend
 import liftoff.chisel.ChiselPeekPokeAPI
+import liftoff.pathToFileOps
+import liftoff.intToTime
 
 class PeekPokeAPITests extends AnyWordSpec with Matchers with liftoff.chisel.ChiselPeekPokeAPI {
 

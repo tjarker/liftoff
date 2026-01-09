@@ -4,7 +4,7 @@ import org.scalatest.wordspec.AnyWordSpec
 import org.scalatest.matchers.should.Matchers
 import liftoff.misc.Reporting
 import liftoff.simulation.task._
-import liftoff.simulation.Time._
+import liftoff.intToTime
 
 class TaskTests extends AnyWordSpec with Matchers {
 

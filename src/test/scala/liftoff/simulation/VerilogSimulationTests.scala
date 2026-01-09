@@ -7,6 +7,8 @@ import liftoff.simulateVerilog
 import liftoff.simulation.Time._
 import liftoff.misc.Reporting
 import liftoff.verilog.VerilogModule
+import liftoff.pathToFileOps
+import liftoff.intToTime
 
 class VerilogSimulationTests extends AnyWordSpec with Matchers {
 

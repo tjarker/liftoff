@@ -1,5 +1,17 @@
 package liftoff.simulation
 
+trait TimeImplicits {
+
+  import Time.TimeUnit
+
+  import scala.language.implicitConversions
+
+  implicit def intToTime(i: Int): Time.NumToTime = new Time.NumToTime(i.toLong)
+  implicit def longToTime(l: Long): Time.NumToTime = new Time.NumToTime(l)
+  implicit def bigIntToTime(b: BigInt): Time.NumToTime = new Time.NumToTime(b.toLong)
+
+}
+
 object Time {
 
   abstract class TimeUnit(val exp: Int)
@@ -24,31 +36,13 @@ object Time {
     }
   }
 
-  implicit class IntToTime(i: Int) {
-    def fs: Time = Time(i, TimeUnit.fs)
-    def ps: Time = Time(i, TimeUnit.ps)
-    def ns: Time = Time(i, TimeUnit.ns)
-    def us: Time = Time(i, TimeUnit.us)
-    def ms: Time = Time(i, TimeUnit.ms)
-    def s: Time = Time(i, TimeUnit.s)
-  }
-
-  implicit class LongToTime(l: Long) {
-    def fs: Time = Time(l, TimeUnit.fs)
-    def ps: Time = Time(l, TimeUnit.ps)
-    def ns: Time = Time(l, TimeUnit.ns)
-    def us: Time = Time(l, TimeUnit.us)
-    def ms: Time = Time(l, TimeUnit.ms)
-    def s: Time = Time(l, TimeUnit.s)
-  }
-
-  implicit class BigIntToTime(b: BigInt) {
-    def fs: Time = Time(b.toLong, TimeUnit.fs)
-    def ps: Time = Time(b.toLong, TimeUnit.ps)
-    def ns: Time = Time(b.toLong, TimeUnit.ns)
-    def us: Time = Time(b.toLong, TimeUnit.us)
-    def ms: Time = Time(b.toLong, TimeUnit.ms)
-    def s: Time = Time(b.toLong, TimeUnit.s)
+  class NumToTime(x: Long) {
+    def fs: Time = Time(x, TimeUnit.fs)
+    def ps: Time = Time(x, TimeUnit.ps)
+    def ns: Time = Time(x, TimeUnit.ns)
+    def us: Time = Time(x, TimeUnit.us)
+    def ms: Time = Time(x, TimeUnit.ms)
+    def s: Time = Time(x, TimeUnit.s)
   }
 
   def apply(value: Long, unit: TimeUnit): Time = {
