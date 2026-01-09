@@ -4,12 +4,60 @@ import scala.util.DynamicVariable
 
 object Gen {
 
+  implicit class ScalaSeqToGen[T](seq: Seq[T]) {
+    def toGen: Gen[T] = {
+      Gen[T] {
+        for (elem <- seq) {
+          Gen.emit[T, Any](elem)
+        }
+      }
+    }
+  }
+
 
   def emit[T, F](v: T): Option[F] = {
     val scope = Coroutine.currentScope.getOrElse {
       throw new Exception("Calling emit outside of a generator")
     }
     scope.suspend[F, T](Some(v))
+  }
+
+  def emit[T, F](bigen: BiGen[F, T]): Unit = {
+    val scope = Coroutine.currentScope.getOrElse {
+      throw new Exception("Calling emit outside of a generator")
+    }
+    while (bigen.hasNext) {
+      val out = bigen.next()
+      val feedback = scope.suspend[F, T](Some(out))
+      bigen.feedback(feedback.get)
+    }
+  }
+
+  def emit[T](gen: Gen[T]): Unit = {
+    val scope = Coroutine.currentScope.getOrElse {
+      throw new Exception("Calling emit outside of a generator")
+    }
+    while (gen.hasNext) {
+      val out = gen.next()
+      scope.suspend[Nothing, T](Some(out))
+    }
+  }
+
+  def interleave[T](a: Gen[T], b: Gen[T]): Gen[T] = {
+    Gen[T] {
+      val aIter = a.iterator
+      val bIter = b.iterator
+      while (aIter.hasNext || bIter.hasNext) {
+        if (aIter.hasNext) {
+          val v = aIter.next()
+          Gen.emit[T, Any](v)
+        }
+        if (bIter.hasNext) {
+          val v = bIter.next()
+          Gen.emit[T, Any](v)
+        }
+      }
+    }
   }
 
 

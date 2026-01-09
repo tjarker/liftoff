@@ -1,6 +1,5 @@
 package liftoff.verify.component
 
-import liftoff.verify.Transaction
 import liftoff.verify.Component
 import liftoff.verify.SimPhase
 import liftoff.verify.ReceiverPort
@@ -9,7 +8,7 @@ import scala.collection.mutable
 import liftoff.simulation.task.Task
 import liftoff.simulation.Sim
 
-abstract class Monitor[T <: Transaction] extends Component with SimPhase {
+abstract class Monitor[T] extends Component with SimPhase with Monitors[T] {
 
 
   val subscribers = mutable.Buffer[ReceiverPort[T]]()
@@ -45,8 +44,8 @@ abstract class Monitor[T <: Transaction] extends Component with SimPhase {
   }
 
 
-  def subscribe(p: ReceiverPort[T]): Unit = {
-    subscribers.append(p)
+  def addSubscriber(c: AnalysisComponent[T]): Unit = {
+    subscribers.append(c.port)
   }
 
 

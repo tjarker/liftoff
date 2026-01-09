@@ -237,7 +237,7 @@ class SimController(simModel: SimModel) {
           handleTask(task, StepUntilResponse(StepUntilResult.Success(waited)))
         } else if (waited >= maxCycles) {
           Reporting.error(Some(currentTime), "SimController", s"StepUntil: Reached maxCycles (${maxCycles}) without seeing desired value (${value}) on port ${port.name} for task ${task.name}")
-          handleTask(task, StepUntilResponse(StepUntilResult.Failure(waited)))
+          handleTask(task, StepUntilResponse(StepUntilResult.Timeout(waited)))
         } else {
           Reporting.debug(Some(currentTime), "Task", s"Condition not met for task ${task.name} (port ${port.name} == ${portValue}), rescheduling check")
           val nextFallingEdge = nthFallingEdge(clockPort, 1)

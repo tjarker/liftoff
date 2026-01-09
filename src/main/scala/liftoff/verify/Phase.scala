@@ -7,23 +7,27 @@ import scala.reflect.ClassTag
 import liftoff.misc.Reporting
 import liftoff.simulation.Sim
 
-trait Phase {
-
+trait Phase { This: Component =>
+  def start[P <: Phase: ClassTag](): Seq[Component] = {
+    val phaseName = Phase.lookUpPhaseName[P]
+    Phase.run[P](this)
+  }
 }
 
-trait SimPhase extends Phase {
+trait SimPhase extends Phase { This: Component =>
   def sim(): Unit
 }
 
-trait ResetPhase extends Phase {
+trait ResetPhase extends Phase { This: Component =>
   def reset(): Unit
+
 }
 
-trait TestPhase extends Phase {
+trait TestPhase extends Phase { This: Component =>
   def test(): Unit
 }
 
-trait ReportPhase extends Phase {
+trait ReportPhase extends Phase { This: Component =>
   def report(): Unit
 }
 

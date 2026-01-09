@@ -37,8 +37,8 @@ class ComponentWithPorts extends Component {
   }
 }
 
-case class Tx(value: Int) extends Transaction
-case class Rs(value: Int) extends Transaction
+case class Tx(value: Int)
+case class Rs(value: Int)
 
 class SimpleTestDriver(ch: Channel[Int]) extends Driver[Tx, Nothing] {
 
@@ -243,7 +243,7 @@ class ComponentTests extends AnyWordSpec with Matchers {
         Phase.run[SimPhase](driver)
 
         val gen = Gen.tabulate(5)(i => Tx(i))
-        val completion = driver.enqueue(gen)
+        val completion = driver.drive(gen)
 
         completion.awaitDone()
 
@@ -271,7 +271,7 @@ class ComponentTests extends AnyWordSpec with Matchers {
           }
         }
 
-        val completion = driver.enqueue(gen)
+        val completion = driver.drive(gen)
 
         completion.awaitDone()
 
@@ -292,14 +292,18 @@ class ComponentTests extends AnyWordSpec with Matchers {
 
         val monitor = Component.create[TestMonitor]()
 
-        val receiverPort = Port.receiver[Tx]
-        monitor.subscribe(receiverPort)
+        val subscriber = Component.create(new Scoreboard[Tx] {
+          def sim(): Unit = {
+            val received = (0 until 5).map(_ => next())
+            received.toSeq shouldEqual Seq(Tx(0), Tx(1), Tx(2), Tx(3), Tx(4))
+          }
+          def report(): Unit = {}
+        })
 
-        Phase.run[SimPhase](monitor)
+        subscriber.subscribe(monitor)
 
-        val received = (0 until 5).map(_ => receiverPort.receive())
-
-        received.toSeq shouldEqual Seq(Tx(0), Tx(1), Tx(2), Tx(3), Tx(4))
+        monitor.start[SimPhase]()
+        subscriber.start[SimPhase]()
 
       }
 

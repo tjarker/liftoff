@@ -6,6 +6,7 @@ import liftoff.misc.PathToFileOps
 import liftoff.simulateVerilog
 import liftoff.simulation.Time._
 import liftoff.misc.Reporting
+import liftoff.verilog.VerilogModule
 
 class VerilogSimulationTests extends AnyWordSpec with Matchers {
 
@@ -44,18 +45,20 @@ class VerilogSimulationTests extends AnyWordSpec with Matchers {
 
       Reporting.setOutput(Reporting.NullStream)
 
-      simulateVerilog(topName, Seq(verilogFile), buildDir) { alu =>
-        val clk = Sim.Model.addClockDomain("clk", 2.ns, Seq(
+      val aluModule = VerilogModule(topName, Seq(verilogFile))
+
+      simulateVerilog(aluModule, buildDir) { alu =>
+        alu.addClockDomain("clk", 2.ns, Seq(
           alu("a"), alu("b"), alu("op"), alu("result")
         ))
 
         for (op <- 0 to 3) {
           for (aval <- 0 to 15) {
             for (bval <- 0 to 15) {
-              alu("a") := aval
-              alu("b") := bval
-              alu("op") := op
-              clk.step()
+              alu("a").poke(aval)
+              alu("b").poke(bval)
+              alu("op").poke(op)
+              alu("clk").step()
 
               val expected = op match {
                 case 0 => aval + bval
@@ -65,7 +68,7 @@ class VerilogSimulationTests extends AnyWordSpec with Matchers {
               }
               val expectedMasked = expected & 0xF
 
-              alu("result").get() shouldBe expectedMasked
+              alu("result").peek() shouldBe expectedMasked
             }
           }
         }

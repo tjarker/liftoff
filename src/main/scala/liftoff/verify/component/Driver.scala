@@ -2,7 +2,6 @@ package liftoff.verify.component
 
 import liftoff.verify.Component
 import liftoff.verify.SimPhase
-import liftoff.verify.Transaction
 import liftoff.coroutine.BiGen
 import liftoff.verify.Port
 import liftoff.simulation.task.Task
@@ -29,7 +28,7 @@ class DriveCompletion {
   }
 }
 
-abstract class Driver[T <: Transaction, R <: Transaction] extends Component with SimPhase {
+abstract class Driver[T, R] extends Component with SimPhase with Drives[T, R] {
 
   val sequencePort = Port.receiver[(BiGen[R, T], DriveCompletion)]
   var currentGen = Option.empty[(BiGen[R, T], DriveCompletion)]
@@ -82,7 +81,7 @@ abstract class Driver[T <: Transaction, R <: Transaction] extends Component with
 
 
   // External interface
-  def enqueue(gen: BiGen[R, T]): DriveCompletion = {
+  def drive(gen: BiGen[R, T]): DriveCompletion = {
     val flag = new DriveCompletion()
     sequencePort.channel.send((gen, flag))
     flag

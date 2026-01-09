@@ -4,6 +4,8 @@ import org.scalatest.wordspec.AnyWordSpec
 import org.scalatest.matchers.should.Matchers
 import liftoff.misc.Reporting
 
+import liftoff.coroutine.Gen._
+
 class GeneratorTests extends AnyWordSpec with Matchers {
 
   Reporting.setOutput(Reporting.NullStream)
@@ -50,6 +52,40 @@ class GeneratorTests extends AnyWordSpec with Matchers {
       }
 
       fibGen.take(10).toSeq shouldEqual Seq(0, 1, 1, 2, 3, 5, 8, 13, 21, 34)
+    }
+
+    "work with scala sequence" in {
+      val seq = Seq(5, 10, 15, 20)
+      val gen = seq.toGen
+
+      gen.toSeq shouldEqual seq
+    }
+
+    "allow for nested generators" in {
+      val gen = Gen[Int] {
+        for (i <- 1 to 3) {
+          val innerGen = Gen[Int] {
+            for (j <- 1 to 2) {
+              Gen.emit(i * 10 + j)
+            }
+          }
+          Gen.emit(innerGen)
+        }
+      }
+
+      gen.toSeq shouldEqual Seq(11, 12, 21, 22, 31, 32)
+    }
+
+    "allow for mixing" in {
+      val genA = Gen[Int] {
+        for (i <- 1 to 3) Gen.emit(i * 10)
+      }
+      val genB = Gen[Int] {
+        for (j <- 1 to 3) Gen.emit(j)
+      }
+      val mixedGen = Gen.interleave(genA, genB)
+
+      mixedGen.toSeq shouldEqual Seq(10, 1, 20, 2, 30, 3)
     }
 
     "provide map functionality" in {
@@ -162,6 +198,25 @@ class GeneratorTests extends AnyWordSpec with Matchers {
 
       gen.feedback(5)
       gen.next() shouldBe 10
+    }
+
+    "work with nested BiGens" in {
+
+      def innerGen(init: Int) = BiGen[Int, Int] {
+        var v = init
+        while (true) {
+          v = Gen.emit[Int, Int](v + 1).get
+        }
+      }
+
+      val gen = BiGen[Int, Int] {
+        val a: Int = Gen.emit(1).get
+        Gen.emit(innerGen(a))
+      }
+
+      val results = gen.eval(Seq(1,2,3,4,5)).toSeq
+
+      results shouldEqual Seq(1, 2, 3, 4, 5)
     }
 
   }

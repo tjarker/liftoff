@@ -43,12 +43,17 @@ trait InputPortHandle extends PortHandle {
 trait StepUntilResult {
   def succeeded: Boolean
   def waitedCycles: Int
+  def throwOnTimeout(): Unit = {
+    if (!succeeded) {
+      throw new Exception(s"StepUntil timed out after waiting $waitedCycles cycles")
+    }
+  }
 }
 object StepUntilResult {
   case class Success(waitedCycles: Int) extends StepUntilResult {
     val succeeded: Boolean = true
   }
-  case class Failure(waitedCycles: Int) extends StepUntilResult {
+  case class Timeout(waitedCycles: Int) extends StepUntilResult {
     val succeeded: Boolean = false
   }
 }

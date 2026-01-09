@@ -7,6 +7,7 @@ import liftoff.chisel.PeekPokeAPI
 import liftoff.simulation.Time._
 import chisel3.Element
 import liftoff.verilog.VerilogModule
+import liftoff.verilog.VerilogSimModel
 import liftoff.simulation.verilator.VerilatorSimModelFactory
 import java.io.File
 import liftoff.simulation.task.Task
@@ -17,6 +18,37 @@ package object liftoff {
 
   TaskScope
   Task
+
+  type AnalysisComponent[T] = liftoff.verify.component.AnalysisComponent[T]
+  type Driver[T, R] = liftoff.verify.component.Driver[T, R]
+  type Monitor[T] = liftoff.verify.component.Monitor[T]
+  type Scoreboard[T] = liftoff.verify.component.Scoreboard[T]
+  type Component = liftoff.verify.Component
+  type SimPhase = liftoff.verify.SimPhase
+  type ReportPhase = liftoff.verify.ReportPhase
+  type ResetPhase = liftoff.verify.ResetPhase
+  type TestPhase = liftoff.verify.TestPhase
+  type Port[T] = liftoff.verify.Port[T]
+  type ReceiverPort[T] = liftoff.verify.ReceiverPort[T]
+  type Drives[T, R] = liftoff.verify.component.Drives[T, R]
+  type Monitors[T] = liftoff.verify.component.Monitors[T]
+  type DriveCompletion = liftoff.verify.component.DriveCompletion
+  type StepUntilResult = liftoff.simulation.StepUntilResult
+  val StepUntilResult = liftoff.simulation.StepUntilResult
+  type Config[T] = liftoff.verify.Config[T]
+  type VerilogModule = liftoff.verilog.VerilogModule
+  val Reporting = liftoff.misc.Reporting
+
+  val Config = liftoff.verify.Config
+
+  def forever[T](block: => T): Unit = {
+    while (true) {
+      block
+    }
+  }
+
+
+  object ChiselPeekPokeAPI extends liftoff.chisel.ChiselPeekPokeAPI
   
 
   def simulateChisel[M <: chisel3.Module, T](m: => M, workingDir: WorkingDirectory)(block: M => T): T = {
@@ -71,19 +103,19 @@ package object liftoff {
     }
   }
 
-  def simulateVerilog[T](top: String, files: Seq[File], workingDir: WorkingDirectory)(block: VerilogModule => T): T = {
+  def simulateVerilog[T](module: VerilogModule, workingDir: WorkingDirectory)(block: VerilogSimModel => T): T = {
     val runDir = workingDir.addSubDir(workingDir / "sim")
 
     val simModel = VerilatorSimModelFactory.create(
-      top,
+      module.name,
       workingDir,
-      files,
+      module.files,
       verilatorOptions = Seq(),
       cOptions = Seq()
     ).createModel(runDir)
 
     val controller = new SimController(simModel)
-    val verilogModule = new VerilogModule(controller)
+    val verilogModule = new VerilogSimModel(controller)
 
     try {
       controller.run(block(verilogModule))
@@ -91,6 +123,5 @@ package object liftoff {
       simModel.cleanup()
     }
   }
-
 
 }
