@@ -302,8 +302,8 @@ class ComponentTests extends AnyWordSpec with Matchers {
 
         subscriber.subscribe(monitor)
 
-        monitor.start[SimPhase]()
-        subscriber.start[SimPhase]()
+        monitor.startPhase[SimPhase]()
+        subscriber.startPhase[SimPhase]()
 
       }
 

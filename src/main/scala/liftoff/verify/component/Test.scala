@@ -19,15 +19,15 @@ object Test {
   def run(t: => Test): Unit = {
     val root = Component.create(t)
     Reporting.info(Some(Sim.time), "TestExecutor", s"Starting SimPhase for ${root}")
-    val simPhaseTasks = root.start[SimPhase]()
+    val simPhaseTasks = root.startPhase[SimPhase]()
     Reporting.info(Some(Sim.time), "TestExecutor", s"Starting ResetPhase for ${root}")
-    root.start[ResetPhase]().foreach(_.joinTasks())
+    root.startPhase[ResetPhase]().foreach(_.joinTasks())
     Reporting.info(Some(Sim.time), "TestExecutor", s"Starting TestPhase for ${root}")
-    root.start[TestPhase]().foreach(_.joinTasks())
+    root.startPhase[TestPhase]().foreach(_.joinTasks())
     Reporting.info(Some(Sim.time), "TestExecutor", s"Finished TestPhase for ${root}, canceling sim tasks")
     simPhaseTasks.foreach(_.cancelTasks())
     Reporting.info(Some(Sim.time), "TestExecutor", s"Starting ReportPhase for ${root}")
-    root.start[ReportPhase]().foreach(_.joinTasks())
+    root.startPhase[ReportPhase]().foreach(_.joinTasks())
     
     Reporting.success(Some(Sim.time), "TestExecutor", s"Finished all phases for ${root}")
   }

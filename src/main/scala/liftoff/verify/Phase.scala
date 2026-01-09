@@ -8,8 +8,7 @@ import liftoff.misc.Reporting
 import liftoff.simulation.Sim
 
 trait Phase { This: Component =>
-  def start[P <: Phase: ClassTag](): Seq[Component] = {
-    val phaseName = Phase.lookUpPhaseName[P]
+  def startPhase[P <: Phase: ClassTag](): Seq[Component] = {
     Phase.run[P](this)
   }
 }
@@ -33,8 +32,7 @@ trait ReportPhase extends Phase { This: Component =>
 
 object Phase {
 
-  def getRunner[P <: Phase: ClassTag]: P => Unit = {
-    val ct = implicitly[ClassTag[P]]
+  def getRunner[P <: Phase](ct: ClassTag[P]): P => Unit = {
     ct.runtimeClass match {
       case c if c == classOf[SimPhase]    => (p: P) => p.asInstanceOf[SimPhase].sim()
       case c if c == classOf[ResetPhase]  => (p: P) => p.asInstanceOf[ResetPhase].reset()
@@ -44,8 +42,7 @@ object Phase {
     }
   }
 
-  def lookUpPhaseName[P <: Phase: ClassTag]: String = {
-    val ct = implicitly[ClassTag[P]]
+  def lookUpPhaseName[P <: Phase](ct: ClassTag[P]): String = {
     ct.runtimeClass match {
       case c if c == classOf[SimPhase]    => "SimPhase"
       case c if c == classOf[ResetPhase]  => "ResetPhase"
@@ -56,15 +53,14 @@ object Phase {
   }
 
   def run[P <: Phase: ClassTag](root: Component): Seq[Component] = {
-    val runner = getRunner[P]
+    val ct = implicitly[ClassTag[P]]
+    val runner = getRunner(ct)
     def inner(comp: Component, collector: mutable.Buffer[Component]): Unit = {
       comp match {
         case c: P => {
-          val phaseName = lookUpPhaseName[P]
+          val phaseName = lookUpPhaseName(ct)
           val task = c.createPhaseTask(phaseName) {
-            //Reporting.debug(Some(Sim.time), s"Phase[${phaseName}]", s"Starting phase ${phaseName} for component ${comp.path}")
             runner(c)
-            //Reporting.debug(Some(Sim.time), s"Phase[${phaseName}]", s"Completed phase ${phaseName} for component ${comp.path}")
           }
           collector.append(comp)
         }
