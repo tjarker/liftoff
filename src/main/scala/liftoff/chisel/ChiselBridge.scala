@@ -8,6 +8,7 @@ import circt.stage.ChiselStage
 import liftoff.simulation._
 import scala.runtime.BoxedUnit
 import chisel3.Input
+import liftoff.simulation.control.SimController
 
 
 object ChiselBridge {
@@ -94,7 +95,11 @@ object ChiselBridge {
     def set(value: BigInt): Unit = handle.set(value)
     def get(isSigned: Boolean): Value = {
       val v = handle.get()
-      new Value(handle.width, v)
+      if (isSigned && v.testBit(handle.width - 1)) {
+        // sign extend
+        val twosComplement = (~v) + 1
+        new Value(handle.width, -twosComplement)
+      } else new Value(handle.width, v)
     }
     def check(isSigned: Boolean)(checkFn: Value => Unit): Unit = {
       val v = get(isSigned)
@@ -136,7 +141,10 @@ object ChiselBridge {
   class OutputPort(val phandle: OutputPortHandle) extends Port {
     def get(isSigned: Boolean): Value = {
       val v = phandle.get()
-      new Value(phandle.width, v)
+      if (isSigned && v.testBit(phandle.width - 1)) {
+        val twosComplement = (~v) + 1
+        new Value(phandle.width, -twosComplement)
+      } else new Value(phandle.width, v)
     }
     def set(value: BigInt): Unit = {
       throw new Exception(s"Cannot set output port handle: ${phandle.name}")

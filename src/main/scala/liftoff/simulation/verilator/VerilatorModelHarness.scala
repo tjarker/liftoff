@@ -30,18 +30,18 @@ object VerilatorModelHarness {
         |#include "V${m}___024root.h"
         |""".stripMargin
 
-  def contextStruct(m: String) =
-    s"""|struct ${m}_context_t {
+  def contextStruct(moduleName: String, functionPrefix: String) =
+    s"""|struct ${functionPrefix}_context_t {
         |  uint64_t time;
         |  VerilatedContext* context;
-        |  V$m* model;
+        |  V${moduleName}* model;
         |  VerilatedFstC* trace;
         |};
         |""".stripMargin
 
-  def createContext(m: String) =
-    s"""|${m}_context_t* ${createContextFunName(m)}(const char* fstFile, const char* time_unit, char** argv, int argc) {
-        |  ${m}_context_t* ctx = new ${m}_context_t;
+  def createContext(m: String, p: String) =
+    s"""|${p}_context_t* ${createContextFunName(p)}(const char* fstFile, const char* time_unit, char** argv, int argc) {
+        |  ${p}_context_t* ctx = new ${p}_context_t;
         |  ctx->time = 0;
         |  ctx->context = new VerilatedContext;
         |  ctx->context->commandArgs(argc, argv);
@@ -168,30 +168,30 @@ object VerilatorModelHarness {
         |""".stripMargin
   }
 
-  def harness(m: String, syms: Seq[VerilatorPortDescriptor]): String =
-    s"""|${imports(m)}
+  def harness(moduleName: String, functionPrefix: String, syms: Seq[VerilatorPortDescriptor]): String =
+    s"""|${imports(moduleName)}
         |
         |double sc_time_stamp() { return 0; }
         |
-        |${contextStruct(m)}
+        |${contextStruct(moduleName, functionPrefix)}
         |extern "C" {
-        |${createContext(m)}
-        |${deleteContext(m)}
-        |${eval(m)}
-        |${tick(m)}
-        |${set(m, syms).indent(2)}
-        |${setWide(m, syms).indent(2)}
-        |${get(m, syms).indent(2)}
-        |${getWide(m, syms).indent(2)}
-        |  void ${quackFunName(m)}() {
+        |${createContext(moduleName, functionPrefix)}
+        |${deleteContext(functionPrefix)}
+        |${eval(functionPrefix)}
+        |${tick(functionPrefix)}
+        |${set(functionPrefix, syms).indent(2)}
+        |${setWide(functionPrefix, syms).indent(2)}
+        |${get(functionPrefix, syms).indent(2)}
+        |${getWide(functionPrefix, syms).indent(2)}
+        |  void ${quackFunName(functionPrefix)}() {
         |    printf("Quack!\\n");
         |  }
         |}
         |""".stripMargin
 
 
-  def writeHarness(dir: WorkingDirectory, m: String, syms: Seq[VerilatorPortDescriptor]) = {
-    dir.addFile(s"${m}_harness.cpp", harness(m, syms))
+  def writeHarness(dir: WorkingDirectory, moduleName: String, functionPrefix: String, syms: Seq[VerilatorPortDescriptor]) = {
+    dir.addFile(s"${functionPrefix}_harness.cpp", harness(moduleName, functionPrefix, syms))
   }
 
 }

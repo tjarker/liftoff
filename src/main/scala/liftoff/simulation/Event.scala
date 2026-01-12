@@ -4,6 +4,7 @@ import liftoff.simulation.Time.AbsoluteTime
 
 import scala.collection.mutable.{PriorityQueue, ListBuffer}
 import liftoff.simulation.task.Task
+import liftoff.simulation.control.{CtrlClockHandle, StepUntil}
 
 
 /**
@@ -55,7 +56,7 @@ object Event {
   case class CondRunTask(time: AbsoluteTime, task: Task[_], order: Int, cond: StepUntil, waited: Int) extends TaskRelease {
     override def toString(): String = s"CondRunTask(${time}, ${task}, ${cond.port} == ${cond.value}, waited: ${waited}/${cond.maxCycles})"
   }
-  case class ClockEdge(time: AbsoluteTime, clock: ClockPortHandle, rising: Boolean) extends Event {
+  case class ClockEdge(time: AbsoluteTime, clock: CtrlClockHandle, rising: Boolean) extends Event {
     override def toString(): String = s"ClockEdge(${time}, ${clock}, ${clock.period}, ${if (rising) "rising" else "falling"})"
   }
 }

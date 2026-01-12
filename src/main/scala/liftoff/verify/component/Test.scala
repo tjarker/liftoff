@@ -18,17 +18,26 @@ abstract class Test extends Component with TestPhase {
 object Test {
   def run(t: => Test): Unit = {
     val root = Component.create(t)
-    Reporting.info(Some(Sim.time), "TestExecutor", s"Starting SimPhase for ${root}")
+    val testName = root.toString()
+    Reporting.info(Some(Sim.time), testName, s"SimPhase...")
     val simPhaseTasks = root.startPhase[SimPhase]()
-    Reporting.info(Some(Sim.time), "TestExecutor", s"Starting ResetPhase for ${root}")
+    Reporting.info(Some(Sim.time), testName, s"ResetPhase...")
+    val start = System.nanoTime()
     root.startPhase[ResetPhase]().foreach(_.joinTasks())
-    Reporting.info(Some(Sim.time), "TestExecutor", s"Starting TestPhase for ${root}")
+    Reporting.info(Some(Sim.time), testName, s"TestPhase...")
+    val testStart = System.nanoTime()
     root.startPhase[TestPhase]().foreach(_.joinTasks())
-    Reporting.info(Some(Sim.time), "TestExecutor", s"Finished TestPhase for ${root}, canceling sim tasks")
     simPhaseTasks.foreach(_.cancelTasks())
-    Reporting.info(Some(Sim.time), "TestExecutor", s"Starting ReportPhase for ${root}")
+    val simEnd = System.nanoTime()
+    Reporting.info(Some(Sim.time), testName, s"ReportPhase...")
     root.startPhase[ReportPhase]().foreach(_.joinTasks())
+    val end = System.nanoTime()
+    val times = Seq(
+      f"ResetPhase: ${(testStart - start) / 1e6}%.2f ms",
+      f"TestPhase: ${(simEnd - testStart) / 1e6}%.2f ms",
+      f"ReportPhase: ${(end - simEnd) / 1e6}%.2f ms"
+    )
     
-    Reporting.success(Some(Sim.time), "TestExecutor", s"Finished all phases for ${root}")
+    Reporting.success(Some(Sim.time), testName, s"Finished\n" + times.mkString("\n"))
   }
 }

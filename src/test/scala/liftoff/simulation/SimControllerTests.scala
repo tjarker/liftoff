@@ -12,11 +12,12 @@ import scala.util.DynamicVariable
 import liftoff.misc.Reporting
 import liftoff.intToTime
 import liftoff.pathToFileOps
+import liftoff.simulation.control.SimController
 
 
 class SimControllerTests extends AnyWordSpec with Matchers {
 
-  val buildDir = "build/verilator_test".toDir
+  val buildDir = "build/sim_controller_test".toDir
   buildDir.createIfNotExists()
   buildDir.clean()
   val topName = "ALU"

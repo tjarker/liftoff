@@ -5,6 +5,7 @@ import org.scalatest.matchers.should.Matchers
 import liftoff.simulation.Time.RelativeTime
 import liftoff.simulation.task.Channel
 import liftoff.misc.Reporting
+import liftoff.simulation.control.SimController
 
 class ChannelTests extends AnyWordSpec with Matchers {
 

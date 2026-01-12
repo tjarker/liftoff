@@ -4,9 +4,9 @@ import liftoff.simulation.SimModel
 import liftoff.simulation.InputPortHandle
 import liftoff.simulation.PortHandle
 import liftoff.simulation.OutputPortHandle
-import liftoff.simulation.SimController
+import liftoff.simulation.control.SimController
 import liftoff.simulation.Sim
-import liftoff.simulation.Step
+import liftoff.simulation.control.Step
 import liftoff.simulation.ClockPortHandle
 import liftoff.simulation.StepUntilResult
 import liftoff.simulation.Time

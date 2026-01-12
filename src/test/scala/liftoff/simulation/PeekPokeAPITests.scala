@@ -16,6 +16,7 @@ import liftoff.coroutine.ContinuationBackend
 import liftoff.chisel.ChiselPeekPokeAPI
 import liftoff.pathToFileOps
 import liftoff.intToTime
+import liftoff.simulation.control.SimController
 
 class PeekPokeAPITests extends AnyWordSpec with Matchers with liftoff.chisel.ChiselPeekPokeAPI {
 
@@ -24,7 +25,7 @@ class PeekPokeAPITests extends AnyWordSpec with Matchers with liftoff.chisel.Chi
     val b = SInt(8.W)
   }
 
-  class MyModule extends Module {
+  class MyOtherModule extends Module {
     val io = IO(new Bundle {
       val in = Input(UInt(8.W))
       val out = Output(UInt(8.W))
@@ -43,25 +44,25 @@ class PeekPokeAPITests extends AnyWordSpec with Matchers with liftoff.chisel.Chi
       val workingDir = "build/peekpoke_test".toDir
       workingDir.createIfNotExists()
       workingDir.clean()
-      ChiselBridge.emitSystemVerilogFile("MyModule", new MyModule, workingDir)
+      ChiselBridge.emitSystemVerilogFile("MyOtherModule", new MyOtherModule, workingDir)
 
       val runDir = workingDir.addSubDir(workingDir / "sim")
 
       val simModel = VerilatorSimModelFactory.create(
-        "MyModule",
+        "MyOtherModule",
         workingDir,
-        Seq(workingDir / "MyModule.v"),
+        Seq(workingDir / "MyOtherModule.v"),
         verilatorOptions = Seq(),
         cOptions = Seq()
       ).createModel(runDir)
 
       val controller = new SimController(simModel)
 
-      val dut = ChiselBridge.elaborate(new MyModule)
+      val dut = ChiselBridge.elaborate(new MyOtherModule)
 
       val logger = runDir.addLoggingFile("simulation.log")
 
-      Reporting.withOutput(logger, colored = false) {
+      //Reporting.withOutput(logger, colored = false) {
 
         SimController.runWith(controller) {
 
@@ -128,7 +129,7 @@ class PeekPokeAPITests extends AnyWordSpec with Matchers with liftoff.chisel.Chi
           controller.run()
           simModel.cleanup()
         }
-      }
+      //}
     }
   }
 

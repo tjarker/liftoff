@@ -6,7 +6,7 @@ import liftoff.coroutine.Coroutine
 import liftoff.coroutine.CoroutineContext
 import liftoff.simulation.task.Task
 import scala.reflect.ClassTag
-import liftoff.simulation.SimController
+import liftoff.simulation.control.SimController
 import liftoff.coroutine.CoroutineContextVariable
 import liftoff.misc.Reporting
 import liftoff.simulation.Sim

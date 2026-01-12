@@ -16,12 +16,15 @@ import scala.util.control.NoStackTrace
 import scala.language.implicitConversions
 import liftoff.simulation.Time.TimeUnit.s
 
-import liftoff.simulation.{SimController}
+import liftoff.simulation.control.SimController
 import liftoff.simulation.InputPortHandle
 import liftoff.simulation.PortHandle
 import liftoff.misc.Reporting
 import liftoff.simulation.Sim
 import liftoff.simulation.StepUntilResult
+import liftoff.simulation.OutputPortHandle
+import liftoff.simulation.control.CtrlOutHandle
+import liftoff.simulation.control.CtrlInputHandle
 
 trait Peekable[T <: Data] {
 
@@ -81,6 +84,14 @@ sealed trait AnyTestableData[T <: Data] {
   protected lazy val simulationPort: ChiselBridge.Port = ChiselBridge.Port.fromData(data)
 
   private[liftoff] def getPortHandle: PortHandle = simulationPort.handle
+
+  def dependsCombinationallyOn(inputs: Seq[Data]): Unit = {
+    val inputHandles = inputs.map(ChiselBridge.Port.fromData).map(_.handle.asInstanceOf[InputPortHandle])
+    controller.addCombinationDependency(
+      simulationPort.handle.asInstanceOf[CtrlOutHandle],
+      inputHandles.asInstanceOf[Seq[CtrlInputHandle]]
+    )
+  }
 }
 
 trait PeekPokable[T <: Data] extends Peekable[T] with Pokable[T] with AnyTestableData[T]

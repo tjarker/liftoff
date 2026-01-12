@@ -5,6 +5,7 @@ import liftoff.verify.SimPhase
 import liftoff.coroutine.BiGen
 import liftoff.verify.Port
 import liftoff.simulation.task.Task
+import liftoff.simulation.Sim
 
 import scala.collection.mutable
 
@@ -14,7 +15,7 @@ class DriveCompletion {
   private [verify] def markFinished(): Unit = {
     finished = true
     waiting.foreach { t =>
-      liftoff.simulation.Sim.Scheduler.scheduleTaskNow(t)
+      Sim.Scheduler.scheduleTaskNow(t)
     }
   }
 
@@ -24,7 +25,7 @@ class DriveCompletion {
 
   def awaitDone(): Unit = {
     waiting.append(Task.current)
-    liftoff.simulation.Sim.Scheduler.suspendTask()
+    Sim.Scheduler.suspendTask()
   }
 }
 

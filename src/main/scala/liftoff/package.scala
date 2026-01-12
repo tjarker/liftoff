@@ -1,6 +1,6 @@
 import liftoff.misc.WorkingDirectory
 import liftoff.chisel.ChiselBridge
-import liftoff.simulation.SimController
+import liftoff.simulation.control.SimController
 import chisel3.reflect.DataMirror
 import Chisel.Data
 import liftoff.chisel.PeekPokeAPI
@@ -47,6 +47,8 @@ package object liftoff extends misc.Misc with chisel.ChiselPeekPokeAPI with simu
   val Config = liftoff.verify.Config
   val Region = liftoff.simulation.task.Region
   val Task = liftoff.simulation.task.Task
+  val Component = liftoff.verify.Component
+  val Test = liftoff.verify.component.Test
   
 
   def simulateChisel[M <: chisel3.Module, T](m: => M, workingDir: WorkingDirectory)(block: M => T): T = {

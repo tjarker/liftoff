@@ -5,6 +5,7 @@ import org.scalatest.matchers.should.Matchers
 import liftoff.misc.Reporting
 import liftoff.simulation.task._
 import liftoff.intToTime
+import liftoff.simulation.control.{SimController, TickFor}
 
 class TaskTests extends AnyWordSpec with Matchers {
 

@@ -1,12 +1,13 @@
 package liftoff.simulation.task
 
 import liftoff.coroutine.{Coroutine, Result, CoroutineScope, Finished}
-import liftoff.simulation.SimControllerYield
-import liftoff.simulation.SimController
+import liftoff.simulation.control.SimControllerYield
+import liftoff.simulation.control.SimController
 import liftoff.coroutine.CoroutineContextVariable
-import liftoff.simulation.Sim
+import liftoff.simulation.control._
 import liftoff.misc.Reporting
-import liftoff.simulation.SimControllerResponse
+import liftoff.simulation.control.SimControllerResponse
+import liftoff.simulation.Sim
 
 object Task {
 

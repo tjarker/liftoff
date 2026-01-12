@@ -8,10 +8,21 @@ import liftoff.wordArrayOps
 import liftoff.bigIntOps
 import liftoff.simulation.Time._
 
+import scala.collection.mutable
+
 import java.io.File
 import liftoff.misc.Reporting
 
 object VerilatorSimModelFactory {
+
+  val uniqueNameCounter = mutable.Map[String, Int]()
+  def uniqueName(base: String): String = {
+    val count = uniqueNameCounter.getOrElseUpdate(base, 0)
+    uniqueNameCounter(base) = count + 1
+    s"${base}_$count"
+  }
+
+  val buildDirs = mutable.Set[WorkingDirectory]()
 
   def create(
       topName: String,
@@ -20,6 +31,11 @@ object VerilatorSimModelFactory {
       verilatorOptions: Seq[Verilator.Argument],
       cOptions: Seq[String]
   )= {
+
+    if (buildDirs.contains(dir)) {
+      throw new Exception(s"Working dir for $topName (${dir.dir.getAbsolutePath()}) has already been used in this run.")
+    }
+    buildDirs += dir
 
     val verilatorDir = dir.addSubDir(dir / "verilator")
 
@@ -41,14 +57,17 @@ object VerilatorSimModelFactory {
 
     //Reporting.debug(None, "Verilator", s"Collected ports:\n - ${portDescriptors.mkString("\n - ")}")
 
+    val functionPrefix = uniqueName(topName)
+
     val harnessFile = VerilatorModelHarness.writeHarness(
       dir,
       topName,
+      functionPrefix,
       portDescriptors
     )
 
     val harnessCompileRecipe = verilatorDir.addRecipe(
-      Seq(dir / s"${topName}_harness.o"),
+      Seq(dir / s"${functionPrefix}_harness.o"),
       Seq(harnessFile),
       Seq(
         "g++",
@@ -58,7 +77,7 @@ object VerilatorSimModelFactory {
         "-fpermissive",
         "-c",
         "-o",
-        (dir / s"${topName}_harness.o").getAbsolutePath(),
+        (dir / s"${functionPrefix}_harness.o").getAbsolutePath(),
         harnessFile.getAbsolutePath()
       ),
       _.head
@@ -73,7 +92,7 @@ object VerilatorSimModelFactory {
       else Seq("-pthread", "-lpthread", "-latomic")
 
     val sharedObjectRecipe = SharedObject.createRecipe(
-      libname = s"lib${topName}",
+      libname = s"lib${functionPrefix}",
       dir,
       sources = artifacts :+ compiledHarness,
       options = Seq(
@@ -85,6 +104,7 @@ object VerilatorSimModelFactory {
 
     new VerilatorSimModelFactory(
       topName,
+      functionPrefix,
       portDescriptors,
       sharedObject
     )
@@ -105,6 +125,7 @@ other:
 
 class VerilatorSimModelFactory(
   val name: String,
+  val functionPrefix: String,
   val ports: Seq[VerilatorPortDescriptor],
   val libFile: SharedObject
 ) {
@@ -112,23 +133,23 @@ class VerilatorSimModelFactory(
   val lib = libFile.load()
 
   val createContextHandle =
-    lib.getFunction(VerilatorModelHarness.createContextFunName(name))
+    lib.getFunction(VerilatorModelHarness.createContextFunName(functionPrefix))
   val deleteContextHandle =
-    lib.getFunction(VerilatorModelHarness.deleteContextFunName(name))
+    lib.getFunction(VerilatorModelHarness.deleteContextFunName(functionPrefix))
   val evalHandle =
-    lib.getFunction(VerilatorModelHarness.evalFunName(name))
+    lib.getFunction(VerilatorModelHarness.evalFunName(functionPrefix))
   val tickHandle =
-    lib.getFunction(VerilatorModelHarness.tickFunName(name))
+    lib.getFunction(VerilatorModelHarness.tickFunName(functionPrefix))
   val setHandle =
-    lib.getFunction(VerilatorModelHarness.setFunName(name))
+    lib.getFunction(VerilatorModelHarness.setFunName(functionPrefix))
   val getHandle =
-    lib.getFunction(VerilatorModelHarness.getFunName(name))
+    lib.getFunction(VerilatorModelHarness.getFunName(functionPrefix))
   val setWideHandle =
-    lib.getFunction(VerilatorModelHarness.setWideFunName(name))
+    lib.getFunction(VerilatorModelHarness.setWideFunName(functionPrefix))
   val getWideHandle =
-    lib.getFunction(VerilatorModelHarness.getWideFunName(name))
+    lib.getFunction(VerilatorModelHarness.getWideFunName(functionPrefix))
   val quackHandle =
-    lib.getFunction(VerilatorModelHarness.quackFunName(name))
+    lib.getFunction(VerilatorModelHarness.quackFunName(functionPrefix))
 
   def createModel(dir: WorkingDirectory): VerilatorSimModel = {
     new VerilatorSimModel(name, ports, this, dir)
@@ -192,7 +213,7 @@ class VerilatorSimModel(
 
 
   def get(handle: VerilatorPortHandle): BigInt = {
-    handle match {
+    val value = handle match {
       case VerilatorPortHandle(name, id, width) if width <= 64 =>
         val result = factory.getHandle.invokeLong(
           Array(contextPtr, id)
@@ -205,16 +226,21 @@ class VerilatorSimModel(
         )
         valueArray.toBigInt
     }
+    //Reporting.debug(None, "VerilatorSimModel", s"Getting value of port ${handle.name} with id ${handle.id}: ${value}")
+    value
   }
 
   def set(handle: VerilatorInputPortHandle, value: BigInt): Unit = {
+    //Reporting.debug(None, "VerilatorSimModel", s"Setting value of port ${handle.name} with id ${handle.id} to ${value}")
+    val mask = (BigInt(1) << handle.width) - 1
+    val maskedValue = value & mask
     handle match {
       case VerilatorInputPortHandle(model, name, id, width) if width <= 64 =>
         factory.setHandle.invokeVoid(
-          Array(contextPtr, id, value.toLong)
+          Array(contextPtr, id, maskedValue.toLong)
         )
       case VerilatorInputPortHandle(model, name, id, width) if width > 64 =>
-        val valueArray = value.toWordArray
+        val valueArray = maskedValue.toWordArray
         factory.setWideHandle.invokeVoid(
           Array(contextPtr, id, valueArray)
         )

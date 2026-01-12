@@ -3,7 +3,7 @@ package liftoff.verify
 import org.scalatest.wordspec.AnyWordSpec
 import org.scalatest.matchers.should.Matchers
 import liftoff.simulation.DummySimModel
-import liftoff.simulation.SimController
+import liftoff.simulation.control.SimController
 import liftoff.simulation.Sim
 import liftoff.misc.Reporting
 import liftoff.simulation.task.Task

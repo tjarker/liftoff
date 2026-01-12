@@ -8,12 +8,13 @@ import chisel3.experimental.VecLiterals._
 import chisel3.experimental.BundleLiterals._
 import chisel3.util.HasBlackBoxPath
 import circt.stage.ChiselStage
+import liftoff.simulateChisel
 
 class ChiselSimulationTests extends AnyWordSpec with Matchers {
 
   "A Chisel simulation" should {
 
-    "work with Modules" in {
+    "work with combinational Modules" in {
 
       import chisel3._
 
@@ -29,12 +30,20 @@ class ChiselSimulationTests extends AnyWordSpec with Matchers {
         io.out := io.in.a + io.in.b + io.vecin.reduce(_ +& _)
       }
 
-      simulateChisel(new MyModule, "build/chisel_simulation".toDir) { dut =>
+      val dir = "build/chisel_simulation".toDir
+      dir.createIfNotExists()
+      dir.clean()
+      val out = dir.addLoggingFile("simulation.log")
+      Reporting.setOutput(out, colored = false)
+
+      simulateChisel(new MyModule, dir) { dut =>
+
+        dut.io.out.dependsCombinationallyOn(Seq(dut.io.in.a, dut.io.in.b) ++ dut.io.vecin)
 
         dut.io.in.a.poke(10.U)
         dut.io.in.b.poke(20.U)
         dut.io.vecin.poke(Vec.Lit(1.U, 2.U, 3.U, 4.U))
-        //dut.io.out.expect(40.U) // TODO: we need to reevaluate comb outputs after pokes
+        dut.io.out.expect(40.U) // TODO: we need to reevaluate comb outputs after pokes
 
         dut.clock.step(5)
 
@@ -43,13 +52,59 @@ class ChiselSimulationTests extends AnyWordSpec with Matchers {
           _.b -> 15.U
         ))
         dut.io.vecin.poke(Vec.Lit(2.U, 3.U, 4.U, 5.U))
-        //dut.io.out.expect(52.U)
+        dut.io.out.expect(34.U)
 
         dut.clock.step(5)
         
       }
 
     }
+
+    "work with sequential Modules" in {
+
+      import chisel3._
+
+      class MyCounter extends Module {
+        val io = IO(new Bundle {
+          val inc = Input(Bool())
+          val out = Output(UInt(8.W))
+        })
+        val count = RegInit(0.U(8.W))
+        when (io.inc) {
+          count := count + 1.U
+        }
+        io.out := count
+      }
+
+      val dir = "build/chisel_sequential_simulation".toDir
+      dir.createIfNotExists()
+      dir.clean()
+      
+      simulateChisel(new MyCounter, dir) { dut =>
+
+        dut.io.inc.poke(false.B)
+        dut.clock.step(3)
+        dut.io.out.expect(0.U)
+
+        dut.io.inc.poke(true.B)
+        dut.clock.step(1)
+        dut.io.out.expect(1.U)
+
+        dut.clock.step(4)
+        dut.io.out.expect(5.U)
+
+        dut.io.inc.poke(false.B)
+        dut.clock.step(2)
+        dut.io.out.expect(5.U)
+
+        dut.io.inc.poke(true.B)
+        dut.clock.step(3)
+        dut.io.out.expect(8.U)
+
+      }
+
+    }
+
 
     "work with BlackBoxes" in {
 
