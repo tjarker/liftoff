@@ -106,7 +106,7 @@ object ChiselBridge {
       checkFn(v)
     }
     def tick(cycles: Int): Unit = throw new Exception(s"Cannot tick input port handle: ${handle.name}")
-    def tickUntil(port: Data, value: BigInt, maxCycles: Int): StepUntilResult = throw new Exception(s"Cannot tickUntil on input port handle: ${handle.name}")
+    def tickUntil(port: Data, value: BigInt, maxCycles: Int = -1): StepUntilResult = throw new Exception(s"Cannot tickUntil on input port handle: ${handle.name}")
 
     def handle: PortHandle = this.handle
     def cycle: Int = throw new Exception(s"Cannot get cycle of input port handle: ${handle.name}")

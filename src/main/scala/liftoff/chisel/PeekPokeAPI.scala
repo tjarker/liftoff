@@ -320,11 +320,11 @@ object PeekPokeAPI {
     *
     * Stops early if the `sentinelPort` is equal to the `sentinelValue`.
     */
-    def stepUntil(sentinelPort: Data, sentinelValue: BigInt, maxCycles: Int): StepUntilResult = {
-
+    def stepUntil[T <: Data](sentinelPort: T, sentinelValue: T, maxCycles: Int = -1): StepUntilResult = {
+      require(sentinelValue.isLit, s"Sentinel value: $sentinelValue must be a literal")
       val result = simulationPort.tickUntil(
         sentinelPort,
-        sentinelValue,
+        sentinelValue.litValue,
         maxCycles
       )
       result

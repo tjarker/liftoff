@@ -101,6 +101,8 @@ class ChiselSimulationTests extends AnyWordSpec with Matchers {
         dut.clock.step(3)
         dut.io.out.expect(8.U)
 
+        dut.clock.stepUntil(dut.io.out, 10.U, 10) shouldBe StepUntilResult.Success(2)
+
       }
 
     }
