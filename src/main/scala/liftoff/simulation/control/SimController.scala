@@ -17,6 +17,7 @@ import liftoff.simulation.Event
 
 import liftoff.intToTime
 import scala.reflect.internal.Reporting
+import liftoff.simulation.SimTime
 
 
 
@@ -52,7 +53,7 @@ class SimController(simModel: SimModel) {
   val taskScope = Coroutine.createScope()
 
   val eventQueue: EventQueue = new EventQueue
-  var currentTime: Time.AbsoluteTime = Time(0, Time.TimeUnit.fs).absolute
+  var currentTime: SimTime = new SimTime(0)
 
   val outputCache = mutable.Map.empty[CtrlOutHandle, BigInt]
   val inputCache = mutable.Map.empty[CtrlInputHandle, BigInt]
@@ -123,7 +124,7 @@ class SimController(simModel: SimModel) {
           Reporting.error(Some(currentTime), "SimController", s"No rising edge scheduled for clock ${clockPort.name} when trying to sample port ${port.name}")
           throw new Exception("No clock period")
         }
-      case None => throw new Exception(s"Port ${port.name} is not associated with a clock domain")
+      case None => currentTime
     }
     if (currentTime != nextSamplingTime) {
       Reporting.debug(Some(currentTime), "SimController", s"Advancing time from ${currentTime} to ${nextSamplingTime} to sample port ${port.name}")
@@ -166,7 +167,7 @@ class SimController(simModel: SimModel) {
           Reporting.error(Some(currentTime), "SimController", s"No rising edge scheduled for clock ${clockPort.name} when trying to drive port ${port.name}")
           throw new Exception("No clock period")
         }
-      case None => throw new Exception(s"Port ${port.name} is not associated with a clock domain")
+      case None => currentTime
     }
     if (currentTime != nextDriveTime) {
       Reporting.debug(Some(currentTime), "SimController", s"Advancing time from ${currentTime} to ${nextDriveTime} to drive port ${port.name}")
@@ -327,8 +328,11 @@ class SimController(simModel: SimModel) {
         val startTime = System.nanoTime()
         simModel.tick(delta.relative)
         val endTime = System.nanoTime()
+        outputCache.clear()
+        inputCache.clear()
+        inputDirty.clear()
         modelRunTime = modelRunTime + (endTime - startTime)
-        currentTime = event.time
+        currentTime = new SimTime(event.time.valueFs)
       }
 
       handleEvent(event)

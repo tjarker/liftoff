@@ -51,8 +51,8 @@ object Time {
     t
   }
 
-  class AbsoluteTime extends Time
-  class RelativeTime extends Time
+  class AbsoluteTime(t: Long) extends Time(t)
+  class RelativeTime(t: Long) extends Time(t)
 
 }
 
@@ -125,15 +125,11 @@ class Time(private[liftoff] var valueFs: Long = 0) extends Ordered[Time] {
   def s: Long = valueFs / 1000000000000000L
 
   def absolute: Time.AbsoluteTime = {
-    val t = new Time.AbsoluteTime
-    t.valueFs = valueFs
-    t
+    new Time.AbsoluteTime(valueFs)
   }
 
   def relative: Time.RelativeTime = {
-    val t = new Time.RelativeTime
-    t.valueFs = valueFs
-    t
+    new Time.RelativeTime(valueFs)
   }
 
 }

@@ -5,6 +5,7 @@ import liftoff.simulation.control.CtrlClockHandle
 import liftoff.simulation.control.CtrlPortHandle
 import liftoff.simulation.control.CtrlInputHandle
 import liftoff.simulation.control.CtrlOutHandle
+import liftoff.simulation.Time
 import liftoff.simulation.Time.AbsoluteTime
 import liftoff.simulation.Time.RelativeTime
 import liftoff.simulation.StepUntilResult
@@ -12,6 +13,15 @@ import liftoff.simulation.control.SimControllerResponse
 import liftoff.simulation.control.SimControllerYield
 import liftoff.coroutine.CoroutineContext
 import liftoff.simulation.task.Task
+import liftoff.simulation.control.TickFor
+
+class SimTime(t: Long) extends AbsoluteTime(t) {
+
+  def tick(delta: Time): Unit = {
+    SimController.current.suspendWith(TickFor(delta.relative))
+  }
+
+}
 
 object Sim {
 
@@ -36,7 +46,7 @@ object Sim {
       SimController.current.addCombinationDependency(output.asInstanceOf[CtrlOutHandle], inputs.asInstanceOf[Seq[CtrlInputHandle]])
     }
   }
-  def time: AbsoluteTime = SimController.current.currentTime
+  def time: SimTime = SimController.current.currentTime
 
   object Scheduler {
     def suspendTask(v: SimControllerYield): Unit = {

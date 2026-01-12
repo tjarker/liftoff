@@ -13,6 +13,8 @@ import liftoff.simulation.Time
 
 import scala.collection.mutable
 import java.io.File
+import liftoff.simulation.control.CtrlOutHandle
+import liftoff.simulation.control.CtrlInputHandle
 
 
 object Verilog {
@@ -102,6 +104,16 @@ class VerilogSimModel(ctrl: SimController) {
     clocks += clockPort
     nameToPort += name -> clockPort
     clockPort
+  }
+
+  def addCombinationalDependency(
+    output: Verilog.Output,
+    inputs: Seq[Verilog.Input]
+  ): Unit = {
+    ctrl.addCombinationDependency(
+      output.handle.asInstanceOf[CtrlOutHandle],
+      inputs.map(_.handle).asInstanceOf[Seq[CtrlInputHandle]]
+    )
   }
 
   def apply(portName: String): Verilog.Port = nameToPort(portName)
