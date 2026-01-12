@@ -42,7 +42,7 @@ class CtrlClockHandle(backingPort: InputPortHandle, ctrl: SimController, val per
       return StepUntilResult.Success(0)
     }
 
-    val response: Option[SimControllerResponse] = ctrl.taskScope.suspend[SimControllerResponse, SimControllerYield](Some(StepUntil(this, port.asInstanceOf[CtrlPortHandle], value, maxCycles)))
+    val response: Option[SimControllerResponse] = ctrl.taskScope.suspend[SimControllerResponse, SimControllerYield](Some(StepUntil(this, port.asInstanceOf[CtrlPortHandle], value, if (maxCycles < 0) None else Some(maxCycles))))
     val res = response match {
       case Some(StepUntilResponse(res)) => res
       case _ => throw new Exception("Invalid response to stepUntil")

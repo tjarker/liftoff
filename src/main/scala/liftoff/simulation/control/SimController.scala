@@ -225,7 +225,7 @@ class SimController(simModel: SimModel) {
         if (portValue == value) {
           Reporting.debug(Some(currentTime), "Task", s"Condition met for task ${task.name} (port ${port.name} == ${value}), scheduling task")
           handleTask(task, StepUntilResponse(StepUntilResult.Success(waited)))
-        } else if (waited >= maxCycles) {
+        } else if (maxCycles.isDefined && waited >= maxCycles.get) {
           Reporting.error(Some(currentTime), "SimController", s"StepUntil: Reached maxCycles (${maxCycles}) without seeing desired value (${value}) on port ${port.name} for task ${task.name}")
           handleTask(task, StepUntilResponse(StepUntilResult.Timeout(waited)))
         } else {
