@@ -1,6 +1,7 @@
 package liftoff.simulation
 
 import liftoff.simulation.Time.RelativeTime
+import java.io.File
 
 class DummySimModel extends SimModel {
     val name = "Dummy"
@@ -12,4 +13,5 @@ class DummySimModel extends SimModel {
     def evaluate(): Unit = {}
     def tick(delta: RelativeTime): Unit = {}
     def cleanup(): Unit = {}
+    def waveFile: File = null
   }

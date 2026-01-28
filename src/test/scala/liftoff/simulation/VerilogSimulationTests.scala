@@ -40,7 +40,7 @@ class VerilogSimulationTests extends AnyWordSpec with Matchers {
 
       val inverterModule = VerilogModule(topName, Seq(verilogFile))
 
-      simulateVerilog(inverterModule, buildDir) { inverter =>
+      simulateVerilog(topName, Seq(verilogFile), buildDir) { inverter =>
 
         inverter.addCombinationalDependency(
           inverter.out("out"),
@@ -102,10 +102,10 @@ class VerilogSimulationTests extends AnyWordSpec with Matchers {
 
       val aluModule = VerilogModule(topName, Seq(verilogFile))
 
-      simulateVerilog(aluModule, buildDir) { alu =>
-        alu.addClockDomain("clk", 2.ns, Seq(
+      simulateVerilog(topName, Seq(verilogFile), buildDir) { alu =>
+        alu.addClockDomain("clk", 2.ns)(
           alu("a"), alu("b"), alu("op"), alu("result")
-        ))
+        )
 
         for (op <- 0 to 3) {
           for (aval <- 0 to 15) {

@@ -17,6 +17,20 @@ javaOptions ++= Seq(
   "-Djdk.virtualThreadScheduler.minRunnable=1"
 )
 
+lazy val macros = (project in file("macros"))
+  .settings(
+    name := "liftoff-macros",
+    scalaVersion := "2.13.12",
+    libraryDependencies += "org.scala-lang" % "scala-reflect" % scalaVersion.value
+  )
+
+lazy val root = (project in file("."))
+  .dependsOn(macros)
+  .settings(
+    name := "liftoff",
+    scalaVersion := "2.13.12"
+  )
+
 fork := true
 javaOptions += "--add-exports=java.base/jdk.internal.vm=ALL-UNNAMED"
 javacOptions += "--add-exports=java.base/jdk.internal.vm=ALL-UNNAMED"

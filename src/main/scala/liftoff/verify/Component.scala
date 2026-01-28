@@ -10,6 +10,8 @@ import liftoff.simulation.control.SimController
 import liftoff.coroutine.CoroutineContextVariable
 import liftoff.misc.Reporting
 import liftoff.simulation.Sim
+import liftoff.simulation.Time
+import liftoff._
 
 case class CompPath(val name: String, val hiearchy: Seq[Component]) {
   override def toString(): String = {
@@ -42,6 +44,7 @@ abstract class Component {
 
   var taskCounter = 0
   val tasks = mutable.Buffer.empty[Task[_]]
+  val taskRuntimesMap = mutable.Map.empty[String, Time]
 
   def createTask[T](block: => T): Task[T] = {
     val name = s"${path}.task[${taskCounter}]"
@@ -65,13 +68,24 @@ abstract class Component {
 
   def cancelTasks(): Unit = {
     tasks.foreach(_.cancelWithChildren())
+    tasks.foreach(t => taskRuntimesMap(t.name) = t.getRuntime().ns)
     tasks.clear()
   }
 
   def joinTasks(): Unit = {
     tasks.foreach(_.join())
+    tasks.foreach(t => taskRuntimesMap(t.name) = t.getRuntime().ns)
     tasks.clear()
   }
+
+  def collectTaskRuntimes(): Map[String, Time] = {
+    taskRuntimesMap.toMap ++ children.flatMap(_.collectTaskRuntimes()).toMap
+  }
+
+  import scala.language.experimental.macros
+
+  def path(f: this.type => Component): String = macro liftoff.macros.Path.pathImpl[this.type]
+
   
 }
 
@@ -117,6 +131,10 @@ object Component {
     val map = overrideMap.value
     map.remove(implicitly[ClassTag[C]])
   }
+
+  import scala.language.experimental.macros
+
+  def path[R <: Component](f: R => Component): String = macro liftoff.macros.Path.pathImpl[R]
 }
 
 object ReflectiveFactory {

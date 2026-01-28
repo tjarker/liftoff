@@ -58,7 +58,7 @@ abstract class Driver[T, R] extends Component with SimPhase with Drives[T, R] {
   def done(resp: R): Unit = {
     currentGen match {
       case Some((gen, flag)) => {
-        gen.feedback(resp)
+        if (shouldRespond) gen.feedback(resp)
         if (!gen.hasNext) {
           flag.markFinished()
           currentGen = None

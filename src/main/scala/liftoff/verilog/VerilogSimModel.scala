@@ -92,8 +92,8 @@ class VerilogSimModel(ctrl: SimController) {
 
   def addClockDomain(
     name: String,
-    period: Time,
-    ports: Seq[Verilog.Port]
+    period: Time)(
+    ports: Verilog.Port*
   ): Verilog.Clock = {
     val clockHandle = ctrl.addClockDomain(
       name,

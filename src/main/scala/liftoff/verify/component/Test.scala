@@ -8,6 +8,7 @@ import liftoff.verify.Phase
 import liftoff.simulation.Sim
 import liftoff.verify.ResetPhase
 import liftoff.verify.ReportPhase
+import liftoff.simulation.Time.TimeUnit
 
 abstract class Test extends Component with TestPhase {
 
@@ -33,11 +34,17 @@ object Test {
     root.startPhase[ReportPhase]().foreach(_.joinTasks())
     val end = System.nanoTime()
     val times = Seq(
-      f"ResetPhase: ${(testStart - start) / 1e6}%.2f ms",
-      f"TestPhase: ${(simEnd - testStart) / 1e6}%.2f ms",
-      f"ReportPhase: ${(end - simEnd) / 1e6}%.2f ms"
+      f" - ResetPhase: ${(testStart - start) / 1e6}%.2f ms",
+      f" - TestPhase: ${(simEnd - testStart) / 1e6}%.2f ms",
+      f" - ReportPhase: ${(end - simEnd) / 1e6}%.2f ms"
     )
     
     Reporting.success(Some(Sim.time), testName, s"Finished\n" + times.mkString("\n"))
+
+    val taskRuntimes = root.collectTaskRuntimes()
+    Reporting.info(None, testName, s"Task runtimes:" + Reporting.table(Seq(
+      Seq("Task Name", "Runtime")) ++
+      taskRuntimes.toSeq.sortBy(_._2)(Ordering[liftoff.simulation.Time].reverse).map { case (name, time) => Seq(name, time.toString(TimeUnit.ms)) }
+    ))
   }
 }

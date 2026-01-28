@@ -16,6 +16,7 @@ trait SimModel {
   def evaluate(): Unit
   def tick(delta: RelativeTime): Unit
   def cleanup(): Unit
+  def waveFile: java.io.File
 }
 
 object SimModel {

@@ -9,6 +9,7 @@ import chisel3.experimental.BundleLiterals._
 import chisel3.util.HasBlackBoxPath
 import circt.stage.ChiselStage
 import liftoff.simulateChisel
+import liftoff.ChiselModel
 
 class ChiselSimulationTests extends AnyWordSpec with Matchers {
 
@@ -111,6 +112,33 @@ class ChiselSimulationTests extends AnyWordSpec with Matchers {
 
     }
 
+    "allow reusing the same verilator model" in {
+
+      import chisel3._
+      class SimpleModule extends Module {
+        val io = IO(new Bundle {
+          val in = Input(UInt(4.W))
+          val out = Output(UInt(4.W))
+        })
+        io.out := RegNext(io.in + 1.U)
+      }
+
+      val buildDir = "build/chisel_reuse_model".toDir
+      val sim1 = buildDir.addSubDir(buildDir / "sim1")
+      val sim2 = buildDir.addSubDir(buildDir / "sim2")
+
+      val model = ChiselModel(new SimpleModule, buildDir)
+      val res1 = model.simulate(sim1) { dut =>
+        dut.io.in.poke(3.U)
+        dut.clock.step()
+        dut.io.out.expect(4.U)
+      }
+      val res2 = model.simulate(sim2) { dut =>
+        dut.io.in.poke(7.U)
+        dut.clock.step()
+        dut.io.out.expect(8.U)
+      }
+    }
 
     "work with BlackBoxes" in {
 

@@ -26,6 +26,16 @@ class NestedComponent extends Component {
   val child2 = Component.create[MyComponent](2, "two")
 }
 
+class CompA extends Component {
+  val childB = Component.create[CompB]()
+
+  assert(path(_.childB.childC) == "childB.childC")
+}
+class CompB extends Component {
+  val childC = Component.create[CompC]()
+}
+class CompC extends Component {}
+
 class ComponentWithPorts extends Component {
 
   val in = Port.receiver[Int]
@@ -82,6 +92,14 @@ class ComponentTests extends AnyWordSpec with Matchers {
   Reporting.setOutput(Reporting.NullStream)
 
   "A Component" should {
+
+    "create compile time checked hierarchical paths" in {
+      Component.path[NestedComponent](_.child1) shouldBe "child1"
+      val comp = Component.create[NestedComponent]()
+      comp.path(_.child1) shouldBe "child1"
+      val compA = Component.create[CompA]()
+      compA.path(_.childB.childC) shouldBe "childB.childC"
+    }
 
     "be creatable via create method" in {
 

@@ -171,11 +171,13 @@ class VerilatorSimModel(
     case VerilatorOutputDescriptor(n, id, w) =>
       VerilatorOutputPortHandle(this, n, id, w)
   }
+  
+  val waveFile: File = dir / "wave.fst"
 
   // Create a context for the model
   val contextPtr = factory.createContextHandle.invokePointer(
     Array(
-      (dir / "wave.fst").getAbsolutePath(),
+      waveFile.getAbsolutePath(),
       "1ns",
       Array.empty[String],
       0

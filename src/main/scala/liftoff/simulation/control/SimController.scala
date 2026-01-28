@@ -19,8 +19,6 @@ import liftoff.intToTime
 import scala.reflect.internal.Reporting
 import liftoff.simulation.SimTime
 
-
-
 object SimController {
 
   private val dynamicVariable = new scala.util.DynamicVariable[SimController](null)
@@ -69,6 +67,8 @@ class SimController(simModel: SimModel) {
   val clockCycles = mutable.Map.empty[CtrlClockHandle, Int]
   def ports: Seq[PortHandle] = (inputHandles.values ++ outputHandles.values).toSeq
 
+  val previousPortValue = mutable.Map.empty[Cond, BigInt]
+
   val portToClock = mutable.Map.empty[CtrlPortHandle, CtrlClockHandle]
 
   var modelRunTime = 0L
@@ -76,6 +76,12 @@ class SimController(simModel: SimModel) {
 
   def getModelRunTimeMillis(): Double = {
     modelRunTime / 1e6.toDouble
+  }
+  def getModelRunTimeNanos(): Long = {
+    modelRunTime
+  }
+  def getTaskRunTimeNanos(): Long = {
+    taskRunTime
   }
 
   def getTaskRunTimeMillis(): Double = {
@@ -219,7 +225,7 @@ class SimController(simModel: SimModel) {
         handleTask(task, EmptyResponse)
         
       
-      case Event.CondRunTask(_, task, order, cond@StepUntil(clockPort, port, value, maxCycles), waited) =>
+      case Event.CondWaitingTask(_, task, order, cond@StepUntil(clockPort, port, value, maxCycles), waited) =>
         Reporting.debug(Some(currentTime), "Task", s"Checking conditional run of task ${task.name} (waited ${waited}/${maxCycles})")
         val portValue = port.get()
         if (portValue == value) {
@@ -231,7 +237,21 @@ class SimController(simModel: SimModel) {
         } else {
           Reporting.debug(Some(currentTime), "Task", s"Condition not met for task ${task.name} (port ${port.name} == ${portValue}), rescheduling check")
           val nextFallingEdge = nthFallingEdge(clockPort, 1)
-          eventQueue.enqueue(Event.CondRunTask(nextFallingEdge.absolute, task, order, cond, waited + 1))
+          eventQueue.enqueue(Event.CondWaitingTask(nextFallingEdge.absolute, task, order, cond, waited + 1))
+        }
+
+      case Event.CondRunTask(_, task, _, cond) =>
+        Reporting.debug(Some(currentTime), "Task", s"Checking condition $cond for repeating task ${task.name}")
+        cond match {
+          case Rising(port, clk) =>
+            val isRising = previousPortValue.get(cond)
+              .map(v => v < port.get())
+              .getOrElse(false)
+            previousPortValue(cond) = port.get()
+            if (isRising) {
+              Reporting.debug(Some(currentTime), "Task", s"Rising condition met for task ${task.name}, scheduling task")
+              handleTask(task, EmptyResponse)
+            }
         }
     }
   }
@@ -254,7 +274,7 @@ class SimController(simModel: SimModel) {
       case YieldedWith(cond@StepUntil(clockPort, port, value, maxCycles)) =>
         Reporting.debug(Some(currentTime), "SimController", s"Stepping task ${t.name} until port ${port.name} == ${value} on clock ${clockPort} for up to ${maxCycles} cycles")
         val nextFallingEdge = nthFallingEdge(clockPort, 1)
-        eventQueue.enqueue(Event.CondRunTask(nextFallingEdge.absolute, t, t.order, cond, 1))
+        eventQueue.enqueue(Event.CondWaitingTask(nextFallingEdge.absolute, t, t.order, cond, 1))
 
       case YieldedWith(TickFor(duration)) =>
         Reporting.debug(Some(currentTime), "SimController", s"Ticking task ${t.name} for duration ${duration}")
@@ -290,6 +310,16 @@ class SimController(simModel: SimModel) {
     task = new Task[T](name, taskScope, order, block)
     Coroutine.Context.restore(context)
     eventQueue.enqueue(Event.RunTask(currentTime, task, order))
+    task
+  }
+
+  def addCondTask[T](name: String, order: Int, cond: Cond, block: () => T): CondTask[T] = {
+    var task: CondTask[T] = null
+    val context = Coroutine.Context.current()
+    Reporting.debug(Some(currentTime), "SimController", s"Adding conditional task: ${name} with order ${order} and context ${Coroutine.Context.current().pretty}")
+    task = new CondTask[T](name, taskScope, order, cond, block())
+    Coroutine.Context.restore(context)
+    eventQueue.enqueue(Event.CondRunTask(currentTime, task, order, cond))
     task
   }
 

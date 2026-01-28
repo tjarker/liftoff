@@ -8,6 +8,15 @@ import liftoff.simulation.control._
 import liftoff.misc.Reporting
 import liftoff.simulation.control.SimControllerResponse
 import liftoff.simulation.Sim
+import liftoff.simulation.Time
+
+trait Cond {
+}
+case class Rising(port: CtrlPortHandle, clk: CtrlClockHandle) extends Cond
+case class Falling(port: CtrlPortHandle, clk: CtrlClockHandle) extends Cond
+case class Period(t: Time) extends Cond
+case class Custom(clk: CtrlClockHandle, condFunc: () => Boolean) extends Cond
+
 
 object Task {
 
@@ -20,6 +29,10 @@ object Task {
     currentTaskVar.withValue[T](Some(task)) {
       block
     }
+  }
+
+  def always[T](cond: Cond)(block: => T): CondTask[T] = {
+    ???
   }
 
   def apply[T](block: => T): Task[T] = {
@@ -58,6 +71,27 @@ object Task {
 
 }
 
+class CondTask[T](
+    name: String,
+    scope: CoroutineScope,
+    order: Int,
+    cond: Cond,
+    block: => T
+) extends Task[T](name, scope, order, block) with Iterator[T] {
+
+  override def toString(): String = {
+    s"RepeatingTask($name, ${cond})"
+  }
+
+  val channel = Channel[T]()
+
+  def hasNext: Boolean = true
+  def next(): T = {
+    channel.receive()
+  }
+
+}
+
 class Task[T](
     val name: String,
     scope: CoroutineScope,
@@ -84,6 +118,8 @@ class Task[T](
     childName
   }
 
+  var runTime = 0L
+
   var result: Option[T] = None
 
   val waitingTasks = scala.collection.mutable.ListBuffer.empty[Task[_]]
@@ -91,7 +127,8 @@ class Task[T](
   def getResult(): Option[T] = result
 
   def runStep(resp: SimControllerResponse): Result[SimControllerYield, T] = {
-    coroutine.resume(Some(resp)) match {
+    val start = System.nanoTime()
+    val res = coroutine.resume(Some(resp)) match {
       case r @ Finished(value) => {
         Reporting.debug(None, "Task",s"Task $name finished with result $value")
         result = Some(value)
@@ -99,6 +136,9 @@ class Task[T](
       }
       case other => other
     }
+    val end = System.nanoTime()
+    runTime += (end - start)
+    res
   }
 
   def join(): T = if (result.isDefined) { result.get } else {
@@ -118,6 +158,8 @@ class Task[T](
     cancel()
     children.foreach(_.cancelWithChildren())
   }
+
+  def getRuntime(): Long = runTime
 
 
   override def toString(): String = {
