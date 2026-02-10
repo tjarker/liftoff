@@ -234,8 +234,8 @@ class ComponentTests extends AnyWordSpec with Matchers {
         val sender = Port.sender[Int]
         val receiver = Port.receiver[Int]
 
-        sender <> comp.in
-        comp.out <> receiver
+        sender.connect(comp.in)
+        comp.out.connect(receiver)
 
         sender.send(10)
         receiver.receive() shouldBe 11

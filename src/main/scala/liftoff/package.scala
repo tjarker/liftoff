@@ -21,6 +21,7 @@ import chisel3.Data
 package object liftoff extends misc.Misc with chisel.ChiselPeekPokeAPI with simulation.TimeImplicits {
 
   TaskScope
+  SimController
 
   type AnalysisComponent[T] = liftoff.verify.component.AnalysisComponent[T]
   type Driver[T, R] = liftoff.verify.component.Driver[T, R]
@@ -45,8 +46,17 @@ package object liftoff extends misc.Misc with chisel.ChiselPeekPokeAPI with simu
   type Gen[T] = liftoff.coroutine.Gen[T]
   val BiGen = liftoff.coroutine.BiGen
   val Gen = liftoff.coroutine.Gen
-
-
+  type Test = liftoff.verify.component.Test
+  val Port = liftoff.verify.Port
+  type Time = liftoff.simulation.Time
+  val Sim = liftoff.simulation.Sim
+  type WorkingDirectory = liftoff.misc.WorkingDirectory
+  type Channel[T] = liftoff.simulation.task.Channel[T]
+  val Channel = liftoff.simulation.task.Channel
+  type RountTripChannel[A, B] = liftoff.simulation.task.RountTripChannel[A, B]
+  type RoundTripSenderPort[A, B] = liftoff.verify.RoundTripSenderPort[A, B]
+  type RoundTripReceiverPort[A, B] = liftoff.verify.RoundTripReceiverPort[A, B]
+  type Receipt[T] = liftoff.simulation.task.Receipt[T]
 
   val Config = liftoff.verify.Config
   val Region = liftoff.simulation.task.Region
