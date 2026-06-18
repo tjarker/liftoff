@@ -9,6 +9,7 @@ import liftoff.simulation._
 import scala.runtime.BoxedUnit
 import chisel3.Input
 import liftoff.simulation.control.SimController
+import java.io.File
 
 
 object ChiselBridge {
@@ -34,10 +35,33 @@ object ChiselBridge {
       m,
       Array(
         "--target-dir",
-        dir.toString,
+        dir.toString + "/tmp",
       )
     )
+    val newFile = new File(s"${dir.toString}/tmp/${name}.v")
     val mainFile = dir.addFile(s"${name}.v")
+
+    if (mainFile.exists()) {
+      // check if contents are the same
+      java.nio.file.Files.mismatch(mainFile.toPath, newFile.toPath) match {
+        case -1L => // files are the same, do nothing
+        case _ =>
+          // files are different, replace old file with new file
+          java.nio.file.Files.move(
+            newFile.toPath,
+            mainFile.toPath,
+            java.nio.file.StandardCopyOption.REPLACE_EXISTING
+          )
+      }
+    } else {
+      // file doesn't exist, move new file to main file
+      java.nio.file.Files.move(
+        newFile.toPath,
+        mainFile.toPath,
+        java.nio.file.StandardCopyOption.REPLACE_EXISTING
+      )
+    }
+
     // load firrtl_black_box_resource_files.f
     val blackBoxFiles = try {
       scala.io.Source

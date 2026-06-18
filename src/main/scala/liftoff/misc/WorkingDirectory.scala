@@ -79,7 +79,7 @@ class WorkingDirectory(val dir: File) {
     val depsPaths = deps.map(_.getAbsolutePath).mkString(" ")
     val commandsStr = commands.mkString(" \\\n\t  ")
     val makefileContent =
-      s"""$targetPaths: $depsPaths Makefile
+      s"""$targetPaths: $depsPaths
                |\t$commandsStr
                |""".stripMargin
     java.nio.file.Files.write(
