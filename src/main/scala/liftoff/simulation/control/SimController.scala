@@ -16,8 +16,8 @@ import liftoff.simulation.EventQueue
 import liftoff.simulation.Event
 
 import liftoff.intToTime
-import scala.reflect.internal.Reporting
 import liftoff.simulation.SimTime
+import liftoff.simulation.Sim.time
 
 object SimController {
 
@@ -95,17 +95,17 @@ class SimController(simModel: SimModel) {
   def getClockPortHandle(portName: String): Option[ClockPortHandle] = clockHandles.get(portName)
 
   def addCombinationDependency(output: CtrlOutHandle, inputs: Seq[CtrlInputHandle]): Unit = {
-    Reporting.debug(Some(currentTime), "SimController", s"Adding combinational dependency for output port ${output.name} on input ports ${inputs.map(_.name).mkString(", ")}")
+    // Reporting.debug(Some(currentTime), "SimController", s"Adding combinational dependency for output port ${output.name} on input ports ${inputs.map(_.name).mkString(", ")}")
     combinationalOutputToInput(output) = inputs
   }
 
   def addClockDomain(clockPortName: String, period: Time, ports: Seq[PortHandle]): CtrlClockHandle = {
     require(ports.forall(_.isInstanceOf[CtrlPortHandle]), s"Can't add clock domain with non-CtrlPortHandle ports: ${ports.filterNot(_.isInstanceOf[CtrlPortHandle])}")
     val clock = inputHandles.get(clockPortName).getOrElse {
-      Reporting.error(Some(currentTime), "SimController", s"addClockDomain: No input port named ${clockPortName} found in SimModel ${simModel.name}")
+      // Reporting.error(Some(currentTime), "SimController", s"addClockDomain: No input port named ${clockPortName} found in SimModel ${simModel.name}")
       throw new Exception("No such clock port")
     }.backingPort
-    Reporting.debug(Some(currentTime), "SimController", s"Adding clock: ${clock.name} with period ${period}")
+    // Reporting.debug(Some(currentTime), "SimController", s"Adding clock: ${clock.name} with period ${period}")
     val handle = new CtrlClockHandle(clock, this, period)
     ports.foreach(p => portToClock(p.asInstanceOf[CtrlPortHandle]) = handle)
     eventQueue.enqueue(Event.ClockEdge(currentTime.absolute, handle, false))
@@ -123,32 +123,32 @@ class SimController(simModel: SimModel) {
 
 
   def get(port: CtrlPortHandle, isSigned: Boolean): BigInt = {
-    Reporting.debug(Some(currentTime), "SimController", s"Getting value of port: ${port.name}")
+    // Reporting.debug(Some(currentTime), "SimController", s"Getting value of port: ${port.name}")
     val nextSamplingTime = portToClock.get(port) match {
       case Some(clockPort) =>
         eventQueue.nextFallingEdge(clockPort).getOrElse {
-          Reporting.error(Some(currentTime), "SimController", s"No rising edge scheduled for clock ${clockPort.name} when trying to sample port ${port.name}")
+          // Reporting.error(Some(currentTime), "SimController", s"No rising edge scheduled for clock ${clockPort.name} when trying to sample port ${port.name}")
           throw new Exception("No clock period")
         }
       case None => currentTime
     }
     if (currentTime != nextSamplingTime) {
-      Reporting.debug(Some(currentTime), "SimController", s"Advancing time from ${currentTime} to ${nextSamplingTime} to sample port ${port.name}")
+      // Reporting.debug(Some(currentTime), "SimController", s"Advancing time from ${currentTime} to ${nextSamplingTime} to sample port ${port.name}")
       taskScope.suspend(Some(TickUntil(nextSamplingTime.absolute)))
-      Reporting.debug(Some(currentTime), "SimController", s"Resumed for sampling port ${port.name} at time ${currentTime}")
+      // Reporting.debug(Some(currentTime), "SimController", s"Resumed for sampling port ${port.name} at time ${currentTime}")
     }
     port match {
       case iph: CtrlInputHandle =>
         val state = inputCache.getOrElseUpdate(iph, iph.backingPort.get())
-        Reporting.debug(Some(currentTime), "SimController", s"Read input port ${iph.name} with value ${state}")
+        // Reporting.debug(Some(currentTime), "SimController", s"Read input port ${iph.name} with value ${state}")
         state
       case oph: CtrlOutHandle =>
         combinationalOutputToInput.get(oph) match {
           case Some(inputs) =>
-            Reporting.debug(Some(currentTime), "SimController", s"Output port ${oph.name} has combinational dependencies on input ports: ${inputs.map(_.name).mkString(", ")}")
+            // Reporting.debug(Some(currentTime), "SimController", s"Output port ${oph.name} has combinational dependencies on input ports: ${inputs.map(_.name).mkString(", ")}")
             val dirty = inputs.exists(inputDirty.contains)
             if (dirty) {
-              Reporting.debug(Some(currentTime), "SimController", s"Output port ${oph.name} is dirty due to dependent inputs, evaluating from model")
+              // Reporting.debug(Some(currentTime), "SimController", s"Output port ${oph.name} is dirty due to dependent inputs, evaluating from model")
               val startTime = System.nanoTime()
               simModel.evaluate()
               val endTime = System.nanoTime()
@@ -158,7 +158,7 @@ class SimController(simModel: SimModel) {
               value
             } else outputCache.getOrElseUpdate(oph, oph.backingPort.get())
           case None =>
-            Reporting.debug(Some(currentTime), "SimController", s"Output port ${oph.name} has no combinational dependencies, reading from cache or model")
+            // Reporting.debug(Some(currentTime), "SimController", s"Output port ${oph.name} has no combinational dependencies, reading from cache or model")
             outputCache.getOrElseUpdate(oph, oph.backingPort.get())
         }
       case _ => throw new Exception(s"Unknown port handle type: ${port}")
@@ -166,22 +166,22 @@ class SimController(simModel: SimModel) {
   }
 
   def set(port: CtrlInputHandle, value: BigInt): Unit = {
-    Reporting.debug(Some(currentTime), "SimController", s"Setting value of port: ${port.name} to ${value}")
+    // Reporting.debug(Some(currentTime), "SimController", s"Setting value of port: ${port.name} to ${value}")
     val nextDriveTime = portToClock.get(port) match {
       case Some(clockPort) =>
         eventQueue.nextFallingEdge(clockPort).getOrElse {
-          Reporting.error(Some(currentTime), "SimController", s"No rising edge scheduled for clock ${clockPort.name} when trying to drive port ${port.name}")
+          // Reporting.error(Some(currentTime), "SimController", s"No rising edge scheduled for clock ${clockPort.name} when trying to drive port ${port.name}")
           throw new Exception("No clock period")
         }
       case None => currentTime
     }
     if (currentTime != nextDriveTime) {
-      Reporting.debug(Some(currentTime), "SimController", s"Advancing time from ${currentTime} to ${nextDriveTime} to drive port ${port.name}")
+      // Reporting.debug(Some(currentTime), "SimController", s"Advancing time from ${currentTime} to ${nextDriveTime} to drive port ${port.name}")
       taskScope.suspend(Some(TickUntil(nextDriveTime.absolute)))
-      Reporting.debug(Some(currentTime), "SimController", s"Resumed for driving port ${port.name} at time ${currentTime}")
+      // Reporting.debug(Some(currentTime), "SimController", s"Resumed for driving port ${port.name} at time ${currentTime}")
     }
     // if (!port.isInstanceOf[ClockPortHandle] && inputDirty.contains(port)) {
-    //   Reporting.error(Some(currentTime), "SimController", s"Overwriting input port ${port.name} after it has been read")
+    //   // Reporting.error(Some(currentTime), "SimController", s"Overwriting input port ${port.name} after it has been read")
     // }
     inputDirty.add(port)
     inputCache(port) = value
@@ -195,7 +195,7 @@ class SimController(simModel: SimModel) {
 
   def nthFallingEdge(clockPort: CtrlClockHandle, cycles: Int): Time = {
     val nextFallingEdge = eventQueue.nextFallingEdge(clockPort).getOrElse {
-      Reporting.error(Some(currentTime), "SimController", s"No falling edge scheduled for clock ${clockPort.name}")
+      // Reporting.error(Some(currentTime), "SimController", s"No falling edge scheduled for clock ${clockPort.name}")
       0.fs.absolute
     }
     val period = clockPort.period
@@ -214,34 +214,34 @@ class SimController(simModel: SimModel) {
           clockPort.set(1)
           eventQueue.enqueue(Event.ClockEdge((currentTime + (clockPort.period / 2)).absolute, clockPort, false))
           val cycle = clockCycles.getOrElse(clockPort, 0) + 1
-          Reporting.debug(Some(currentTime), "ClockTick", s"Clock ${clockPort.name} cycle ${cycle}")
+          // Reporting.debug(Some(currentTime), "ClockTick", s"Clock ${clockPort.name} cycle ${cycle}")
           clockCycles(clockPort) = cycle
         } else {
           clockPort.set(0)
           eventQueue.enqueue(Event.ClockEdge((currentTime + (clockPort.period / 2)).absolute, clockPort, true))
         }
       case Event.RunTask(_, task, _) =>
-        Reporting.debug(Some(currentTime), "Task", s"${task.name}")
+        // Reporting.debug(Some(currentTime), "Task", s"${task.name}")
         handleTask(task, EmptyResponse)
         
       
       case Event.CondWaitingTask(_, task, order, cond@StepUntil(clockPort, port, value, maxCycles), waited) =>
-        Reporting.debug(Some(currentTime), "Task", s"Checking conditional run of task ${task.name} (waited ${waited}/${maxCycles})")
+        // Reporting.debug(Some(currentTime), "Task", s"Checking conditional run of task ${task.name} (waited ${waited}/${maxCycles})")
         val portValue = port.get()
         if (portValue == value) {
-          Reporting.debug(Some(currentTime), "Task", s"Condition met for task ${task.name} (port ${port.name} == ${value}), scheduling task")
+          // Reporting.debug(Some(currentTime), "Task", s"Condition met for task ${task.name} (port ${port.name} == ${value}), scheduling task")
           handleTask(task, StepUntilResponse(StepUntilResult.Success(waited)))
         } else if (maxCycles.isDefined && waited >= maxCycles.get) {
-          Reporting.error(Some(currentTime), "SimController", s"StepUntil: Reached maxCycles (${maxCycles}) without seeing desired value (${value}) on port ${port.name} for task ${task.name}")
+          // Reporting.error(Some(currentTime), "SimController", s"StepUntil: Reached maxCycles (${maxCycles}) without seeing desired value (${value}) on port ${port.name} for task ${task.name}")
           handleTask(task, StepUntilResponse(StepUntilResult.Timeout(waited)))
         } else {
-          Reporting.debug(Some(currentTime), "Task", s"Condition not met for task ${task.name} (port ${port.name} == ${portValue}), rescheduling check")
+          // Reporting.debug(Some(currentTime), "Task", s"Condition not met for task ${task.name} (port ${port.name} == ${portValue}), rescheduling check")
           val nextFallingEdge = nthFallingEdge(clockPort, 1)
           eventQueue.enqueue(Event.CondWaitingTask(nextFallingEdge.absolute, task, order, cond, waited + 1))
         }
 
       case Event.CondRunTask(_, task, _, cond) =>
-        Reporting.debug(Some(currentTime), "Task", s"Checking condition $cond for repeating task ${task.name}")
+        // Reporting.debug(Some(currentTime), "Task", s"Checking condition $cond for repeating task ${task.name}")
         cond match {
           case Rising(port, clk) =>
             val isRising = previousPortValue.get(cond)
@@ -249,7 +249,7 @@ class SimController(simModel: SimModel) {
               .getOrElse(false)
             previousPortValue(cond) = port.get()
             if (isRising) {
-              Reporting.debug(Some(currentTime), "Task", s"Rising condition met for task ${task.name}, scheduling task")
+              // Reporting.debug(Some(currentTime), "Task", s"Rising condition met for task ${task.name}, scheduling task")
               handleTask(task, EmptyResponse)
             }
         }
@@ -266,30 +266,30 @@ class SimController(simModel: SimModel) {
 
 
       case YieldedWith(Step(clockPort, cycles)) =>
-        Reporting.debug(Some(currentTime), "SimController", s"Stepping task ${t.name} for ${cycles} cycles on clock ${clockPort}")
+        //Reporting.debug(Some(currentTime), "SimController", s"Stepping task ${t.name} for ${cycles} cycles on clock ${clockPort}")
         val nextTime = nthFallingEdge(clockPort, cycles)
-        Reporting.debug(Some(currentTime), "SimController", s"Scheduling task ${t.name} at time ${nextTime} after ${cycles}x${clockPort.period}")
+        //Reporting.debug(Some(currentTime), "SimController", s"Scheduling task ${t.name} at time ${nextTime} after ${cycles}x${clockPort.period}")
         eventQueue.enqueue(Event.RunTask(nextTime.absolute, t, t.order))
 
       case YieldedWith(cond@StepUntil(clockPort, port, value, maxCycles)) =>
-        Reporting.debug(Some(currentTime), "SimController", s"Stepping task ${t.name} until port ${port.name} == ${value} on clock ${clockPort} for up to ${maxCycles} cycles")
+        //Reporting.debug(Some(currentTime), "SimController", s"Stepping task ${t.name} until port ${port.name} == ${value} on clock ${clockPort} for up to ${maxCycles} cycles")
         val nextFallingEdge = nthFallingEdge(clockPort, 1)
         eventQueue.enqueue(Event.CondWaitingTask(nextFallingEdge.absolute, t, t.order, cond, 1))
 
       case YieldedWith(TickFor(duration)) =>
-        Reporting.debug(Some(currentTime), "SimController", s"Ticking task ${t.name} for duration ${duration}")
+        //Reporting.debug(Some(currentTime), "SimController", s"Ticking task ${t.name} for duration ${duration}")
         val nextTime = currentTime + duration
         eventQueue.enqueue(Event.RunTask(nextTime.absolute, t, t.order))
 
       case YieldedWith(TickUntil(time)) =>
-        Reporting.debug(Some(currentTime), "SimController", s"Ticking task ${t.name} until time ${time}")
+        //Reporting.debug(Some(currentTime), "SimController", s"Ticking task ${t.name} until time ${time}")
         eventQueue.enqueue(Event.RunTask(time.absolute, t, t.order))
       
       case Yielded => // do nothing, will be resumed manually
-        Reporting.debug(Some(currentTime), "SimController", s"Task ${t.name} yielded, waiting for manual resume")
+        //Reporting.debug(Some(currentTime), "SimController", s"Task ${t.name} yielded, waiting for manual resume")
 
       case Failed(e) =>
-        Reporting.error(Some(currentTime), "SimController", s"Active task ${t.name} failed with exception: ${e}")
+        //Reporting.error(Some(currentTime), "SimController", s"Active task ${t.name} failed with exception: ${e}")
         throw e
     }
 
@@ -306,7 +306,7 @@ class SimController(simModel: SimModel) {
     var task: Task[T] = null
     val context = Coroutine.Context.current()
     ctx.foreach(c => taskScope.restoreContext(c))
-    Reporting.debug(Some(currentTime), "SimController", s"Adding task: ${name} with order ${order} and context ${Coroutine.Context.current().pretty}")
+    // Reporting.debug(Some(currentTime), "SimController", s"Adding task: ${name} with order ${order} and context ${Coroutine.Context.current().pretty}")
     task = new Task[T](name, taskScope, order, block)
     Coroutine.Context.restore(context)
     eventQueue.enqueue(Event.RunTask(currentTime, task, order))
@@ -316,7 +316,7 @@ class SimController(simModel: SimModel) {
   def addCondTask[T](name: String, order: Int, cond: Cond, block: () => T): CondTask[T] = {
     var task: CondTask[T] = null
     val context = Coroutine.Context.current()
-    Reporting.debug(Some(currentTime), "SimController", s"Adding conditional task: ${name} with order ${order} and context ${Coroutine.Context.current().pretty}")
+    // Reporting.debug(Some(currentTime), "SimController", s"Adding conditional task: ${name} with order ${order} and context ${Coroutine.Context.current().pretty}")
     task = new CondTask[T](name, taskScope, order, cond, block())
     Coroutine.Context.restore(context)
     eventQueue.enqueue(Event.CondRunTask(currentTime, task, order, cond))
@@ -324,7 +324,7 @@ class SimController(simModel: SimModel) {
   }
 
   def scheduleTaskAt(time: AbsoluteTime, task: Task[_]): Unit = {
-    Reporting.debug(Some(currentTime), "SimController", s"Scheduling task ${task.name} at time ${time}")
+    // Reporting.debug(Some(currentTime), "SimController", s"Scheduling task ${task.name} at time ${time}")
     eventQueue.enqueue(Event.RunTask(time, task, task.order))
   }
 
@@ -343,24 +343,44 @@ class SimController(simModel: SimModel) {
   }
 
 
+  var handelingTime = 0L
+  var handledEvents = 0L
+  var eventPopTime = 0L
+  var deltaTime = 0L
+  var hasEventTime = 0L
 
+  var loopIters = 0L
+  var loopTime = 0L
+
+  def timedContainsTasks: Boolean = {
+    val startTime = System.nanoTime()
+    val contains = eventQueue.containsTasks
+    val endTime = System.nanoTime()
+    hasEventTime = hasEventTime + (endTime - startTime)
+    contains
+  }
 
   def run(): Unit = {
+    TaskScope
+    Task
     
     while (eventQueue.containsTasks) {
-     
+
       val event = eventQueue.pop().get
 
       Reporting.debug(Some(currentTime), "SimController.Loop", s"Handling event: ${event}")
 
       val delta = event.time - currentTime
       if (delta > 0.fs) {
+
         val startTime = System.nanoTime()
         simModel.tick(delta.relative)
         val endTime = System.nanoTime()
+
         outputCache.clear()
         inputCache.clear()
         inputDirty.clear()
+
         modelRunTime = modelRunTime + (endTime - startTime)
         currentTime = new SimTime(event.time.valueFs)
       }
@@ -368,19 +388,18 @@ class SimController(simModel: SimModel) {
       handleEvent(event)
 
       Reporting.debug(Some(currentTime), "SimController.Queue", s"Event queue:\n - ${eventQueue.queue.mkString("\n - ")}")
+        
     }
 
-
     Reporting.debug(Some(currentTime), "SimController", s"No more active tasks in event queue, simulation complete.")
-    
   }
 
   def run[T](block: => T): T = SimController.runWith(this) {
-    TaskScope
-    Task
     val root = Task.root(block)
     this.run()
     root.result.get
   }
+
+  
 
 }

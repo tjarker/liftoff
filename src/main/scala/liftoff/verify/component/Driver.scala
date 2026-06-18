@@ -80,6 +80,14 @@ abstract class Driver[T, R] extends Component with SimPhase with Drives[T, R] {
     }
   }
 
+  def foreachTx(f: T => R): Unit = {
+    while (true) {
+      val tx = next()
+      val resp = f(tx)
+      done(resp)
+    }
+  }
+
 
   // External interface
   def drive(gen: BiGen[R, T]): DriveCompletion = {

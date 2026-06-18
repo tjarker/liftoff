@@ -38,7 +38,7 @@ object WorkingDirectory {
       val exitCode = process.waitFor()
       if (exitCode != 0) {
         throw new RuntimeException(
-          s"Recipe failed with exit code $exitCode. Command: ${commands.mkString(" ")}"
+          s"Recipe failed with exit code $exitCode. Command: ${commands.mkString(" ")}\nOutput:\n${out.mkString("\n")}"
         )
       }
       targets.foreach { target =>

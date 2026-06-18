@@ -17,6 +17,22 @@ object Reporting {
   val providerName = new CoroutineContextVariable[String]("unknown")
   val providerFilters = new CoroutineContextVariable[Set[String]](Set())
 
+
+  var lookuptime = 0L
+  var lookups = 0L
+
+  def lookupTime(): Double = {
+    if (lookups == 0) 0.0 else lookuptime.toDouble / lookups.toDouble
+   }
+
+  def shouldShow(provider: String): Boolean = {
+    val start = System.nanoTime()
+    val res = !providerFilters.value.contains(provider)
+    lookuptime += System.nanoTime() - start
+    lookups += 1
+    res
+  }
+
   def withOutput[R](stream: java.io.PrintStream, colored: Boolean = true)(block: => R): R = {
     outputStream.withValue[R](stream) {
       coloredOutput.withValue[R](colored) {
@@ -89,53 +105,53 @@ object Reporting {
     }
   }
 
-  def infoStr(time: Option[Time], provider: String, message: String): String = {
+  def infoStr(time: Option[Time], provider: String, message: => String): String = {
     reportString(infoTag, time, provider, message)
   }
-  def info(time: Option[Time], provider: String, message: String): Unit = {
-    if (!providerFilters.value.contains(provider)) outputStream.value.println(infoStr(time, provider, message))
+  def info(time: Option[Time], provider: String, message: => String): Unit = {
+    if (shouldShow(provider)) outputStream.value.println(infoStr(time, provider, message))
   }
-  def info(time: Option[Time], message: String): Unit = {
+  def info(time: Option[Time], message: => String): Unit = {
     info(time, providerName.value, message)
   }
 
-  def warnStr(time: Option[Time], provider: String, message: String): String = {
+  def warnStr(time: Option[Time], provider: String, message: => String): String = {
     reportString(warnTag, time, provider, message)
   }
-  def warn(time: Option[Time], provider: String, message: String): Unit = {
-    if (!providerFilters.value.contains(provider)) outputStream.value.println(warnStr(time, provider, message))
+  def warn(time: Option[Time], provider: String, message: => String): Unit = {
+    if (shouldShow(provider)) outputStream.value.println(warnStr(time, provider, message))
   }
-  def warn(time: Option[Time], message: String): Unit = {
+  def warn(time: Option[Time], message: => String): Unit = {
     warn(time, providerName.value, message)
   }
 
-  def errorStr(time: Option[Time], provider: String, message: String): String = {
+  def errorStr(time: Option[Time], provider: String, message: => String): String = {
     reportString(errorTag, time, provider, message)
   }
-  def error(time: Option[Time], provider: String, message: String): Unit = {
-    if (!providerFilters.value.contains(provider)) outputStream.value.println(errorStr(time, provider, message))
+  def error(time: Option[Time], provider: String, message: => String): Unit = {
+    if (shouldShow(provider)) outputStream.value.println(errorStr(time, provider, message))
   }
-  def error(time: Option[Time], message: String): Unit = {
+  def error(time: Option[Time], message: => String): Unit = {
     error(time, providerName.value, message)
   }
 
-  def successStr(time: Option[Time], provider: String, message: String): String = {
+  def successStr(time: Option[Time], provider: String, message: => String): String = {
     reportString(successTag, time, provider, message)
   }
-  def success(time: Option[Time], provider: String, message: String): Unit = {
-    if (!providerFilters.value.contains(provider)) outputStream.value.println(successStr(time, provider, message))
+  def success(time: Option[Time], provider: String, message: => String): Unit = {
+    if (shouldShow(provider)) outputStream.value.println(successStr(time, provider, message))
   }
-  def success(time: Option[Time], message: String): Unit = {
+  def success(time: Option[Time], message: => String): Unit = {
     success(time, providerName.value, message)
   }
 
-  def debugStr(time: Option[Time], provider: String, message: String): String = {
+  def debugStr(time: Option[Time], provider: String, message: => String): String = {
     reportString(debugTag, time, provider, message)
   }
-  def debug(time: Option[Time], provider: String, message: String): Unit = {
-    if (!providerFilters.value.contains(provider)) outputStream.value.println(debugStr(time, provider, message))
+  def debug(time: Option[Time], provider: String, message: => String): Unit = {
+    if (shouldShow(provider)) outputStream.value.println(debugStr(time, provider, message))
   }
-  def debug(time: Option[Time], message: String): Unit = {
+  def debug(time: Option[Time], message: => String): Unit = {
     debug(time, providerName.value, message)
   }
 
@@ -162,6 +178,10 @@ object Reporting {
       (topSeperator +: rows.head +: middleSeparator +: rows.tail :+ bottomSeperator)
         .mkString("\n", "\n", "\n")
     }
+  }
+
+  def tableWithHeader(header: Seq[Any], rows: Seq[Seq[Any]]): String = {
+    table(header +: rows)
   }
 
   def showBanner(): Unit = {

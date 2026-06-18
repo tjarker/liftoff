@@ -6,6 +6,7 @@ import scala.collection.mutable.{PriorityQueue, ListBuffer}
 import liftoff.simulation.task.Task
 import liftoff.simulation.control.{CtrlClockHandle, StepUntil}
 import liftoff.simulation.task.Cond
+import liftoff.misc.Reporting
 
 
 /**
@@ -41,7 +42,14 @@ trait Event extends Ordered[Event] {
           that.toInt - this.toInt // order by event type
       }
     } else {
-      (that.time.fs - this.time.fs).toInt // order by time
+      val diff = that.time.fs - this.time.fs
+      if (diff < 0) {
+        -1
+      } else if (diff > 0) {
+        1
+      } else {
+        0
+      }
     }
   }
 }
@@ -114,11 +122,16 @@ class EventQueue {
   }
 
   def purgeTask(task: Task[_]): Unit = {
-    queue.dequeueAll[Event].filter {
+    val all = queue.dequeueAll[Event]
+    Reporting.debug(None, "Purge", s"Before purging task ${task.name}:\n" + all.mkString("\n"))
+    val filtered = all.filter {
       case Event.RunTask(_, t, _) if t == task => false
       case Event.CondWaitingTask(_, t, _, _, _) if t == task => false
+      case Event.CondRunTask(_, t, _, _) if t == task => false
       case _ => true
-    }.foreach(queue.enqueue(_))
+    }
+    Reporting.debug(None, "Purge", s"After purging task ${task.name}:\n" + filtered.mkString("\n"))
+    filtered.foreach(queue.enqueue(_))
   }
 
 }

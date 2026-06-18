@@ -6,6 +6,8 @@ import liftoff.simulation.Time.TimeUnit.s
 
 import scala.collection.mutable
 import javax.sound.midi.Receiver
+import liftoff.simulation.task.BufferedRoundTripChannel
+import liftoff.simulation.task.Receipt
 
 trait Port[T] {
 
@@ -57,7 +59,7 @@ class ReceiverPort[T](val portName: String) extends Port[T] with PortSender[T] {
 }
 
 trait RoundTripPortSender[A, B] {
-  def send(value: A): B
+  def send(value: A): Receipt[B]
 }
 trait RoundTripPort[A, B] {}
 
@@ -66,7 +68,7 @@ class RoundTripSenderPort[A, B](val portName: String) extends RoundTripPort[A, B
 
   var endPoint = Option.empty[RoundTripReceiverPort[A, B]]
   
-  def send(value: A): B = {
+  def send(value: A): Receipt[B] = {
     endPoint match {
       case Some(receiver) => receiver.send(value)
       case None => throw new RuntimeException(s"No receiver connected to $this")
@@ -79,7 +81,7 @@ class RoundTripSenderPort[A, B](val portName: String) extends RoundTripPort[A, B
 
 class RoundTripReceiverPort[A, B](val portName: String) extends RoundTripPort[A, B] with RoundTripPortSender[A, B] {
   override def toString(): String = s"RoundTripReceiverPort($portName)"
-  var channel = new RountTripChannel[A, B]()
+  var channel = new BufferedRoundTripChannel[A, B]()
 
   def receive(map: A => B): Unit = {
     channel.receive(map)
@@ -96,7 +98,7 @@ class RoundTripReceiverPort[A, B](val portName: String) extends RoundTripPort[A,
     this.channel = r.channel
   }
 
-  def send(value: A): B = {
+  def send(value: A): Receipt[B] = {
     channel.send(value)
   }
 }

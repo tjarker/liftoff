@@ -13,7 +13,7 @@ class Channel[T] {
   private val waitingReaders = new mutable.Queue[Task[?]]()
 
   def send(value: T): Unit = {
-    Reporting.debug(None, "Channel", s"Sending value $value to channel")
+    //Reporting.debug(None, "Channel", s"Sending value $value to channel")
     valueQueue.enqueue(value)
     if (waitingReaders.nonEmpty) {
       val reader = waitingReaders.dequeue()
@@ -27,7 +27,7 @@ class Channel[T] {
       Sim.Scheduler.suspendTask()
     }
     assert(!valueQueue.isEmpty, "Value queue is empty after waking up")
-    Reporting.debug(None, "Channel", s"Receiving value ${valueQueue.head} from channel")
+    //Reporting.debug(None, "Channel", s"Receiving value ${valueQueue.head} from channel")
     valueQueue.dequeue()
   }
 
@@ -37,6 +37,42 @@ class Channel[T] {
       f(value)
     }
   }
+}
+
+
+class BufferedRoundTripChannel[A, B] {
+
+  private val queue = new mutable.Queue[(A, Receipt[B])]()
+  private val waitingReaders = new mutable.Queue[Task[?]]()
+
+  def send(value: A): Receipt[B] = {
+    val receipt = new Receipt[B]()
+    queue.enqueue((value, receipt))
+    if (waitingReaders.nonEmpty) {
+      val reader = waitingReaders.dequeue()
+      Sim.Scheduler.scheduleTaskNow(reader)
+    }
+    receipt
+  }
+
+  def receive(block: A => B): A = {
+    if (queue.isEmpty) {
+      waitingReaders.enqueue(Task.current)
+      Sim.Scheduler.suspendTask()
+    }
+
+    val (value, receipt) = queue.dequeue()
+    val response = block(value)
+    receipt.complete(response)
+    value
+  }
+
+  def foreach(f: A => B): Unit = {
+    while (true) {
+      receive(f)
+    }
+  }
+
 }
 
 

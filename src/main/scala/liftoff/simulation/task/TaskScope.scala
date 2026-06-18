@@ -31,7 +31,7 @@ class TaskScope {
   def addTask(t: Task[_]): Unit = tasks += t
 
   def waitAll(): Unit = {
-    tasks.foreach(_.join())
+    tasks.toSeq.foreach(_.join())
   }
 
 

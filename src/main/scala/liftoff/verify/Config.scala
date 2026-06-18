@@ -26,6 +26,15 @@ object Config {
     }
   }
 
+  def apply[T](c: Config[T]): T = get(c)
+  def update[T](c: Config[T], value: T): Unit = set(c, value)
+
+  def swap[T](c: Config[T], newValue: T): T = {
+    val oldValue = get(c)
+    set(c, newValue)
+    oldValue
+  }
+
 }
 
 abstract class Config[T](val default: Option[T]) {

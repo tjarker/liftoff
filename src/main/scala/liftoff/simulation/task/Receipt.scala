@@ -2,6 +2,7 @@ package liftoff.simulation.task
 
 import scala.collection.mutable
 import liftoff.simulation.Sim
+import liftoff.misc.Reporting
 
 class Receipt[T] {
 
@@ -11,6 +12,7 @@ class Receipt[T] {
 
   def complete(value: T): Unit = {
     this.value = Some(value)
+    //Reporting.debug(None, "Receipt", s"Receipt completed with value $value, resuming tasks: ${waiting.map(_.name).mkString(", ")}")
     waiting.foreach(Sim.Scheduler.scheduleTaskNow)
     derivedReceipts.foreach(_(value))
   }
@@ -35,6 +37,7 @@ class Receipt[T] {
     var value2: Option[A] = None
     val tryComplete = () => {
       if (value1.isDefined && value2.isDefined) {
+        Reporting.debug(None, "Receipt", s"Combining receipts with values ${value1.get} and ${value2.get}, completing combined receipt")
         combined.complete((value1.get, value2.get))
       }
     }

@@ -89,6 +89,36 @@ abstract class Component {
   
 }
 
+case class ComponentBuilder(
+  params: Seq[(Config[Any], Any)],
+  typeOverrides: Seq[(ClassTag[_], ClassTag[_])]
+) {
+
+  def withParam[T](c: Config[T], value: T): ComponentBuilder = {
+    copy(params = params :+ (c.asInstanceOf[Config[Any]], value.asInstanceOf[Any]))
+  }
+
+  def withTypeOverride[C <: Component: ClassTag, D <: C: ClassTag]: ComponentBuilder = {
+    copy(typeOverrides = typeOverrides :+ (implicitly[ClassTag[C]], implicitly[ClassTag[D]]))
+  }
+
+  def create[C <: Component: ClassTag](args: Any*)(implicit name: sourcecode.Name): C = {
+    val oldOverrides = Component.getOverrides()
+    typeOverrides.foreach { case (base, overrideType) =>
+      Component.overrideType_(base, overrideType)
+    }
+    val oldParams = params.map { case (c, v) => c -> Config.swap(c,v) }
+    val comp = Component.create[C](args: _*)(implicitly[ClassTag[C]], name)
+
+    Component.restoreOverrides(oldOverrides)
+    oldParams.foreach { case (c, v) => Config.set(c, v) }
+
+    comp
+
+  }
+
+}
+
 
 object Component {
 
@@ -100,6 +130,8 @@ object Component {
     val classTag = overrideMap.value.getOrElse(implicitly[ClassTag[C]], implicitly[ClassTag[C]])
     create(ReflectiveFactory.create[C](classTag)(args: _*))
   }
+
+  def builder: ComponentBuilder = ComponentBuilder(Seq.empty, Seq.empty)
 
   def create[C <: Component](c: => C)(implicit name: sourcecode.Name): C = {
     val previousProvider = Reporting.getCurrentProvider()
@@ -125,6 +157,18 @@ object Component {
   def overrideType[C <: Component: ClassTag, D <: C: ClassTag]: Unit = {
     val map = overrideMap.value
     map(implicitly[ClassTag[C]]) = implicitly[ClassTag[D]]
+  }
+
+  private[liftoff] def overrideType_(base: ClassTag[_], overrideType: ClassTag[_]): Unit = {
+    val map = overrideMap.value
+    map(base) = overrideType
+  }
+
+  def getOverrides(): Map[ClassTag[_], ClassTag[_]] = overrideMap.value.toMap
+  def restoreOverrides(overrides: Map[ClassTag[_], ClassTag[_]]): Unit = {
+    val map = overrideMap.value
+    map.clear()
+    overrides.foreach { case (k, v) => map(k) = v }
   }
 
   def clearOverride[C <: Component: ClassTag]: Unit = {

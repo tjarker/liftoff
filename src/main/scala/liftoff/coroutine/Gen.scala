@@ -1,6 +1,7 @@
 package liftoff.coroutine
 
 import scala.util.DynamicVariable
+import liftoff.misc.Reporting
 
 object Gen {
 
@@ -33,6 +34,17 @@ object Gen {
     }
   }
 
+  def emitSingle[T, F](bigen: BiGen[F, T]): Unit = {
+    val scope = Coroutine.currentScope.getOrElse {
+      throw new Exception("Calling emit outside of a generator")
+    }
+    if (bigen.hasNext) {
+      val out = bigen.next()
+      val feedback = scope.suspend[F, T](Some(out))
+      bigen.feedback(feedback.get)
+    }
+  }
+
   def emit[T](gen: Gen[T]): Unit = {
     val scope = Coroutine.currentScope.getOrElse {
       throw new Exception("Calling emit outside of a generator")
@@ -56,6 +68,73 @@ object Gen {
           val v = bIter.next()
           Gen.emit[T, Any](v)
         }
+      }
+    }
+  }
+
+  def interleave[T, F](a: BiGen[F, T], b: BiGen[F, T]): BiGen[F, T] = {
+    BiGen[F, T] {
+      while (a.hasNext || b.hasNext) {
+        if (a.hasNext) {
+          Gen.emitSingle(a)
+        }
+        if (b.hasNext) {
+          Gen.emitSingle(b)
+        }
+      }
+    }
+  }
+
+  def shuffle[T,F](a: BiGen[F, T], b: BiGen[F, T]): BiGen[F, T] = {
+    BiGen[F, T] {
+      val rand = new scala.util.Random
+      while (a.hasNext || b.hasNext) {
+        if (a.hasNext && b.hasNext) {
+          if (rand.nextBoolean()) {
+            Gen.emitSingle(a)
+          } else {
+            Gen.emitSingle(b)
+          }
+        } else if (a.hasNext) {
+          Gen.emitSingle(a)
+        } else if (b.hasNext) {
+          Gen.emitSingle(b)
+        }
+      }
+    }
+  }
+
+  def repeat[T,F](n: Int)(gen: => BiGen[F, T]): BiGen[F, T] = {
+    BiGen[F, T] {
+      for (i <- 0 until n) {
+        Gen.emit(gen)
+      }
+    }
+  }
+
+  def shuffle[T,F](gens: BiGen[F, T]*): BiGen[F, T] = {
+    BiGen[F, T] {
+      val rand = new scala.util.Random
+      while (gens.exists(_.hasNext)) {
+        val available = gens.filter(_.hasNext)
+        val chosen = available(rand.nextInt(available.length))
+        Gen.emitSingle(chosen)
+      }
+    }
+  }
+
+  def concat[T](gens: Gen[T]*): Gen[T] = {
+    Gen[T] {
+      for (gen <- gens) {
+        Gen.emit(gen)
+      }
+    }
+  }
+
+  def concat[T, F](gens: BiGen[F, T]*): BiGen[F, T] = {
+    BiGen[F, T] {
+      for (gen <- gens) {
+        Gen.emit(gen)
       }
     }
   }

@@ -99,11 +99,13 @@ class Task[T](
     block: => T
 ) {
 
+  var isCancelled = false
+
   val coroutine = Task.withValue(this) {
     scope.create[SimControllerResponse, SimControllerYield, T] {
       val res = block
       waitingTasks.foreach(t => {
-        Reporting.debug(None, "Task",s"Scheduling waiting task ${t.name} after completion of ${this.name}")
+        //Reporting.debug(None, "Task",s"Scheduling waiting task ${t.name} after completion of ${this.name}")
         Sim.Scheduler.scheduleTaskNow(t)
       })
       res
@@ -127,10 +129,15 @@ class Task[T](
   def getResult(): Option[T] = result
 
   def runStep(resp: SimControllerResponse): Result[SimControllerYield, T] = {
+    if (isCancelled) {
+      Reporting.error(None, "Task",s"Task $this is cancelled, cannot run step")
+      return Finished(null.asInstanceOf[T])
+      //throw new Exception(s"Task $this is cancelled, cannot run step")
+    }
     val start = System.nanoTime()
     val res = coroutine.resume(Some(resp)) match {
       case r @ Finished(value) => {
-        Reporting.debug(None, "Task",s"Task $name finished with result $value")
+        //Reporting.debug(None, "Task",s"Task $name finished with result $value")
         result = Some(value)
         r
       }
@@ -142,14 +149,15 @@ class Task[T](
   }
 
   def join(): T = if (result.isDefined) { result.get } else {
-    Reporting.debug(None, "Task",s"Task ${Task.current} is joining $this, suspending until completion")
+    //Reporting.debug(None, "Task",s"Task ${Task.current} is joining $this, suspending until completion")
     waitingTasks += Task.current
     Sim.Scheduler.suspendTask()
     result.get
   }
 
   def cancel(): Unit = {
-    Reporting.debug(None, "Task",s"Cancelling task $this")
+    //Reporting.info(None, "Task",s"Cancelling task $this")
+    isCancelled = true
     Sim.Scheduler.purgeTask(this)
     coroutine.cancel()
   }
@@ -163,7 +171,8 @@ class Task[T](
 
 
   override def toString(): String = {
-    s"Task($name)"
+    val region = if (order == Int.MaxValue) "Monitor" else order.toString
+    s"Task[$region]($name)"
   }
 
 }
