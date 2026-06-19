@@ -262,7 +262,7 @@ class SimController(simModel: SimModel) {
 
     t.runStep(response) match {
       case Finished(result) => // do nothing
-        Reporting.debug(Some(currentTime), "SimController", s"Task $t finished")
+        //Reporting.debug(Some(currentTime), "SimController", s"Task $t finished")
 
 
       case YieldedWith(Step(clockPort, cycles)) =>
@@ -363,6 +363,7 @@ class SimController(simModel: SimModel) {
   def run(): Unit = {
     TaskScope
     Task
+    currentTime = new SimTime(0)
     
     while (eventQueue.containsTasks) {
 
@@ -394,10 +395,15 @@ class SimController(simModel: SimModel) {
     Reporting.debug(Some(currentTime), "SimController", s"No more active tasks in event queue, simulation complete.")
   }
 
-  def run[T](block: => T): T = SimController.runWith(this) {
-    val root = Task.root(block)
-    this.run()
-    root.result.get
+  def run[T](block: => T): T = {
+    TaskScope
+    Task
+    currentTime = new SimTime(0)
+    SimController.runWith(this) {
+      val root = Task.root(block)
+      this.run()
+      root.result.get
+    }
   }
 
   

@@ -33,14 +33,15 @@ class Receipt[T] {
 
   def combine[A](r: Receipt[A]): Receipt[(T, A)] = {
     val combined = new Receipt[(T, A)]()
-    var value1: Option[T] = None
-    var value2: Option[A] = None
+    var value1: Option[T] = value
+    var value2: Option[A] = r.value
     val tryComplete = () => {
       if (value1.isDefined && value2.isDefined) {
-        Reporting.debug(None, "Receipt", s"Combining receipts with values ${value1.get} and ${value2.get}, completing combined receipt")
+        //Reporting.debug(None, "Receipt", s"Combining receipts with values ${value1.get} and ${value2.get}, completing combined receipt")
         combined.complete((value1.get, value2.get))
       }
     }
+    tryComplete()
     derivedReceipts += (v => {
       value1 = Some(v)
       tryComplete()

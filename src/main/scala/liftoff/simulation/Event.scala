@@ -123,14 +123,12 @@ class EventQueue {
 
   def purgeTask(task: Task[_]): Unit = {
     val all = queue.dequeueAll[Event]
-    Reporting.debug(None, "Purge", s"Before purging task ${task.name}:\n" + all.mkString("\n"))
     val filtered = all.filter {
       case Event.RunTask(_, t, _) if t == task => false
       case Event.CondWaitingTask(_, t, _, _, _) if t == task => false
       case Event.CondRunTask(_, t, _, _) if t == task => false
       case _ => true
     }
-    Reporting.debug(None, "Purge", s"After purging task ${task.name}:\n" + filtered.mkString("\n"))
     filtered.foreach(queue.enqueue(_))
   }
 
