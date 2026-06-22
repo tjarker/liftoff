@@ -8,6 +8,8 @@ import liftoff.simulation.control.{CtrlClockHandle, StepUntil}
 import liftoff.simulation.task.Cond
 import liftoff.misc.Reporting
 
+import scala.collection.mutable
+import liftoff.chisel.ChiselBridge.InputPort
 
 /**
   * Ordering at a time step in each region is as follows:
@@ -78,7 +80,16 @@ class EventQueue {
 
   val queue = PriorityQueue.empty[Event]
 
+  var taskCount = 0
+
+  val nextEdge = mutable.Map.empty[InputPortHandle, (AbsoluteTime, Boolean, Time)] // clock -> (next edge time, is rising edge)
+
  def enqueue(event: Event): Unit = {
+    event match {
+      case e: Event.TaskRelease => taskCount += 1
+      case e: Event.ClockEdge => nextEdge(e.clock) = (e.time, e.rising, e.clock.period)
+      case _ => // do nothing
+    }
     queue.enqueue(event)
   }
 
@@ -90,43 +101,61 @@ class EventQueue {
     if (queue.isEmpty) {
       None
     } else {
-      Some(queue.dequeue())
+      val event = queue.dequeue()
+      event match {
+        case e: Event.TaskRelease => taskCount -= 1
+        case _ => // do nothing
+      }
+      Some(event)
     }
   }
 
   override def toString(): String = {
-    queue.toSeq.sorted.mkString("EventQueue(", ", ", ")")
+    queue.mkString("EventQueue(", ", ", ")")
   }
 
   def empty: Boolean = queue.isEmpty
   def nonEmpty: Boolean = queue.nonEmpty
 
   def containsTasks: Boolean = {
-    queue.exists {
-      case e: Event.TaskRelease => true
-      case _ => false
-    }
+    taskCount > 0
   }
 
   def nextFallingEdge(clock: InputPortHandle): Option[Time] = {
-    queue.collectFirst {
-      case e @ Event.ClockEdge(_, cp, false) if cp == clock => e.time
-      case e @ Event.ClockEdge(_, cp, true) if cp == clock => e.time + (cp.period / 2)
+    nextEdge.get(clock) match {
+      case Some((t, rising, period)) =>
+        if (rising) {
+          Some(t + (period / 2))
+        } else {
+          Some(t)
+        }
+      case None => None
     }
   }
   def nextRisingEdge(clock: InputPortHandle): Option[Time] = {
-    queue.collectFirst {
-      case e @ Event.ClockEdge(_, cp, true) if cp == clock => e.time
-      case e @ Event.ClockEdge(_, cp, false) if cp == clock => e.time + (cp.period / 2)
+    nextEdge.get(clock) match {
+      case Some((t, rising, period)) =>
+        if (rising) {
+          Some(t)
+        } else {
+          Some(t + (period / 2))
+        }
+      case None => None
     }
   }
 
   def purgeTask(task: Task[_]): Unit = {
     val all = queue.dequeueAll[Event]
     val filtered = all.filter {
-      case Event.RunTask(_, t, _) if t == task => false
-      case Event.CondWaitingTask(_, t, _, _, _) if t == task => false
-      case Event.CondRunTask(_, t, _, _) if t == task => false
+      case Event.RunTask(_, t, _) if t == task => 
+        taskCount -= 1
+        false
+      case Event.CondWaitingTask(_, t, _, _, _) if t == task => 
+        taskCount -= 1
+        false
+      case Event.CondRunTask(_, t, _, _) if t == task => 
+        taskCount -= 1
+        false
       case _ => true
     }
     filtered.foreach(queue.enqueue(_))

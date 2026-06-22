@@ -18,18 +18,9 @@ object Reporting {
   val providerFilters = new CoroutineContextVariable[Set[String]](Set())
 
 
-  var lookuptime = 0L
-  var lookups = 0L
-
-  def lookupTime(): Double = {
-    if (lookups == 0) 0.0 else lookuptime.toDouble / lookups.toDouble
-   }
 
   def shouldShow(provider: String): Boolean = {
-    val start = System.nanoTime()
     val res = !providerFilters.value.contains(provider)
-    lookuptime += System.nanoTime() - start
-    lookups += 1
     res
   }
 
