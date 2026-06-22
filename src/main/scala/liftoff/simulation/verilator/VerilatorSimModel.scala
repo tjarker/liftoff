@@ -46,7 +46,8 @@ object VerilatorSimModelFactory {
         Verilator.Arguments.CC,
         Verilator.Arguments.Build,
         Verilator.Arguments.TraceFst,
-        Verilator.Arguments.CFlags("-fPIC -fpermissive")
+        Verilator.Arguments.OptimizationLevel("3"),
+        Verilator.Arguments.CFlags("-fPIC -fpermissive -O3")
       ) ++ verilatorOptions,
       sources
     )
@@ -74,6 +75,7 @@ object VerilatorSimModelFactory {
         "-I.") ++
         Verilator.getIncludeDir().get.map(p => s"-I$p").dropRight(1) ++ Seq(
         "-fPIC",
+        "-O3",
         "-fpermissive",
         "-c",
         "-o",

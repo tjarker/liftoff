@@ -65,7 +65,7 @@ object ChiselBridge {
     // load firrtl_black_box_resource_files.f
     val blackBoxFiles = try {
       scala.io.Source
-      .fromFile(dir / "firrtl_black_box_resource_files.f")
+      .fromFile(dir / "tmp/firrtl_black_box_resource_files.f")
       .getLines()
       .map(new java.io.File(_))
       .toSeq
