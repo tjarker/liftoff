@@ -1,23 +1,32 @@
 package liftoff.misc
 
-import com.sun.jna._
+import java.lang.foreign._
 
 import java.io.File
 import scala.sys.process.Process
+import java.lang.invoke.MethodHandle
 
 class SharedObject(libFile: File) {
 
-  def load(): NativeLibrary = {
+  def load(): Library = {
     if (!libFile.exists()) {
       throw new RuntimeException(
         s"Shared object file ${libFile.getAbsolutePath} does not exist."
       )
     }
-    val opts = new java.util.HashMap[String, Int]()
-    opts.put(Library.OPTION_OPEN_FLAGS, 2)
-    NativeLibrary.getInstance(libFile.getAbsolutePath, opts)
+    val arena = Arena.ofShared()
+    val lookup = SymbolLookup.libraryLookup(libFile.toPath(), arena)
+    val linker = Linker.nativeLinker()
+    new Library(lookup, linker)
   }
 
+}
+
+class Library(lookup: SymbolLookup, linker: Linker) {
+
+  def functionHandle(name: String, descriptor: FunctionDescriptor): MethodHandle = {
+    linker.downcallHandle(lookup.find(name).get, descriptor)
+  }
 }
 
 object SharedObject {

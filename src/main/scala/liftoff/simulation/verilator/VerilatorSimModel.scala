@@ -13,6 +13,8 @@ import scala.collection.mutable
 import java.io.File
 import liftoff.misc.Reporting
 
+import java.lang.foreign._
+
 object VerilatorSimModelFactory {
 
   val uniqueNameCounter = mutable.Map[String, Int]()
@@ -134,24 +136,30 @@ class VerilatorSimModelFactory(
 
   val lib = libFile.load()
 
-  val createContextHandle =
-    lib.getFunction(VerilatorModelHarness.createContextFunName(functionPrefix))
-  val deleteContextHandle =
-    lib.getFunction(VerilatorModelHarness.deleteContextFunName(functionPrefix))
+  import ValueLayout._
+
+  val createContextHandle = lib.functionHandle(VerilatorModelHarness.createContextFunName(functionPrefix), FunctionDescriptor.of(
+      ADDRESS, // returns a pointer to the context
+      ADDRESS, // wave file path
+      ADDRESS, // time unit
+      ADDRESS, // args
+      JAVA_INT // num args
+    ))
+  val deleteContextHandle = lib.functionHandle(VerilatorModelHarness.deleteContextFunName(functionPrefix), FunctionDescriptor.ofVoid(ADDRESS))
   val evalHandle =
-    lib.getFunction(VerilatorModelHarness.evalFunName(functionPrefix))
+    lib.functionHandle(VerilatorModelHarness.evalFunName(functionPrefix), FunctionDescriptor.ofVoid(ADDRESS))
   val tickHandle =
-    lib.getFunction(VerilatorModelHarness.tickFunName(functionPrefix))
+    lib.functionHandle(VerilatorModelHarness.tickFunName(functionPrefix), FunctionDescriptor.ofVoid(ADDRESS, JAVA_LONG))
   val setHandle =
-    lib.getFunction(VerilatorModelHarness.setFunName(functionPrefix))
+    lib.functionHandle(VerilatorModelHarness.setFunName(functionPrefix), FunctionDescriptor.ofVoid(ADDRESS, JAVA_LONG, JAVA_LONG))
   val getHandle =
-    lib.getFunction(VerilatorModelHarness.getFunName(functionPrefix))
+    lib.functionHandle(VerilatorModelHarness.getFunName(functionPrefix), FunctionDescriptor.of(JAVA_LONG, ADDRESS, JAVA_LONG))
   val setWideHandle =
-    lib.getFunction(VerilatorModelHarness.setWideFunName(functionPrefix))
+    lib.functionHandle(VerilatorModelHarness.setWideFunName(functionPrefix), FunctionDescriptor.ofVoid(ADDRESS, JAVA_LONG, ADDRESS))
   val getWideHandle =
-    lib.getFunction(VerilatorModelHarness.getWideFunName(functionPrefix))
+    lib.functionHandle(VerilatorModelHarness.getWideFunName(functionPrefix), FunctionDescriptor.ofVoid(ADDRESS, JAVA_LONG, ADDRESS))
   val quackHandle =
-    lib.getFunction(VerilatorModelHarness.quackFunName(functionPrefix))
+    lib.functionHandle(VerilatorModelHarness.quackFunName(functionPrefix), FunctionDescriptor.ofVoid())
 
   def createModel(dir: WorkingDirectory): VerilatorSimModel = {
     new VerilatorSimModel(name, ports, this, dir)
@@ -176,14 +184,16 @@ class VerilatorSimModel(
   
   val waveFile: File = dir / "wave.fst"
 
+  val arena = Arena.ofShared()
+  val allocTraceFileName = arena.allocateFrom(waveFile.getAbsolutePath())
+  val allocTimeUnit = arena.allocateFrom("1ns")
+
   // Create a context for the model
-  val contextPtr = factory.createContextHandle.invokePointer(
-    Array(
-      waveFile.getAbsolutePath(),
-      "1ns",
-      Array.empty[String],
-      0
-    )
+  val contextPtr: MemorySegment = factory.createContextHandle.invokeExact(
+    allocTraceFileName,
+    allocTimeUnit,
+    MemorySegment.NULL, // no args
+    0
   )
 
   override def inputs: Seq[InputPortHandle] = ports.collect {
@@ -204,30 +214,26 @@ class VerilatorSimModel(
   }
 
   override def evaluate(): Unit = {
-    factory.evalHandle.invokeVoid(Array(contextPtr))
+    factory.evalHandle.invokeExact(contextPtr)
   }
 
   override def tick(delta: Time.RelativeTime): Unit = {
-    factory.tickHandle.invokeVoid(Array(contextPtr, delta.valueFs))
+    factory.tickHandle.invokeExact(contextPtr, delta.valueFs)
   }
 
   override def cleanup(): Unit = {
-    factory.deleteContextHandle.invoke(Array(contextPtr))
+    factory.deleteContextHandle.invokeExact(contextPtr)
   }
 
 
   def get(handle: VerilatorPortHandle): BigInt = {
     val value = handle match {
       case VerilatorPortHandle(name, id, width) if width <= 64 =>
-        val result = factory.getHandle.invokeLong(
-          Array(contextPtr, id)
-        )
+        val result: Long = factory.getHandle.invokeExact(contextPtr, id.toLong)
         BigInt(result)
       case VerilatorPortHandle(name, id, width) if width > 64 =>
         val valueArray = Array.ofDim[Int]((width + 31) / 32)
-        factory.getWideHandle.invokeVoid(
-          Array(contextPtr, id, valueArray)
-        )
+        factory.getWideHandle.invokeExact(contextPtr, id.toLong, valueArray)
         valueArray.toBigInt
     }
     //Reporting.debug(None, "VerilatorSimModel", s"Getting value of port ${handle.name} with id ${handle.id}: ${value}")
@@ -240,13 +246,11 @@ class VerilatorSimModel(
     val maskedValue = value & mask
     handle match {
       case VerilatorInputPortHandle(model, name, id, width) if width <= 64 =>
-        factory.setHandle.invokeVoid(
-          Array(contextPtr, id, maskedValue.toLong)
-        )
+        factory.setHandle.invokeExact(contextPtr, id.toLong, maskedValue.toLong)
       case VerilatorInputPortHandle(model, name, id, width) if width > 64 =>
         val valueArray = maskedValue.toWordArray
-        factory.setWideHandle.invokeVoid(
-          Array(contextPtr, id, valueArray)
+        factory.setWideHandle.invokeExact(
+          contextPtr, id.toLong, valueArray
         )
       case _ =>
         throw new RuntimeException(

@@ -33,6 +33,7 @@ lazy val root = (project in file("."))
 
 fork := true
 javaOptions += "--add-exports=java.base/jdk.internal.vm=ALL-UNNAMED"
+javaOptions += "--enable-native-access=ALL-UNNAMED"
 javacOptions += "--add-exports=java.base/jdk.internal.vm=ALL-UNNAMED"
 
 libraryDependencies += "net.java.dev.jna" % "jna" % "5.13.0"

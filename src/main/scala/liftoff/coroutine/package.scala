@@ -81,7 +81,7 @@ package object coroutine {
       }
 
     // Check if the Virtual Threads API is available
-    val hasVirtualThreads: Boolean =
+    val hasVirtualThreads: Boolean = 
       try {
         val thread = Thread.ofVirtual()
         true
@@ -89,6 +89,7 @@ package object coroutine {
         case _: NoSuchMethodError => false
         case _: Throwable         => false
       }
+  
 
     val factory: () => CoroutineScope =
       if (hasContinuations) { () =>

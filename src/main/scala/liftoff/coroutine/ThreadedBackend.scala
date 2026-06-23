@@ -42,7 +42,7 @@ class ThreadedCoroutineScope(val threadFactory: Runnable => Thread) extends Coro
 
   def currentContext = Coroutine.Context()
   def restoreContext(ctx: CoroutineContext): Unit = {
-    Coroutine.Context.restore(ctx)
+    Coroutine.Context.defaultContext.set(ctx)
   }
 
 }

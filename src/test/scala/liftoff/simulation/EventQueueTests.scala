@@ -3,6 +3,7 @@ package liftoff.simulation
 import org.scalatest.wordspec.AnyWordSpec
 import org.scalatest.matchers.should.Matchers
 import liftoff._
+import liftoff.simulation.control.CtrlClockHandle
 
 class EventQueueTests extends AnyWordSpec with Matchers {
 
@@ -13,12 +14,14 @@ class EventQueueTests extends AnyWordSpec with Matchers {
       val t1 = 10.ns.absolute
       val t2 = 200.ns.absolute
 
+      val clkPort = new CtrlClockHandle(null, null, 10.ns)
+
       val e1 = Event.RunTask(t1, null, 10)
-      val e2 = Event.ClockEdge(t1, null, true)
+      val e2 = Event.ClockEdge(t1, clkPort, true)
       val e3 = Event.RunTask(t2, null, Int.MaxValue)
       val e4 = Event.RunTask(t2, null, 0)
       val e5 = Event.RunTask(t2, null, 0)
-      val e6 = Event.ClockEdge(t1, null, false)
+      val e6 = Event.ClockEdge(t1, clkPort, false)
       eq.enqueue(e3)
       eq.enqueue(e1)
       eq.enqueue(e5)
