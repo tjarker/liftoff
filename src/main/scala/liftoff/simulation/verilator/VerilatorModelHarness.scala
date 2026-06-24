@@ -16,11 +16,8 @@ object VerilatorModelHarness {
   def deleteContextFunName(m: String) = s"${m}_delete_context"
   def evalFunName(m: String) = s"${m}_eval"
   def tickFunName(m: String) = s"${m}_tick"
-  def setFunName(m: String) = s"${m}_set"
-  def getFunName(m: String) = s"${m}_get"
-  def setWideFunName(m: String) = s"${m}_set_wide"
-  def getWideFunName(m: String) = s"${m}_get_wide"
   def quackFunName(m: String) = s"${m}_quack"
+  def getPointerFunName(m: String) = s"${m}_get_pointer"
 
   def imports(m: String) =
     s"""|#include <verilated.h>
@@ -87,82 +84,21 @@ object VerilatorModelHarness {
         |}
         |""".stripMargin
 
-  def set(m: String, syms: Seq[VerilatorPortDescriptor]) = {
+  def getPointer(moduleName: String, syms: Seq[VerilatorPortDescriptor]): String = {
     val cases = syms
-      .filter(_.width <= 64)
-      .collect {
-        case i: VerilatorInputDescriptor =>
-          s"""|case ${i.id}: // ${i.toString()}
-              |  ctx->model->${i.name} = value;
-              |  break;""".stripMargin
-      }
-      .mkString("\n")
-
-    s"""|void ${setFunName(m)}(${m}_context_t* ctx, uint64_t id, uint64_t value) {
-        |  switch (id) {
-        |${cases.indent(4)}
-        |  }
-        |}
-        |""".stripMargin
-  }
-
-  def setWide(m: String, syms: Seq[VerilatorPortDescriptor]) = {
-    val cases = syms
-      .filter(_.width > 64)
-      .map(s => s -> (s.width / 32d).ceil.toInt)
-      .collect { case (i @ VerilatorInputDescriptor(name, id, width), words) =>
-        s"""|case $id: // ${i.toString()}
-            |  for (int i = 0; i < $words; i++) 
-            |    ctx->model->${name}.data()[i] = value[i];
-            |  break;
-            |""".stripMargin
-      }
-      .mkString("\n")
-
-    s"""|void ${setWideFunName(m)}(${m}_context_t* ctx, uint64_t id, uint32_t value[]) {
-        |  switch (id) {
-        |${cases.indent(4)}
-        |  }
-        |}
-        |""".stripMargin
-  }
-
-  def get(m: String, syms: Seq[VerilatorPortDescriptor]) = {
-    val cases = syms
-      .filter(_.width <= 64)
-      .collect { case s: VerilatorPortDescriptor =>
-        s"""|case ${s.id}:
-              |  return ctx->model->${s.name};
-              |""".stripMargin
-      }
-      .mkString("\n")
-
-    s"""|uint64_t ${getFunName(m)}(${m}_context_t* ctx, uint64_t id) {
-        |  switch (id) {
-        |${cases.indent(4)}
-        |    default:
-        |      return 0; // or handle error
-        |  }
-        |}
-        |""".stripMargin
-  }
-
-  def getWide(m: String, syms: Seq[VerilatorPortDescriptor]) = {
-    val cases = syms
-      .filter(_.width > 64)
       .map(s => s -> (s.width / 32d).ceil.toInt)
       .collect { case (i @ VerilatorPortDescriptor(name, id, width), words) =>
         s"""|case $id: // ${i.toString()}
-            |  for (int i = 0; i < $words; i++) 
-            |    value[i] = ctx->model->${name}.data()[i];
-            |  break;
+            |  return (void*)&ctx->model->${name};
             |""".stripMargin
       }
       .mkString("\n")
 
-    s"""|void ${getWideFunName(m)}(${m}_context_t* ctx, uint64_t id, uint32_t value[]) {
+    s"""|void* ${moduleName}_get_pointer(${moduleName}_context_t* ctx, uint64_t id) {
         |  switch (id) {
         |${cases.indent(4)}
+        |    default:
+        |      return nullptr; // or handle error
         |  }
         |}
         |""".stripMargin
@@ -175,20 +111,16 @@ object VerilatorModelHarness {
         |
         |${contextStruct(moduleName, functionPrefix)}
         |extern "C" {
-        |${createContext(moduleName, functionPrefix)}
-        |${deleteContext(functionPrefix)}
-        |${eval(functionPrefix)}
-        |${tick(functionPrefix)}
-        |${set(functionPrefix, syms).indent(2)}
-        |${setWide(functionPrefix, syms).indent(2)}
-        |${get(functionPrefix, syms).indent(2)}
-        |${getWide(functionPrefix, syms).indent(2)}
+        |${createContext(moduleName, functionPrefix).indent(2)}
+        |${deleteContext(functionPrefix).indent(2)}
+        |${eval(functionPrefix).indent(2)}
+        |${tick(functionPrefix).indent(2)}
+        |${getPointer(functionPrefix, syms).indent(2)}
         |  void ${quackFunName(functionPrefix)}() {
-        |    printf("Quack!\\n");
+        |    printf("Quack $functionPrefix!\\n");
         |  }
         |}
         |""".stripMargin
-
 
   def writeHarness(dir: WorkingDirectory, moduleName: String, functionPrefix: String, syms: Seq[VerilatorPortDescriptor]) = {
     dir.addFile(s"${functionPrefix}_harness.cpp", harness(moduleName, functionPrefix, syms))

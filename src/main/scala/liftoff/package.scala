@@ -99,20 +99,20 @@ package object liftoff extends misc.Misc with chisel.ChiselPeekPokeAPI with simu
           val totalGc = (endGcTime - startGcTime).ms
           val verilator = controller.getModelRunTimeNanos().ns
           val tasks = controller.getTaskRunTimeNanos().ns
-          val overhead = total - verilator - tasks - totalGc
+          val overhead = total - verilator - tasks
           val frequencykhz = dut.clock.cycle / total.ms.toDouble
 
-          val timeOverview = Map(
+          val timeOverview = Seq(
             "Total" -> total,
             "Verilator" -> verilator,
             "Tasks" -> tasks,
+            "Scheduler" -> overhead,
             "GC" -> totalGc,
-            "Overhead" -> overhead,
             "Compilation" -> compilationTime
           )
           Reporting.info(None, "ChiselSimulation", Reporting.table(Seq("Description", "Time") +: timeOverview.toSeq.map { case (k, v) => Seq(k, v.toString()) }))
           Reporting.info(None, "ChiselSimulation", f"Simulation frequency: ${frequencykhz}%.2f kHz (${dut.clock.cycle} cycles in ${total})")
-          SimulationResult(root.result.get, timeOverview, frequencykhz, dut.clock.cycle, simModel.waveFile)
+          SimulationResult(root.result.get, timeOverview.toMap, frequencykhz, dut.clock.cycle, simModel.waveFile)
         } catch {
           case e: Throwable =>
             Reporting.error(None, "ChiselSimulation", s"Simulation failed with exception: ${e.getMessage}")

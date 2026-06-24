@@ -99,50 +99,50 @@ object Reporting {
   def infoStr(time: Option[Time], provider: String, message: => String): String = {
     reportString(infoTag, time, provider, message)
   }
-  def info(time: Option[Time], provider: String, message: => String): Unit = {
+  def info(time: => Option[Time], provider: String, message: => String): Unit = {
     if (shouldShow(provider)) outputStream.value.println(infoStr(time, provider, message))
   }
-  def info(time: Option[Time], message: => String): Unit = {
+  def info(time: => Option[Time], message: => String): Unit = {
     info(time, providerName.value, message)
   }
 
   def warnStr(time: Option[Time], provider: String, message: => String): String = {
     reportString(warnTag, time, provider, message)
   }
-  def warn(time: Option[Time], provider: String, message: => String): Unit = {
+  def warn(time: => Option[Time], provider: String, message: => String): Unit = {
     if (shouldShow(provider)) outputStream.value.println(warnStr(time, provider, message))
   }
-  def warn(time: Option[Time], message: => String): Unit = {
+  def warn(time: => Option[Time], message: => String): Unit = {
     warn(time, providerName.value, message)
   }
 
   def errorStr(time: Option[Time], provider: String, message: => String): String = {
     reportString(errorTag, time, provider, message)
   }
-  def error(time: Option[Time], provider: String, message: => String): Unit = {
+  def error(time: => Option[Time], provider: String, message: => String): Unit = {
     if (shouldShow(provider)) outputStream.value.println(errorStr(time, provider, message))
   }
-  def error(time: Option[Time], message: => String): Unit = {
+  def error(time: => Option[Time], message: => String): Unit = {
     error(time, providerName.value, message)
   }
 
   def successStr(time: Option[Time], provider: String, message: => String): String = {
     reportString(successTag, time, provider, message)
   }
-  def success(time: Option[Time], provider: String, message: => String): Unit = {
+  def success(time: => Option[Time], provider: String, message: => String): Unit = {
     if (shouldShow(provider)) outputStream.value.println(successStr(time, provider, message))
   }
-  def success(time: Option[Time], message: => String): Unit = {
+  def success(time: => Option[Time], message: => String): Unit = {
     success(time, providerName.value, message)
   }
 
   def debugStr(time: Option[Time], provider: String, message: => String): String = {
     reportString(debugTag, time, provider, message)
   }
-  def debug(time: Option[Time], provider: String, message: => String): Unit = {
+  def debug(time: => Option[Time], provider: String, message: => String): Unit = {
     if (shouldShow(provider)) outputStream.value.println(debugStr(time, provider, message))
   }
-  def debug(time: Option[Time], message: => String): Unit = {
+  def debug(time: => Option[Time], message: => String): Unit = {
     debug(time, providerName.value, message)
   }
 

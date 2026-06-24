@@ -150,16 +150,10 @@ class VerilatorSimModelFactory(
     lib.functionHandle(VerilatorModelHarness.evalFunName(functionPrefix), FunctionDescriptor.ofVoid(ADDRESS))
   val tickHandle =
     lib.functionHandle(VerilatorModelHarness.tickFunName(functionPrefix), FunctionDescriptor.ofVoid(ADDRESS, JAVA_LONG))
-  val setHandle =
-    lib.functionHandle(VerilatorModelHarness.setFunName(functionPrefix), FunctionDescriptor.ofVoid(ADDRESS, JAVA_LONG, JAVA_LONG))
-  val getHandle =
-    lib.functionHandle(VerilatorModelHarness.getFunName(functionPrefix), FunctionDescriptor.of(JAVA_LONG, ADDRESS, JAVA_LONG))
-  val setWideHandle =
-    lib.functionHandle(VerilatorModelHarness.setWideFunName(functionPrefix), FunctionDescriptor.ofVoid(ADDRESS, JAVA_LONG, ADDRESS))
-  val getWideHandle =
-    lib.functionHandle(VerilatorModelHarness.getWideFunName(functionPrefix), FunctionDescriptor.ofVoid(ADDRESS, JAVA_LONG, ADDRESS))
   val quackHandle =
     lib.functionHandle(VerilatorModelHarness.quackFunName(functionPrefix), FunctionDescriptor.ofVoid())
+  val getPointerHandle =
+    lib.functionHandle(VerilatorModelHarness.getPointerFunName(functionPrefix), FunctionDescriptor.of(ADDRESS, ADDRESS, JAVA_LONG))
 
   def createModel(dir: WorkingDirectory): VerilatorSimModel = {
     new VerilatorSimModel(name, ports, this, dir)
@@ -175,12 +169,6 @@ class VerilatorSimModel(
   val dir: WorkingDirectory
 ) extends SimModel {
 
-  val ports: Seq[VerilatorPortHandle] = portDescriptors.map {
-    case VerilatorInputDescriptor(n, id, w) =>
-      VerilatorInputPortHandle(this, n, id, w)
-    case VerilatorOutputDescriptor(n, id, w) =>
-      VerilatorOutputPortHandle(this, n, id, w)
-  }
   
   val waveFile: File = dir / "wave.fst"
 
@@ -195,6 +183,9 @@ class VerilatorSimModel(
     MemorySegment.NULL, // no args
     0
   )
+
+  val ports: Seq[VerilatorPortHandle] = portDescriptors.map(VerilatorPortHandle(this, _))
+  
 
   override def inputs: Seq[InputPortHandle] = ports.collect {
     case i: InputPortHandle => i
@@ -225,43 +216,6 @@ class VerilatorSimModel(
     factory.deleteContextHandle.invokeExact(contextPtr)
   }
 
-
-  def get(handle: VerilatorPortHandle): BigInt = {
-    val value = handle match {
-      case VerilatorPortHandle(name, id, width) if width <= 64 =>
-        val result: Long = factory.getHandle.invokeExact(contextPtr, id.toLong)
-        BigInt(result)
-      case VerilatorPortHandle(name, id, width) if width > 64 =>
-        val valueArray = Array.ofDim[Int]((width + 31) / 32)
-        factory.getWideHandle.invokeExact(contextPtr, id.toLong, valueArray)
-        valueArray.toBigInt
-    }
-    //Reporting.debug(None, "VerilatorSimModel", s"Getting value of port ${handle.name} with id ${handle.id}: ${value}")
-    value
-  }
-
-  def set(handle: VerilatorInputPortHandle, value: BigInt): Unit = {
-    //Reporting.debug(None, "VerilatorSimModel", s"Setting value of port ${handle.name} with id ${handle.id} to ${value}")
-    val mask = (BigInt(1) << handle.width) - 1
-    val maskedValue = value & mask
-    handle match {
-      case VerilatorInputPortHandle(model, name, id, width) if width <= 64 =>
-        factory.setHandle.invokeExact(contextPtr, id.toLong, maskedValue.toLong)
-      case VerilatorInputPortHandle(model, name, id, width) if width > 64 =>
-        val valueArray = maskedValue.toWordArray
-        factory.setWideHandle.invokeExact(
-          contextPtr, id.toLong, valueArray
-        )
-      case _ =>
-        throw new RuntimeException(
-          s"Can't set port handle: $handle"
-        )
-    }
-  }
-
-
-
-
 }
 
 trait VerilatorPortDescriptor {
@@ -289,29 +243,224 @@ case class VerilatorOutputDescriptor(
 trait VerilatorPortHandle extends PortHandle {
   def id : Int
   def model: VerilatorSimModel
-  def get(): BigInt = model.get(this)
+  val address: MemorySegment = model.factory.getPointerHandle.invokeExact(model.contextPtr, id.toLong)
+  def get(): BigInt
+  val mask = (BigInt(1) << width) - 1
 }
 
 object VerilatorPortHandle {
   def unapply(handle: VerilatorPortHandle): Option[(String, Int, Int)] = {
-    Some((handle.name, handle.id, handle.width))
+    Some((handle.model.name, handle.id, handle match {
+      case i: InputPortHandle => i.width
+      case o: OutputPortHandle => o.width
+      case _ => 0
+    }))
+  }
+
+  def apply(model: VerilatorSimModel, port: VerilatorPortDescriptor): VerilatorPortHandle = {
+    port match {
+      case VerilatorInputDescriptor(name, id, width) =>
+        val mem: MemorySegment = model.factory.getPointerHandle.invokeExact(model.contextPtr, id.toLong)
+        if (width <= 8) new VerilatorU8InputPortHandle(model, name, id, width, mem)
+        else if (width <= 16) new VerilatorU16InputPortHandle(model, name, id, width, mem)
+        else if (width <= 32) new VerilatorU32InputPortHandle(model, name, id, width, mem)
+        else if (width <= 64) new VerilatorU64InputPortHandle(model, name, id, width, mem)
+        else new VerilatorWideInputPortHandle(id, model, name, width, mem)
+      case VerilatorOutputDescriptor(name, id, width) =>
+        val mem: MemorySegment = model.factory.getPointerHandle.invokeExact(model.contextPtr, id.toLong)
+        if (width <= 8) new VerilatorU8OutputPortHandle(model, name, id, width, mem)
+        else if (width <= 16) new VerilatorU16OutputPortHandle(model, name, id, width, mem)
+        else if (width <= 32) new VerilatorU32OutputPortHandle(model, name, id, width, mem)
+        else if (width <= 64) new VerilatorU64OutputPortHandle(model, name, id, width, mem)
+        else new VerilatorWideOutputPortHandle(id, model, name, width, mem)
+    }
   }
 }
 
-case class VerilatorInputPortHandle(
+
+
+class VerilatorWideInputPortHandle(
+  val id: Int,
   val model: VerilatorSimModel,
   val name: String,
-  val id: Int,
-  val width: Int
+  val width: Int,
+  val mem: MemorySegment
 ) extends InputPortHandle with VerilatorPortHandle {
-   def set(value: BigInt): Unit = model.set(this, value)
+
+  val words = (width + 31) / 32
+  val seg = mem.reinterpret(words * 4)
+  val bytes = new Array[Byte](words * 4)
+
+  def get(): BigInt = {
+    for (i <- 0 until 4*words) {
+      bytes(i) = seg.get(ValueLayout.JAVA_BYTE, (4*words) - i)
+    }
+    BigInt(bytes)
+  }
+
+  def set(value: BigInt): Unit = {
+    val bytes = value.toByteArray
+    for (i <- 0 until 4*words) {
+      val byte = if (i < bytes.length) bytes(bytes.length - 1 - i) else 0.toByte
+      seg.set(ValueLayout.JAVA_BYTE, (4*words) - i, byte)
+    }
+  }
 }
 
-case class VerilatorOutputPortHandle(
+class VerilatorWideOutputPortHandle(
+  val id: Int,
+  val model: VerilatorSimModel,
+  val name: String,
+  val width: Int,
+  val mem: MemorySegment
+) extends OutputPortHandle with VerilatorPortHandle {
+
+  val words = (width + 31) / 32
+  val seg = mem.reinterpret(words * 4)
+  val bytes = new Array[Byte](words * 4)
+
+  def get(): BigInt = {
+    for (i <- 0 until 4*words) {
+      bytes(i) = seg.get(ValueLayout.JAVA_BYTE, (4*words) - i)
+    }
+    BigInt(bytes)
+  }
+
+}
+
+class VerilatorU8InputPortHandle(
   val model: VerilatorSimModel,
   val name: String,
   val id: Int,
-  val width: Int
+  val width: Int,
+  val mem: MemorySegment
+) extends InputPortHandle with VerilatorPortHandle {
+
+  val seg = mem.reinterpret(1)
+
+  def set(value: BigInt): Unit = {
+    seg.set(ValueLayout.JAVA_BYTE, 0, value.toByte)
+  }
+  def get(): BigInt = {
+    BigInt(seg.get(ValueLayout.JAVA_BYTE, 0)) & mask
+  }
+}
+
+class VerilatorU16InputPortHandle(
+  val model: VerilatorSimModel,
+  val name: String,
+  val id: Int,
+  val width: Int,
+  val mem: MemorySegment
+) extends InputPortHandle with VerilatorPortHandle {
+
+  val seg = mem.reinterpret(2)
+
+  def set(value: BigInt): Unit = {
+    seg.set(ValueLayout.JAVA_SHORT, 0, value.toShort)
+  }
+  def get(): BigInt = {
+    BigInt(seg.get(ValueLayout.JAVA_SHORT, 0)) & mask
+  }
+}
+
+class VerilatorU32InputPortHandle(
+  val model: VerilatorSimModel,
+  val name: String,
+  val id: Int,
+  val width: Int,
+  val mem: MemorySegment
+) extends InputPortHandle with VerilatorPortHandle {
+
+  val seg = mem.reinterpret(4)
+
+  def set(value: BigInt): Unit = {
+    seg.set(ValueLayout.JAVA_INT, 0, value.toInt)
+  }
+  def get(): BigInt = {
+    BigInt(seg.get(ValueLayout.JAVA_INT, 0)) & mask
+  }
+}
+
+class VerilatorU64InputPortHandle(
+  val model: VerilatorSimModel,
+  val name: String,
+  val id: Int,
+  val width: Int,
+  val mem: MemorySegment
+) extends InputPortHandle with VerilatorPortHandle {
+
+  val seg = mem.reinterpret(8)
+
+  def set(value: BigInt): Unit = {
+    seg.set(ValueLayout.JAVA_LONG, 0, value.toLong)
+  }
+  def get(): BigInt = {
+    BigInt(seg.get(ValueLayout.JAVA_LONG, 0)) & mask
+  }
+}
+
+class VerilatorU8OutputPortHandle(
+  val model: VerilatorSimModel,
+  val name: String,
+  val id: Int,
+  val width: Int,
+  val mem: MemorySegment
 ) extends OutputPortHandle with VerilatorPortHandle {
+
+  val seg = mem.reinterpret(1)
+
+  def get(): BigInt = {
+    BigInt(seg.get(ValueLayout.JAVA_BYTE, 0)) & mask
+  }
+  
+}
+
+class VerilatorU16OutputPortHandle(
+  val model: VerilatorSimModel,
+  val name: String,
+  val id: Int,
+  val width: Int,
+  val mem: MemorySegment
+) extends OutputPortHandle with VerilatorPortHandle {
+
+  val seg = mem.reinterpret(2)
+
+  def get(): BigInt = {
+    BigInt(seg.get(ValueLayout.JAVA_SHORT, 0)) & mask
+  }
+  
+}
+
+class VerilatorU32OutputPortHandle(
+  val model: VerilatorSimModel,
+  val name: String,
+  val id: Int,
+  val width: Int,
+  val mem: MemorySegment
+) extends OutputPortHandle with VerilatorPortHandle {
+
+  val seg = mem.reinterpret(4)
+
+  def get(): BigInt = {
+    BigInt(seg.get(ValueLayout.JAVA_INT, 0)) & mask
+  }
+  
+}
+
+
+class VerilatorU64OutputPortHandle(
+  val model: VerilatorSimModel,
+  val name: String,
+  val id: Int,
+  val width: Int,
+  val mem: MemorySegment
+) extends OutputPortHandle with VerilatorPortHandle {
+
+  val seg = mem.reinterpret(8)
+
+  def get(): BigInt = {
+    BigInt(seg.get(ValueLayout.JAVA_LONG, 0)) & mask
+  }
   
 }
