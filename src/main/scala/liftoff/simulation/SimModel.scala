@@ -15,8 +15,28 @@ trait SimModel {
   def getOutputPortHandle(portName: String): Option[OutputPortHandle]
   def evaluate(): Unit
   def tick(delta: RelativeTime): Unit
-  def cleanup(): Unit
+  protected def cleanup(): Unit
   def waveFile: java.io.File
+
+  @volatile private var cleanedUp = false
+  def doCleanup(): Unit = this.synchronized {
+    if (!cleanedUp) {
+      cleanedUp = true
+      Reporting.info(None, "ChiselSimulation", "Flushing FST and cleaning up model")
+      cleanup()
+    }
+  }
+
+  val hook = new Thread(() => doCleanup(), s"$name-cleanup-hook")
+  Runtime.getRuntime.addShutdownHook(hook)
+
+  def clearHook(): Unit = {
+    try {
+      Runtime.getRuntime.removeShutdownHook(hook)
+    } catch {
+      case _: IllegalStateException => // Ignore exceptions when removing shutdown hook
+    }
+  }
 }
 
 object SimModel {

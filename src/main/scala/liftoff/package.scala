@@ -114,12 +114,18 @@ package object liftoff extends misc.Misc with chisel.ChiselPeekPokeAPI with simu
           Reporting.info(None, "ChiselSimulation", f"Simulation frequency: ${frequencykhz}%.2f kHz (${dut.clock.cycle} cycles in ${total})")
           SimulationResult(root.result.get, timeOverview.toMap, frequencykhz, dut.clock.cycle, simModel.waveFile)
         } catch {
+          // keyboard interrupt
+          case _: InterruptedException =>
+            Reporting.info(None, "ChiselSimulation", s"Simulation interrupted by user")
+            SimulationResult(null.asInstanceOf[T], Map.empty, 0.0d, 0L, simModel.waveFile)
           case e: Throwable =>
             Reporting.error(None, "ChiselSimulation", s"Simulation failed with exception: ${e.getMessage}")
             Reporting.error(None, "ChiselSimulation", s"Stack trace: ${e.getStackTrace.mkString("\n")}")
             SimulationResult(null.asInstanceOf[T], Map.empty, 0.0d, 0L, simModel.waveFile)
         } finally {
-          simModel.cleanup()
+          Reporting.info(None, "ChiselSimulation", s"Cleaning up simulation model")
+          simModel.doCleanup()
+          simModel.clearHook()
         }
       }
     }
@@ -183,7 +189,8 @@ package object liftoff extends misc.Misc with chisel.ChiselPeekPokeAPI with simu
         ), 0.0d, 0L, simModel.waveFile)
           
       } finally {
-        simModel.cleanup()
+        simModel.doCleanup()
+        simModel.clearHook()
         SimulationResult(null.asInstanceOf[T], Map.empty, 0.0d, 0L, simModel.waveFile)
       }
     }
