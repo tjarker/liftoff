@@ -124,8 +124,7 @@ package object liftoff extends misc.Misc with chisel.ChiselPeekPokeAPI with simu
             SimulationResult(null.asInstanceOf[T], Map.empty, 0.0d, 0L, simModel.waveFile)
         } finally {
           Reporting.info(None, "ChiselSimulation", s"Cleaning up simulation model")
-          simModel.doCleanup()
-          simModel.clearHook()
+          simModel.cleanup()
         }
       }
     }
@@ -189,8 +188,7 @@ package object liftoff extends misc.Misc with chisel.ChiselPeekPokeAPI with simu
         ), 0.0d, 0L, simModel.waveFile)
           
       } finally {
-        simModel.doCleanup()
-        simModel.clearHook()
+        simModel.cleanup()
         SimulationResult(null.asInstanceOf[T], Map.empty, 0.0d, 0L, simModel.waveFile)
       }
     }

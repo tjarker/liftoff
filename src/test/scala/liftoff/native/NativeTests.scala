@@ -19,10 +19,12 @@ class NativeTests extends AnyWordSpec with Matchers {
         |#include <stdio.h>
         |#include <stdlib.h>
         |extern "C" {
-        |  void* quack();
+        |  void* quack_native();
         |}
-        |void* quack() {
-        |  printf("Quack!\\n");
+        |void* quack_native() {
+        |  printf("Quack! from native test\\n");
+        |  // flush stdout to ensure the output is visible before the program exits
+        |  fflush(stdout);
         |  unsigned int* p = (unsigned int*)malloc(4 * sizeof(unsigned int));
         |  p[0] = 0x04030201;
         |  p[1] = 0x08070605;
@@ -45,7 +47,7 @@ class NativeTests extends AnyWordSpec with Matchers {
       val lib = libRecipe.invoke().load()
 
       val quackHandle = lib.functionHandle(
-        "quack",
+        "quack_native",
         java.lang.foreign.FunctionDescriptor.of(
           java.lang.foreign.ValueLayout.ADDRESS
         )
@@ -60,6 +62,7 @@ class NativeTests extends AnyWordSpec with Matchers {
         val word = ptr.get(ValueLayout.JAVA_BYTE, i)
         print(f"$word%02x ")
       }
+      println()
 
 
       // interpret this as a BigInt
@@ -92,6 +95,7 @@ class NativeTests extends AnyWordSpec with Matchers {
         print(f"$word%02x ")
       }
 
+      println()
 
     }
   }

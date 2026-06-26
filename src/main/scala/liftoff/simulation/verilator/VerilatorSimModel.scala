@@ -212,7 +212,7 @@ class VerilatorSimModel(
     factory.tickHandle.invokeExact(contextPtr, delta.valueFs)
   }
 
-  override def cleanup(): Unit = {
+  override def cleanupCall(): Unit = {
     factory.deleteContextHandle.invokeExact(contextPtr)
   }
 

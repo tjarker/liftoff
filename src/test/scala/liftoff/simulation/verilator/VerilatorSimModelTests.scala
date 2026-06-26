@@ -83,7 +83,7 @@ class VerilatorSimModelTests extends AnyWordSpec with Matchers {
         }
       }
 
-      simModel.cleanup()
+      simModel.doCleanup()
 
     }
 
