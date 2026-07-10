@@ -37,8 +37,28 @@ class Receipt[T] {
     var value2: Option[A] = r.value
     val tryComplete = () => {
       if (value1.isDefined && value2.isDefined) {
-        //Reporting.debug(None, "Receipt", s"Combining receipts with values ${value1.get} and ${value2.get}, completing combined receipt")
         combined.complete((value1.get, value2.get))
+      }
+    }
+    tryComplete()
+    derivedReceipts += (v => {
+      value1 = Some(v)
+      tryComplete()
+    })
+    r.derivedReceipts += (v => {
+      value2 = Some(v)
+      tryComplete()
+    })
+    combined
+  }
+
+  def combineAndMap[A, B](r: Receipt[A])(f: (T, A) => B): Receipt[B] = {
+    val combined = new Receipt[B]()
+    var value1: Option[T] = value
+    var value2: Option[A] = r.value
+    val tryComplete = () => {
+      if (value1.isDefined && value2.isDefined) {
+        combined.complete(f(value1.get, value2.get))
       }
     }
     tryComplete()

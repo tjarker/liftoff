@@ -37,6 +37,7 @@ package object liftoff extends misc.Misc with chisel.ChiselPeekPokeAPI with simu
   type ReceiverPort[T] = liftoff.verify.ReceiverPort[T]
   type Drives[T, R] = liftoff.verify.component.Drives[T, R]
   type Monitors[T] = liftoff.verify.component.Monitors[T]
+  type Task[T] = liftoff.simulation.task.Task[T]
   type DriveCompletion = liftoff.verify.component.DriveCompletion
   type StepUntilResult = liftoff.simulation.StepUntilResult
   val StepUntilResult = liftoff.simulation.StepUntilResult
@@ -54,7 +55,7 @@ package object liftoff extends misc.Misc with chisel.ChiselPeekPokeAPI with simu
   type WorkingDirectory = liftoff.misc.WorkingDirectory
   type Channel[T] = liftoff.simulation.task.Channel[T]
   val Channel = liftoff.simulation.task.Channel
-  type RountTripChannel[A, B] = liftoff.simulation.task.RountTripChannel[A, B]
+  type RoundTripChannel[A, B] = liftoff.simulation.task.RountTripChannel[A, B]
   type RoundTripSenderPort[A, B] = liftoff.verify.RoundTripSenderPort[A, B]
   type RoundTripReceiverPort[A, B] = liftoff.verify.RoundTripReceiverPort[A, B]
   type Receipt[T] = liftoff.simulation.task.Receipt[T]
@@ -153,6 +154,8 @@ package object liftoff extends misc.Misc with chisel.ChiselPeekPokeAPI with simu
       apply(gen, buildDir, Seq.empty, Seq.empty, Seq.empty)
     }
   }
+
+  def simulate[T](block: => T) = ???
   
 
   def simulateChisel[M <: chisel3.Module, T](m: => M, workingDir: WorkingDirectory)(block: M => T): SimulationResult[T] = {
@@ -194,18 +197,21 @@ package object liftoff extends misc.Misc with chisel.ChiselPeekPokeAPI with simu
     }
   }
   object VerilogModel {
-    def apply(name: String, files: Seq[File], buildDir: WorkingDirectory): VerilogModel = {
+    def apply(name: String, files: Seq[File], buildDir: WorkingDirectory, verilatorOptions: Seq[Verilator.Argument], cOptions: Seq[String]): VerilogModel = {
       val startTime = System.nanoTime()
       val simModelFactory = liftoff.simulation.verilator.VerilatorSimModelFactory.create(
         name,
         buildDir,
         files,
-        verilatorOptions = Seq(),
-        cOptions = Seq()
+        verilatorOptions = verilatorOptions,
+        cOptions = cOptions
       )
       val endTime = System.nanoTime()
       Reporting.info(None, "VerilogModel", f"Verilator model compilation took ${(endTime - startTime) / 1e6.toDouble}%.2f ms")
       new VerilogModel(VerilogModule(name, files), simModelFactory, (endTime - startTime).ns)
+    }
+    def apply(name: String, files: Seq[File], buildDir: WorkingDirectory): VerilogModel = {
+      apply(name, files, buildDir, Seq.empty, Seq.empty)
     }
   }
 
