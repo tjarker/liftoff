@@ -41,16 +41,27 @@ object VerilatorSimModelFactory {
 
     val verilatorDir = dir.addSubDir(dir / "verilator")
 
+    // Only default to FST if the caller did not ask for a format themselves --
+    // passing both --trace-fst and --trace-saif links the wrong runtime.
+    val traceFormat =
+      Verilator.TraceFormat.fromArguments(verilatorOptions).getOrElse(Verilator.TraceFormat.Fst)
+
+    val traceArgument = traceFormat match {
+      case Verilator.TraceFormat.Vcd  => Verilator.Arguments.TraceVcd
+      case Verilator.TraceFormat.Fst  => Verilator.Arguments.TraceFst
+      case Verilator.TraceFormat.Saif => Verilator.Arguments.TraceSaif
+    }
+
     val verilateRecipe = Verilator.createRecipe(
       verilatorDir,
       topName,
       Seq(
         Verilator.Arguments.CC,
         Verilator.Arguments.Build,
-        Verilator.Arguments.TraceFst,
+        traceArgument,
         Verilator.Arguments.OptimizationLevel("3"),
         Verilator.Arguments.CFlags("-fPIC -fpermissive -O3")
-      ) ++ verilatorOptions,
+      ) ++ verilatorOptions.filterNot(_ == traceArgument),
       sources
     )
 
@@ -66,7 +77,8 @@ object VerilatorSimModelFactory {
       dir,
       topName,
       functionPrefix,
-      portDescriptors
+      portDescriptors,
+      traceFormat
     )
 
     val harnessCompileRecipe = verilatorDir.addRecipe(

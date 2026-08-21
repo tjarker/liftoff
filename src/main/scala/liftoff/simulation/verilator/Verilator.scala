@@ -27,6 +27,7 @@ object Verilator {
       case SystemVerilog            => Seq("-sv")
       case TraceVcd                 => Seq("--trace")
       case TraceFst                 => Seq("--trace-fst")
+      case TraceSaif                => Seq("--trace-saif")
       case Timing                   => Seq("--timing")
       case NoTiming                 => Seq("--no-timing")
       case TopParam(name, value)    => Seq(s"-G$name=$value")
@@ -44,6 +45,43 @@ object Verilator {
     }
   }
 
+  /** Waveform/activity format Verilator was asked to emit. Determines which
+    * runtime object must be linked and which tracer class the harness uses.
+    */
+  sealed trait TraceFormat {
+    def runtimeObject: String
+    def tracerClass: String
+    def header: String
+  }
+  object TraceFormat {
+    case object Vcd extends TraceFormat {
+      val runtimeObject = "verilated_vcd_c.o"
+      val tracerClass = "VerilatedVcdC"
+      val header = "verilated_vcd_c.h"
+    }
+    case object Fst extends TraceFormat {
+      val runtimeObject = "verilated_fst_c.o"
+      val tracerClass = "VerilatedFstC"
+      val header = "verilated_fst_c.h"
+    }
+    case object Saif extends TraceFormat {
+      val runtimeObject = "verilated_saif_c.o"
+      val tracerClass = "VerilatedSaifC"
+      val header = "verilated_saif_c.h"
+    }
+
+    /** Most specific flag wins, so a caller-supplied --trace-saif overrides the
+      * default FST request rather than silently linking the wrong runtime.
+      */
+    def fromArguments(args: Seq[Argument]): Option[TraceFormat] = {
+      val flags = args.flatMap(_.toStrings)
+      if (flags.contains("--trace-saif")) Some(Saif)
+      else if (flags.contains("--trace-fst")) Some(Fst)
+      else if (flags.contains("--trace")) Some(Vcd)
+      else None
+    }
+  }
+
   object Arguments {
     case object CC extends Argument
     case object EXE extends Argument
@@ -57,6 +95,7 @@ object Verilator {
     case object SystemVerilog extends Argument
     case object TraceVcd extends Argument
     case object TraceFst extends Argument
+    case object TraceSaif extends Argument
     case object Timing extends Argument
     case object NoTiming extends Argument
     case class TopParam(name: String, value: String) extends Argument
@@ -123,13 +162,11 @@ object Verilator {
     val ext = if (System.getProperty("os.name").toLowerCase.contains("mac")) ".a"
     else ".o"
 
-    // TODO: add/remove libs, such as fst, based on verilator flags
     val targets = Seq(
       dir / (s"V${name}__ALL" + ext),
       dir / "verilated.o",
-      dir / "verilated_fst_c.o",
       dir / "verilated_threads.o",
-    )
+    ) ++ TraceFormat.fromArguments(args).map(f => dir / f.runtimeObject)
 
     dir.addRecipe(
       targets,

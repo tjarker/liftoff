@@ -19,24 +19,24 @@ object VerilatorModelHarness {
   def quackFunName(m: String) = s"${m}_quack"
   def getPointerFunName(m: String) = s"${m}_get_pointer"
 
-  def imports(m: String) =
+  def imports(m: String, trace: Verilator.TraceFormat) =
     s"""|#include <verilated.h>
-        |#include <verilated_fst_c.h>
+        |#include <${trace.header}>
         |#include <stdint.h>
         |#include "V$m.h"
         |#include "V${m}___024root.h"
         |""".stripMargin
 
-  def contextStruct(moduleName: String, functionPrefix: String) =
+  def contextStruct(moduleName: String, functionPrefix: String, trace: Verilator.TraceFormat) =
     s"""|struct ${functionPrefix}_context_t {
         |  uint64_t time;
         |  VerilatedContext* context;
         |  V${moduleName}* model;
-        |  VerilatedFstC* trace;
+        |  ${trace.tracerClass}* trace;
         |};
         |""".stripMargin
 
-  def createContext(m: String, p: String) =
+  def createContext(m: String, p: String, trace: Verilator.TraceFormat) =
     s"""|${p}_context_t* ${createContextFunName(p)}(const char* fstFile, const char* time_unit, char** argv, int argc) {
         |  ${p}_context_t* ctx = new ${p}_context_t;
         |  ctx->time = 0;
@@ -46,7 +46,7 @@ object VerilatorModelHarness {
         |
         |  ctx->model = new V$m(ctx->context, "Circuit");
         |
-        |  ctx->trace = new VerilatedFstC;
+        |  ctx->trace = new ${trace.tracerClass};
         |  ctx->model->trace(ctx->trace, 99);
         |  ctx->trace->set_time_unit(time_unit);
         |  ctx->trace->set_time_resolution(time_unit);
@@ -86,8 +86,7 @@ object VerilatorModelHarness {
 
   def getPointer(moduleName: String, syms: Seq[VerilatorPortDescriptor]): String = {
     val cases = syms
-      .map(s => s -> (s.width / 32d).ceil.toInt)
-      .collect { case (i @ VerilatorPortDescriptor(name, id, width), words) =>
+      .collect { case i @ VerilatorPortDescriptor(name, id, width) =>
         s"""|case $id: // ${i.toString()}
             |  return (void*)&ctx->model->${name};
             |""".stripMargin
@@ -104,14 +103,14 @@ object VerilatorModelHarness {
         |""".stripMargin
   }
 
-  def harness(moduleName: String, functionPrefix: String, syms: Seq[VerilatorPortDescriptor]): String =
-    s"""|${imports(moduleName)}
+  def harness(moduleName: String, functionPrefix: String, syms: Seq[VerilatorPortDescriptor], trace: Verilator.TraceFormat): String =
+    s"""|${imports(moduleName, trace)}
         |
         |double sc_time_stamp() { return 0; }
         |
-        |${contextStruct(moduleName, functionPrefix)}
+        |${contextStruct(moduleName, functionPrefix, trace)}
         |extern "C" {
-        |${createContext(moduleName, functionPrefix).indent(2)}
+        |${createContext(moduleName, functionPrefix, trace).indent(2)}
         |${deleteContext(functionPrefix).indent(2)}
         |${eval(functionPrefix).indent(2)}
         |${tick(functionPrefix).indent(2)}
@@ -122,8 +121,8 @@ object VerilatorModelHarness {
         |}
         |""".stripMargin
 
-  def writeHarness(dir: WorkingDirectory, moduleName: String, functionPrefix: String, syms: Seq[VerilatorPortDescriptor]) = {
-    dir.addFile(s"${functionPrefix}_harness.cpp", harness(moduleName, functionPrefix, syms))
+  def writeHarness(dir: WorkingDirectory, moduleName: String, functionPrefix: String, syms: Seq[VerilatorPortDescriptor], trace: Verilator.TraceFormat) = {
+    dir.addFile(s"${functionPrefix}_harness.cpp", harness(moduleName, functionPrefix, syms, trace))
   }
 
 }
