@@ -1,10 +1,12 @@
 .bloop
 .bsp
 .metals
-project
+project/project/
+project/metals.sbt
 target
 .DS_Store
 .idea
 .vscode
 build/
+builds/
 .devcontainer/

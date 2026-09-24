@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  # Weekly, to find out when a new Chisel release breaks a group.
+  schedule:
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test (${{ matrix.group }}, ${{ matrix.chisel }} Chisel)
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [chisel36, chisel6, chisel7]
+        chisel: [oldest]
+        # Chisel 3.6 gets no new releases, so only the other groups are also tested against their
+        # newest release.
+        include:
+          - { group: chisel6, chisel: newest }
+          - { group: chisel7, chisel: newest }
+    steps:
+      - uses: actions/checkout@v7
+      # liftoff needs JDK 22 or newer (virtual threads, continuations, the foreign memory API).
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 23
+          cache: sbt
+      - uses: sbt/setup-sbt@v1
+      - run: sudo apt-get update && sudo apt-get install -y verilator
+      - name: Use the newest Chisel release of the group
+        if: matrix.chisel == 'newest'
+        run: |
+          group=${{ matrix.group }}
+          maven=https://repo1.maven.org/maven2/org/chipsalliance/chisel_2.13
+          chisel=$(curl -sf $maven/maven-metadata.xml | grep -oE "<version>${group#chisel}\.[0-9]+\.[0-9]+</version>" | sed 's/<[^>]*>//g' | sort -V | tail -1)
+          # Compile with the Scala version that Chisel release was built with.
+          scala=$(curl -sf $maven/$chisel/chisel_2.13-$chisel.pom | grep -A1 '<artifactId>scala-library' | grep -oE '2\.13\.[0-9]+')
+          echo "Chisel $chisel, Scala $scala"
+          prefix=$(echo $group | tr a-z A-Z)
+          echo "${prefix}_CHISEL=$chisel" >> "$GITHUB_ENV"
+          echo "${prefix}_SCALA=$scala" >> "$GITHUB_ENV"
+      - run: sbt ${{ matrix.group }}/test
+      - name: Package the artifacts like a release does
+        if: matrix.chisel == 'oldest'
+        run: sbt ${{ matrix.group }}/publishLocal

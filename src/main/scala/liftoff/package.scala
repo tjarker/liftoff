@@ -2,7 +2,6 @@ import liftoff.misc.WorkingDirectory
 import liftoff.chisel.ChiselBridge
 import liftoff.simulation.control.SimController
 import chisel3.reflect.DataMirror
-import Chisel.Data
 import liftoff.chisel.PeekPokeAPI
 import liftoff.simulation.Time._
 import chisel3.Element

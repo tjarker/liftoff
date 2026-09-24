@@ -176,8 +176,52 @@ class ChiselSimulationTests extends AnyWordSpec with Matchers {
 
       val c = ChiselStage.convert(new Dummy(new MyBlackBox), Array())
 
-      
 
+
+    }
+
+    "simulate BlackBoxes and assertions" in {
+
+      import chisel3._
+
+      val workingDir = "build/chisel_blackbox_simulation".toDir
+      workingDir.createIfNotExists()
+      workingDir.clean()
+
+      val verilogFile = workingDir.addFile("Increment.v",
+        """module Increment (
+          |  input  [7:0] in,
+          |  output [7:0] out
+          |);
+          |  assign out = in + 1;
+          |endmodule
+          |""".stripMargin)
+
+      class Increment extends BlackBox with HasBlackBoxPath {
+        val io = IO(new Bundle {
+          val in = Input(UInt(8.W))
+          val out = Output(UInt(8.W))
+        })
+        addPath(verilogFile.toString())
+      }
+
+      // Chisel 7 emits the assertion into a layer, which lives in files of its own.
+      class WithBlackBox extends Module {
+        val io = IO(new Bundle {
+          val in = Input(UInt(8.W))
+          val out = Output(UInt(8.W))
+        })
+        val increment = Module(new Increment)
+        increment.io.in := io.in
+        io.out := increment.io.out
+        chisel3.assert(io.in =/= 255.U, "in must not overflow")
+      }
+
+      simulateChisel(new WithBlackBox, workingDir) { dut =>
+        dut.io.in.poke(3.U)
+        dut.clock.step()
+        dut.io.out.expect(4.U)
+      }
     }
 
   }

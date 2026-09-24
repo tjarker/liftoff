@@ -23,57 +23,38 @@ object ChiselBridge {
       elaboratePhase.transform(Seq(genAnno))
 
     val dut: M = elaborationAnnos
-      .collectFirst { case chisel3.stage.DesignAnnotation(d) => d }
+      .collectFirst { case a: chisel3.stage.DesignAnnotation[_] => a.design }
       .get
       .asInstanceOf[M]
 
     dut
   }
 
+  /** Emits `m`, whose top module is `name`, into `dir` and returns the files Verilator has to
+    * compile. How the Verilog is produced depends on the Chisel version (see `VerilogEmitter`).
+    * A file is only replaced when its content changed, so an unchanged design does not rebuild
+    * the Verilator model.
+    */
   def emitSystemVerilogFile(name: String, m: => chisel3.RawModule, dir: WorkingDirectory): Seq[java.io.File] = {
-    chisel3.emitVerilog(
-      m,
-      Array(
-        "--target-dir",
-        dir.toString + "/tmp",
-      )
-    )
-    val newFile = new File(s"${dir.toString}/tmp/${name}.v")
-    val mainFile = dir.addFile(s"${name}.v")
-
-    if (mainFile.exists()) {
-      // check if contents are the same
-      java.nio.file.Files.mismatch(mainFile.toPath, newFile.toPath) match {
-        case -1L => // files are the same, do nothing
-        case _ =>
-          // files are different, replace old file with new file
-          java.nio.file.Files.move(
-            newFile.toPath,
-            mainFile.toPath,
-            java.nio.file.StandardCopyOption.REPLACE_EXISTING
-          )
+    VerilogEmitter.emit(name, m, dir / "tmp").map { emitted =>
+      val file = dir.addFile(emitted.getName)
+      if (!file.exists() || java.nio.file.Files.mismatch(file.toPath, emitted.toPath) != -1L) {
+        java.nio.file.Files.copy(
+          emitted.toPath,
+          file.toPath,
+          java.nio.file.StandardCopyOption.REPLACE_EXISTING
+        )
       }
-    } else {
-      // file doesn't exist, move new file to main file
-      java.nio.file.Files.move(
-        newFile.toPath,
-        mainFile.toPath,
-        java.nio.file.StandardCopyOption.REPLACE_EXISTING
-      )
+      file
     }
+  }
 
-    // load firrtl_black_box_resource_files.f
-    val blackBoxFiles = try {
-      scala.io.Source
-      .fromFile(dir / "tmp/firrtl_black_box_resource_files.f")
-      .getLines()
-      .map(new java.io.File(_))
-      .toSeq
-    } catch {
-      case _: java.io.FileNotFoundException => Seq()
-    } finally { Seq() }
-    blackBoxFiles.foreach(f => dir.addFile(f.getName()))
-    mainFile +: blackBoxFiles
+  /** Interprets the low `width` bits of `value` as a two's complement number. Input handles return
+    * the value that was set, which may be negative, while output handles return the raw bits.
+    */
+  private def toSigned(width: Int, value: BigInt): BigInt = {
+    val bits = value & ((BigInt(1) << width) - 1)
+    if (bits.testBit(width - 1)) bits - (BigInt(1) << width) else bits
   }
 
   trait Port {
@@ -119,11 +100,7 @@ object ChiselBridge {
     def set(value: BigInt): Unit = handle.set(value)
     def get(isSigned: Boolean): Value = {
       val v = handle.get()
-      if (isSigned && v.testBit(handle.width - 1)) {
-        // sign extend
-        val twosComplement = (~v) + 1
-        new Value(handle.width, -twosComplement)
-      } else new Value(handle.width, v)
+      new Value(handle.width, if (isSigned) toSigned(handle.width, v) else v)
     }
     def check(isSigned: Boolean)(checkFn: Value => Unit): Unit = {
       val v = get(isSigned)
@@ -165,10 +142,7 @@ object ChiselBridge {
   class OutputPort(val phandle: OutputPortHandle) extends Port {
     def get(isSigned: Boolean): Value = {
       val v = phandle.get()
-      if (isSigned && v.testBit(phandle.width - 1)) {
-        val twosComplement = (~v) + 1
-        new Value(phandle.width, -twosComplement)
-      } else new Value(phandle.width, v)
+      new Value(phandle.width, if (isSigned) toSigned(phandle.width, v) else v)
     }
     def set(value: BigInt): Unit = {
       throw new Exception(s"Cannot set output port handle: ${phandle.name}")

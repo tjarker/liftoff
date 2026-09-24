@@ -44,14 +44,14 @@ class PeekPokeAPITests extends AnyWordSpec with Matchers with liftoff.chisel.Chi
       val workingDir = "build/peekpoke_test".toDir
       workingDir.createIfNotExists()
       workingDir.clean()
-      ChiselBridge.emitSystemVerilogFile("MyOtherModule", new MyOtherModule, workingDir)
+      val verilogFiles = ChiselBridge.emitSystemVerilogFile("MyOtherModule", new MyOtherModule, workingDir)
 
       val runDir = workingDir.addSubDir(workingDir / "sim")
 
       val simModel = VerilatorSimModelFactory.create(
         "MyOtherModule",
         workingDir,
-        Seq(workingDir / "MyOtherModule.v"),
+        verilogFiles,
         verilatorOptions = Seq(),
         cOptions = Seq()
       ).createModel(runDir)

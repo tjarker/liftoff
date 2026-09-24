@@ -398,7 +398,7 @@ object PeekPokeAPI {
     ): Unit = {
       data.elements.foreach { case (elName, portEl) =>
         expected.elements(elName) match {
-          case expEl: Element if ChiselExposer.topBindingOpt(expEl) == Some(ChiselExposer.dontCareBinding()) =>
+          case expEl: Element if ChiselExposer.isDontCare(expEl) =>
             if (!allowPartial) {
               throw new UninitializedElementException(
                 s"Element '$elName' in the expected value is not initialized"
@@ -485,7 +485,7 @@ object PeekPokeAPI {
       implicit sourceInfo: SourceInfo
     ): Unit = {
       data.getElements.zip(expected).zipWithIndex.foreach {
-        case ((datEl: Element, expEl: Element), idx) if ChiselExposer.topBindingOpt(expEl) == Some(ChiselExposer.dontCareBinding()) =>
+        case ((datEl: Element, expEl: Element), idx) if ChiselExposer.isDontCare(expEl) =>
           if (!allowPartial)
             throw new UninitializedElementException(
               s"Vec element at index $idx in the expected value is not initialized"

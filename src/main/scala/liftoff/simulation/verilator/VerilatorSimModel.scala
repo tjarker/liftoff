@@ -61,7 +61,9 @@ object VerilatorSimModelFactory {
         traceArgument,
         Verilator.Arguments.OptimizationLevel("3"),
         Verilator.Arguments.CFlags("-fPIC -fpermissive -O3")
-      ) ++ verilatorOptions.filterNot(_ == traceArgument),
+      ) ++ verilatorOptions.filterNot(_ == traceArgument)
+        // Generated files may include each other by name (Chisel 7 layers, for example).
+        ++ sources.map(_.getAbsoluteFile.getParent).distinct.map(Verilator.Arguments.Include(_)),
       sources
     )
 
