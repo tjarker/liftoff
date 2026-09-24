@@ -10,6 +10,7 @@ import java.lang.foreign.ValueLayout._
 import java.lang.invoke.MethodType
 import java.lang.invoke.MethodHandles
 import liftoff.misc.Library
+import liftoff.misc.SharedObject
 
 class DpiToScala extends AnyWordSpec with Matchers {
 
@@ -72,7 +73,7 @@ class DpiToScala extends AnyWordSpec with Matchers {
 
       val arena  = Arena.ofShared()                 // must outlive the whole simulation
       val linker = Linker.nativeLinker()
-      val lookup = SymbolLookup.libraryLookup("build/dpi_to_scala/libtop_0.dylib", arena)
+      val lookup = SymbolLookup.libraryLookup(s"build/dpi_to_scala/libtop_0${SharedObject.sharedLibraryExtension}", arena)
       val lib = new Library(lookup, linker)
 
       // MethodHandle to ScalaCallbacks.eval, typed (int,int,MemorySegment)void
