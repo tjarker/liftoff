@@ -140,11 +140,8 @@ object Verilator {
       return Failure(new Exception(s"Verilator include directory not found: ${base.getAbsolutePath}"))
     }
 
-    // get recursive list of directories in the base directory
-    val dirs = base
-      .listFiles()
-      .filter(_.isDirectory)
-    Success(base +: dirs.toSeq)
+    // the same directories verilated.mk passes; vltstd holds svdpi.h
+    Success(Seq(base, new File(base, "vltstd")))
   }
 
   def createRecipe(

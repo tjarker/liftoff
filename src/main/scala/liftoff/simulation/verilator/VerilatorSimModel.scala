@@ -89,7 +89,7 @@ object VerilatorSimModelFactory {
       Seq(
         "g++",
         "-I.") ++
-        Verilator.getIncludeDir().get.map(p => s"-I$p").dropRight(1) ++ Seq(
+        Verilator.getIncludeDir().get.map(p => s"-I$p") ++ Seq(
         "-fPIC",
         "-O3",
         "-fpermissive",
