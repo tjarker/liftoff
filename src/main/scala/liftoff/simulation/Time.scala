@@ -83,6 +83,7 @@ class Time(private[liftoff] var valueFs: Long = 0) extends Ordered[Time] {
   }
 
   private def findBestTimeUnit(t: Time, unit: TimeUnit): TimeUnit = {
+    if (t.valueFs == 0L) return TimeUnit.s
     val v = valueFs / math.pow(10, unit.exp)
     if (unit == TimeUnit.s || v < 1000) {
       unit
