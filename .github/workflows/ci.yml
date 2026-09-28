@@ -87,7 +87,8 @@ jobs:
         run: sbt ${{ matrix.group }}/publishLocal
       - name: Build the quickstart against the packaged artifacts
         if: matrix.package && matrix.group == 'chisel7'
+        # Published under a fixed version, as sbt's output in CI is hard to parse for the git-derived one.
         run: |
-          export LIFTOFF_VERSION=$(sbt -batch -error "print chisel7/version" | tail -1)
+          sbt 'set ThisBuild / version := "0.0.0-QUICKSTART"' chisel7/publishLocal
           cd examples/quickstart
-          sbt test
+          LIFTOFF_VERSION=0.0.0-QUICKSTART sbt test
