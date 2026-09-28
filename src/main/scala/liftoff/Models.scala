@@ -77,8 +77,8 @@ trait RunOptions[Self] {
   *
   * `verilator`, `cxx` and `link` give complete control over the three commands that build the model. Each receives the
   * whole command liftoff would run, program first and with all options already turned into flags, and returns the
-  * command to run instead. Calling a hook again applies both, in order. See [[VerilatorBuild]] for the flags liftoff
-  * appends afterwards.
+  * command to run instead. Calling a hook again applies both, in order. See
+  * [[liftoff.simulation.verilator.VerilatorBuild]] for the flags liftoff appends afterwards.
   */
 trait BuildOptions[Self] extends RunOptions[Self] {
 
