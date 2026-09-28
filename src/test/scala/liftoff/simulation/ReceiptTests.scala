@@ -8,7 +8,7 @@ import liftoff.simulation.task.TaskScope
 
 class ReceiptTests extends AnyWordSpec with Matchers {
 
-  //Reporting.setOutput(Reporting.NullStream)
+  // Reporting.setOutput(Reporting.NullStream)
 
   TaskScope // force initialization
 
@@ -64,7 +64,7 @@ class ReceiptTests extends AnyWordSpec with Matchers {
         }
       }
 
-      val res = combined.await() 
+      val res = combined.await()
       Reporting.info(None, s"Combined result: $res")
       res shouldBe 15
 

@@ -1,6 +1,5 @@
 package liftoff.coroutine
 
-
 import jdk.internal.vm.{Continuation, ContinuationScope}
 
 import scala.collection.mutable
@@ -26,7 +25,7 @@ class ContinuationCoroutineScope extends CoroutineScope {
     val self = this.current.get
     self.out = value match {
       case Some(v) => YieldedWith(v)
-      case None => Yielded
+      case None    => Yielded
     }
     Continuation.`yield`(scope)
     self.in.asInstanceOf[Option[I]]
@@ -36,17 +35,20 @@ class ContinuationCoroutineScope extends CoroutineScope {
   def restoreContext(ctx: CoroutineContext): Unit = {
     currentContext = ctx
   }
-  
+
 }
 
-
-class ContinuationCoroutine[I, O, R](scope: ContinuationCoroutineScope, val parent: Option[Coroutine[_, _, _]], block: => R) extends Coroutine[I, O, R] {
+class ContinuationCoroutine[I, O, R](
+    scope: ContinuationCoroutineScope,
+    val parent: Option[Coroutine[_, _, _]],
+    block: => R
+) extends Coroutine[I, O, R] {
   var in: Option[I] = None
   var out: Result[O, R] = null
 
   val context = scope.currentContext.capture()
 
-  //Reporting.debug(None, "Scheduler", s"Created ContinuationCoroutine $this with context:\n${context.pretty}")
+  // Reporting.debug(None, "Scheduler", s"Created ContinuationCoroutine $this with context:\n${context.pretty}")
 
   var hasBeenCancelled: Boolean = false
 
@@ -94,5 +96,5 @@ class ContinuationCoroutine[I, O, R](scope: ContinuationCoroutineScope, val pare
   def cancel(): Unit = {
     hasBeenCancelled = true
   }
-  
+
 }

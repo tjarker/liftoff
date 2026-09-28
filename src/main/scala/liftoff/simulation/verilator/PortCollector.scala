@@ -2,7 +2,7 @@ package liftoff.simulation.verilator
 
 import java.io.File
 
-object PortCollector {
+private[liftoff] object PortCollector {
 
   import scala.util.matching.Regex
 
@@ -26,11 +26,10 @@ object PortCollector {
   val iden = raw"(\w+)"
   val varName = raw"&(\w+)"
   val num = raw"(\d+)"
-  def definition(name: String, parts: Seq[String]): Regex = 
+  def definition(name: String, parts: Seq[String]): Regex =
     raw"""$name\(${parts.mkString(",")}\);""".r
 
-
-  /* 
+  /*
   
   # define VL_IN8(name, msb,lsb)		CData name		///< Declare input signal, 1-8 bits
   # define VL_IN16(name, msb,lsb)		SData name		///< Declare input signal, 9-16 bits
@@ -48,7 +47,7 @@ object PortCollector {
   # define VL_OUT(name, msb,lsb)		IData name		///< Declare output signal, 17-32 bits
   # define VL_OUTW(name, msb,lsb, words)	WData name[words]	///< Declare output signal, 65+ bits
 
-  */
+   */
 
   val narrowInputMatcher = new Matcher[VerilatorInputDescriptor](
     definition(raw"VL_IN\d*", Seq(varName, num, num)),

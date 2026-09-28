@@ -3,21 +3,19 @@ package liftoff.misc
 import liftoff.simulation.Time
 import liftoff.coroutine.CoroutineContextVariable
 
+/** Reports of a simulation, tagged with the simulation time and the reporting component. */
 object Reporting {
 
   val successTag = fansi.Color.Green("success")
-  val errorTag   = fansi.Color.Red("error")
-  val warnTag    = fansi.Color.Yellow("warn")
-  val infoTag    = fansi.Str("info")
-  val debugTag   = fansi.Color.Magenta("debug")
-
+  val errorTag = fansi.Color.Red("error")
+  val warnTag = fansi.Color.Yellow("warn")
+  val infoTag = fansi.Str("info")
+  val debugTag = fansi.Color.Magenta("debug")
 
   val outputStream = new CoroutineContextVariable[java.io.PrintStream](System.out)
   val coloredOutput = new CoroutineContextVariable[Boolean](true)
   val providerName = new CoroutineContextVariable[String]("unknown")
   val providerFilters = new CoroutineContextVariable[Set[String]](Set())
-
-
 
   def shouldShow(provider: String): Boolean = {
     val res = !providerFilters.value.contains(provider)
@@ -52,17 +50,21 @@ object Reporting {
     providerFilters.value = filters - filter
   }
 
-  object NullStream extends java.io.PrintStream(new java.io.OutputStream {
-    def write(b: Int): Unit = {}
-  })
+  object NullStream
+      extends java.io.PrintStream(new java.io.OutputStream {
+        def write(b: Int): Unit = {}
+      })
 
   def pathColor(str: String) = {
-    str.split("\\.").map(part =>fansi.Color.LightMagenta(part).toString()).mkString(fansi.Color.LightGray(".").toString())
+    str
+      .split("\\.")
+      .map(part => fansi.Color.LightMagenta(part).toString())
+      .mkString(fansi.Color.LightGray(".").toString())
   }
 
   def reportStringColored(tag: fansi.Str, time: Option[Time], provider: String, message: String): String = {
-    val tagStr = "[" + tag + "]" + ("─" * (7-tag.length))
-    val tagStrNoLine = "[" + tag + "]" + (" " * (7-tag.length))
+    val tagStr = "[" + tag + "]" + ("─" * (7 - tag.length))
+    val tagStrNoLine = "[" + tag + "]" + (" " * (7 - tag.length))
     val timeStrFmt = time match {
       case Some(t) if t.toString.endsWith("s ") => {
         val timeStr = t.toString.trim
@@ -70,11 +72,13 @@ object Reporting {
       }
       case Some(t) => {
         val timeStr = t.toString
-        ("─" * (9 - timeStr.length)) + "@" + fansi.Color.True(51,153,255)(timeStr).toString()
+        ("─" * (9 - timeStr.length)) + "@" + fansi.Color.True(51, 153, 255)(timeStr).toString()
       }
       case None => "─" * 10
     }
-    val providerStr = fansi.Color.LightGray("[").toString + pathColor(provider) + fansi.Color.LightGray("]").toString() + ("─" * (25 - provider.length))
+    val providerStr = fansi.Color.LightGray("[").toString + pathColor(provider) + fansi.Color
+      .LightGray("]")
+      .toString() + ("─" * (25 - provider.length))
     val lines = message.split("\n")
     s"$tagStr─$timeStrFmt─$providerStr─╢ ${lines.mkString(s"\n" + (" " * 49) + "║ ")}\n" + " " * 49 + "║"
   }
@@ -146,7 +150,6 @@ object Reporting {
     debug(time, providerName.value, message)
   }
 
-
   // inspired by https://stackoverflow.com/a/55143951
   def table(table: Seq[Seq[Any]]): String = {
     if (table.isEmpty) ""
@@ -196,10 +199,5 @@ ${BLUE}║${RESET} ${YELLOW}╚══════╝╚═╝╚═╝        �
 ${BLUE}╚════════════════════════════════════════════════════════════════════════════════╝${RESET}
 """
   }
-
-
-
-
-
 
 }

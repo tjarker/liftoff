@@ -6,7 +6,7 @@ import java.io.File
 import scala.sys.process.Process
 import java.lang.invoke.MethodHandle
 
-class SharedObject(libFile: File) {
+private[liftoff] class SharedObject(libFile: File) {
 
   def load(): Library = {
     if (!libFile.exists()) {
@@ -22,14 +22,14 @@ class SharedObject(libFile: File) {
 
 }
 
-class Library(lookup: SymbolLookup, linker: Linker) {
+private[liftoff] class Library(lookup: SymbolLookup, linker: Linker) {
 
   def functionHandle(name: String, descriptor: FunctionDescriptor): MethodHandle = {
     linker.downcallHandle(lookup.find(name).get, descriptor)
   }
 }
 
-object SharedObject {
+private[liftoff] object SharedObject {
 
   def sharedLibraryExtension: String = {
     if (System.getProperty("os.name").toLowerCase.contains("windows")) ".dll"
@@ -62,5 +62,19 @@ object SharedObject {
 
   }
 
-}
+  /** Runs `command`, a complete link command producing `libFile` from `deps`. */
+  def createRecipe(
+      libFile: File,
+      dir: WorkingDirectory,
+      deps: Seq[File],
+      command: Seq[String]
+  ): WorkingDirectory.Recipe[SharedObject] = {
+    dir.addRecipe(
+      Seq(libFile),
+      deps,
+      command,
+      fs => new SharedObject(fs.head)
+    )
+  }
 
+}

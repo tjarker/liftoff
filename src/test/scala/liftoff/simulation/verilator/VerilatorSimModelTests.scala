@@ -38,15 +38,12 @@ class VerilatorSimModelTests extends AnyWordSpec with Matchers {
         |endmodule
         |""".stripMargin
 
-      val verilogFile = buildDir.addFile("alu.sv", verilog)  
-      
+      val verilogFile = buildDir.addFile("alu.sv", verilog)
 
       val factory = VerilatorSimModelFactory.create(
         topName,
         buildDir,
-        Seq(verilogFile),
-        verilatorOptions = Seq(),
-        cOptions = Seq()
+        Seq(verilogFile)
       )
 
       val simModel = factory.createModel(buildDir.addSubDir(buildDir / "sim"))
@@ -76,7 +73,7 @@ class VerilatorSimModelTests extends AnyWordSpec with Matchers {
               case 2 => aval & bval
               case 3 => aval | bval
             }
-            val expectedMasked = expected & 0xF
+            val expectedMasked = expected & 0xf
 
             Dut.result.get().toInt shouldBe expectedMasked
           }

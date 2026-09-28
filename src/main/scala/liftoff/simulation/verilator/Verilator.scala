@@ -45,40 +45,46 @@ object Verilator {
     }
   }
 
-  /** Waveform/activity format Verilator was asked to emit. Determines which
-    * runtime object must be linked and which tracer class the harness uses.
+  /** Waveform/activity format Verilator was asked to emit. Determines which runtime object must be linked and which
+    * tracer class the harness uses.
     */
   sealed trait TraceFormat {
     def runtimeObject: String
     def tracerClass: String
     def header: String
+
+    /** The Verilator flag enabling this format, if any. */
+    def argument: Option[Argument]
+    def fileExtension: String
   }
   object TraceFormat {
     case object Vcd extends TraceFormat {
       val runtimeObject = "verilated_vcd_c.o"
       val tracerClass = "VerilatedVcdC"
       val header = "verilated_vcd_c.h"
+      val argument = Some(TraceVcd)
+      val fileExtension = "vcd"
     }
     case object Fst extends TraceFormat {
       val runtimeObject = "verilated_fst_c.o"
       val tracerClass = "VerilatedFstC"
       val header = "verilated_fst_c.h"
+      val argument = Some(TraceFst)
+      val fileExtension = "fst"
     }
     case object Saif extends TraceFormat {
       val runtimeObject = "verilated_saif_c.o"
       val tracerClass = "VerilatedSaifC"
       val header = "verilated_saif_c.h"
+      val argument = Some(TraceSaif)
+      val fileExtension = "saif"
     }
-
-    /** Most specific flag wins, so a caller-supplied --trace-saif overrides the
-      * default FST request rather than silently linking the wrong runtime.
-      */
-    def fromArguments(args: Seq[Argument]): Option[TraceFormat] = {
-      val flags = args.flatMap(_.toStrings)
-      if (flags.contains("--trace-saif")) Some(Saif)
-      else if (flags.contains("--trace-fst")) Some(Fst)
-      else if (flags.contains("--trace")) Some(Vcd)
-      else None
+    case object NoTrace extends TraceFormat {
+      val runtimeObject = ""
+      val tracerClass = ""
+      val header = ""
+      val argument = None
+      val fileExtension = ""
     }
   }
 
@@ -121,8 +127,7 @@ object Verilator {
     try {
       val path = Seq("which", "verilator").!!.trim
       Some(new File(path))
-    } 
-    catch {
+    } catch {
       case _: Throwable => None
     }
   }
@@ -134,43 +139,54 @@ object Verilator {
       return Failure(new Exception("Verilator executable not found."))
     }
 
-    val base  = (verilatorBin.getParentFile.getAbsolutePath() + "/../share/verilator/include").toFile
+    val base = (verilatorBin.getParentFile.getAbsolutePath() + "/../share/verilator/include").toFile
 
     if (!base.exists() || !base.isDirectory) {
       return Failure(new Exception(s"Verilator include directory not found: ${base.getAbsolutePath}"))
     }
 
-    // get recursive list of directories in the base directory
-    val dirs = base
-      .listFiles()
-      .filter(_.isDirectory)
-    Success(base +: dirs.toSeq)
+    // the same directories verilated.mk passes; vltstd holds svdpi.h
+    Success(Seq(base, new File(base, "vltstd")))
   }
 
+  /** Whether the FST writer of this Verilator needs lz4, like the one of Verilator 5.052. Verilator's own makefile then
+    * links FST models with `-llz4`, so liftoff has to as well.
+    */
+  lazy val fstNeedsLz4: Boolean = getIncludeDir().toOption.exists { dirs =>
+    val makefile = new File(dirs.head, "verilated.mk")
+    makefile.exists() && {
+      val source = scala.io.Source.fromFile(makefile)
+      try source.getLines().exists(_.contains("-llz4"))
+      finally source.close()
+    }
+  }
+
+  /** Runs `command`, a complete Verilator invocation building the model `name` into `dir`, and returns the object files
+    * to link: the model, the Verilator runtime, the runtime of `trace` and one object per C++ file in `cppSources`.
+    */
   def createRecipe(
       dir: WorkingDirectory,
       name: String,
-      args: Seq[Argument],
-      files: Seq[File]
+      command: Seq[String],
+      deps: Seq[File],
+      trace: TraceFormat,
+      cppSources: Seq[File]
   ): WorkingDirectory.Recipe[Seq[File]] = {
 
-    val command = Seq("verilator") ++
-      (args ++ Seq(Arguments.BuildDir(dir.path), Arguments.TopModule(name)))
-        .flatMap(_.toStrings) ++
-      files.map(_.getAbsolutePath)
-
-    val ext = if (System.getProperty("os.name").toLowerCase.contains("mac")) ".a"
-    else ".o"
+    val ext =
+      if (System.getProperty("os.name").toLowerCase.contains("mac")) ".a"
+      else ".o"
 
     val targets = Seq(
       dir / (s"V${name}__ALL" + ext),
       dir / "verilated.o",
-      dir / "verilated_threads.o",
-    ) ++ TraceFormat.fromArguments(args).map(f => dir / f.runtimeObject)
+      dir / "verilated_threads.o"
+    ) ++ Option.when(trace != TraceFormat.NoTrace)(dir / trace.runtimeObject) ++
+      cppSources.map(f => dir / (f.getName.stripSuffix(".cpp").stripSuffix(".cc") + ".o"))
 
     dir.addRecipe(
       targets,
-      files,
+      deps,
       command,
       identity
     )

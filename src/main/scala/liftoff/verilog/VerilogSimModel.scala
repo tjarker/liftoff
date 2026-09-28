@@ -16,7 +16,6 @@ import java.io.File
 import liftoff.simulation.control.CtrlOutHandle
 import liftoff.simulation.control.CtrlInputHandle
 
-
 object Verilog {
 
   trait Port extends PortHandle {
@@ -85,15 +84,15 @@ class VerilogSimModel(ctrl: SimController) {
 
   val clocks = mutable.Buffer[Verilog.Clock]()
 
-  val nameToPort = ctrl.ports.map {
-    case p: InputPortHandle => p.name -> new Verilog.Input(p)
-    case p: OutputPortHandle => p.name -> new Verilog.Output(p)
-  }.to(mutable.Map)
+  val nameToPort = ctrl.ports
+    .map {
+      case p: InputPortHandle  => p.name -> new Verilog.Input(p)
+      case p: OutputPortHandle => p.name -> new Verilog.Output(p)
+    }
+    .to(mutable.Map)
 
-  def addClockDomain(
-    name: String,
-    period: Time)(
-    ports: Verilog.Port*
+  def addClockDomain(name: String, period: Time)(
+      ports: Verilog.Port*
   ): Verilog.Clock = {
     val clockHandle = ctrl.addClockDomain(
       name,
@@ -107,8 +106,8 @@ class VerilogSimModel(ctrl: SimController) {
   }
 
   def addCombinationalDependency(
-    output: Verilog.Output,
-    inputs: Seq[Verilog.Input]
+      output: Verilog.Output,
+      inputs: Seq[Verilog.Input]
   ): Unit = {
     ctrl.addCombinationDependency(
       output.handle.asInstanceOf[CtrlOutHandle],
@@ -119,11 +118,11 @@ class VerilogSimModel(ctrl: SimController) {
   def apply(portName: String): Verilog.Port = nameToPort(portName)
   def in(portName: String): Verilog.Input = nameToPort(portName) match {
     case p: Verilog.Input => p
-    case _ => throw new Exception(s"Port $portName is not an input")
+    case _                => throw new Exception(s"Port $portName is not an input")
   }
   def out(portName: String): Verilog.Output = nameToPort(portName) match {
     case p: Verilog.Output => p
-    case _ => throw new Exception(s"Port $portName is not an output")
+    case _                 => throw new Exception(s"Port $portName is not an output")
   }
 
 }

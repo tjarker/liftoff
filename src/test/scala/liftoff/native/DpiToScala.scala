@@ -10,19 +10,20 @@ import java.lang.foreign.ValueLayout._
 import java.lang.invoke.MethodType
 import java.lang.invoke.MethodHandles
 import liftoff.misc.Library
+import liftoff.misc.SharedObject
 
 class DpiToScala extends AnyWordSpec with Matchers {
 
   object ScalaCallbacks {
     def eval(a: Int, b: Int, sum: MemorySegment): Unit = {
-      sum.reinterpret(4).set(JAVA_INT, 0, a + b)     // write the output port
+      sum.reinterpret(4).set(JAVA_INT, 0, a + b) // write the output port
       println(s"Scala: a=$a b=$b -> sum=${a + b}")
     }
   }
 
   "DPI to Scala" should {
     "be able to call a Scala function from Verilog" in {
-      
+
       val dir = "build/dpi_to_scala".toDir
       dir.createIfNotExists()
       dir.clean()
@@ -68,18 +69,20 @@ class DpiToScala extends AnyWordSpec with Matchers {
 
       val cFile = dir.addFile("call_scala.cpp", cFunction)
 
-      val module = VerilogModel("top", Seq(vlogFile, cFile), dir, Seq(), Seq("verilator/call_scala.o"))
+      val module = VerilogModel("top", vlogFile).dpi(cFile).build(dir)
 
-      val arena  = Arena.ofShared()                 // must outlive the whole simulation
+      val arena = Arena.ofShared() // must outlive the whole simulation
       val linker = Linker.nativeLinker()
-      val lookup = SymbolLookup.libraryLookup("build/dpi_to_scala/libtop_0.dylib", arena)
+      val lookup =
+        SymbolLookup.libraryLookup(s"build/dpi_to_scala/libtop_0${SharedObject.sharedLibraryExtension}", arena)
       val lib = new Library(lookup, linker)
 
       // MethodHandle to ScalaCallbacks.eval, typed (int,int,MemorySegment)void
-      val mt     = MethodType.methodType(Void.TYPE, classOf[Int], classOf[Int], classOf[MemorySegment])
-      val target = MethodHandles.lookup()
+      val mt = MethodType.methodType(Void.TYPE, classOf[Int], classOf[Int], classOf[MemorySegment])
+      val target = MethodHandles
+        .lookup()
         .findVirtual(ScalaCallbacks.getClass, "eval", mt)
-        .bindTo(ScalaCallbacks)                      // bind the object singleton
+        .bindTo(ScalaCallbacks) // bind the object singleton
 
       // native function pointer that calls back into the JVM
       val stub: MemorySegment = linker.upcallStub(
@@ -92,10 +95,11 @@ class DpiToScala extends AnyWordSpec with Matchers {
       val register = lib.functionHandle("register_scala_cb", FunctionDescriptor.ofVoid(ADDRESS))
       register.invokeExact(stub): Unit
 
-      module.simulate(dir) { top =>        
-
+      module.simulate(dir) { top =>
         top.addClockDomain("clk", 1.ns)(
-          top("a"), top("b"), top("sum")
+          top("a"),
+          top("b"),
+          top("sum")
         )
 
         for (a <- 0 until 10) {
@@ -104,14 +108,12 @@ class DpiToScala extends AnyWordSpec with Matchers {
             top("b").poke(b)
             top("clk").step(1)
             val sum = top("sum").peek()
-            sum should be (a + b)
+            sum should be(a + b)
           }
         }
-
-
 
       }
     }
   }
-  
+
 }

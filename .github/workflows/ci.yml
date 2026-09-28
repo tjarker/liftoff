@@ -1,0 +1,94 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  # Weekly, to find out when a new Chisel release breaks a group.
+  schedule:
+    - cron: "0 6 * * 1"
+  # The release workflow runs these checks before publishing.
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  format:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 23
+          cache: sbt
+      - uses: sbt/setup-sbt@v1
+      - run: sbt scalafmtCheckAll scalafmtSbtCheck
+
+  test:
+    name: test (${{ matrix.group }}, ${{ matrix.chisel }} Chisel, JDK ${{ matrix.jdk }}, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # liftoff needs JDK 22 or newer. Each group is compiled with the Scala version of its Chisel
+        # release, and only Scala 2.13.17 and newer support JDK 25, so only the newest Chisel 7
+        # release runs on JDK 25 and 26. The jobs with `package` build the artifacts like a release
+        # does and build the quickstart against them.
+        include:
+          - { group: chisel36, chisel: oldest, jdk: 22, os: ubuntu-24.04 }
+          - { group: chisel36, chisel: oldest, jdk: 23, os: ubuntu-24.04, package: true }
+          - { group: chisel6, chisel: oldest, jdk: 22, os: ubuntu-24.04 }
+          - { group: chisel6, chisel: oldest, jdk: 23, os: ubuntu-24.04, package: true }
+          - { group: chisel6, chisel: newest, jdk: 23, os: ubuntu-24.04 }
+          - { group: chisel7, chisel: oldest, jdk: 22, os: ubuntu-24.04 }
+          - { group: chisel7, chisel: oldest, jdk: 23, os: ubuntu-24.04, package: true }
+          - { group: chisel7, chisel: newest, jdk: 25, os: ubuntu-24.04 }
+          - { group: chisel7, chisel: newest, jdk: 26, os: ubuntu-24.04 }
+          - { group: chisel7, chisel: oldest, jdk: 23, os: macos-15 }
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # the version of the published artifacts is derived from the git history
+          fetch-depth: 0
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.jdk }}
+          cache: sbt
+      - uses: sbt/setup-sbt@v1
+      - name: Install Verilator
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y verilator
+      - name: Install Verilator
+        if: runner.os == 'macOS'
+        # Newer Verilator versions write FST waves with lz4, which the Homebrew formula does not install. Homebrew's
+        # prefix is not on the compiler's search paths on Apple Silicon.
+        run: |
+          brew install verilator lz4
+          echo "CPATH=$(brew --prefix)/include" >> "$GITHUB_ENV"
+          echo "LIBRARY_PATH=$(brew --prefix)/lib" >> "$GITHUB_ENV"
+      - name: Use the newest Chisel release of the group
+        if: matrix.chisel == 'newest'
+        run: |
+          group=${{ matrix.group }}
+          maven=https://repo1.maven.org/maven2/org/chipsalliance/chisel_2.13
+          chisel=$(curl -sf $maven/maven-metadata.xml | grep -oE "<version>${group#chisel}\.[0-9]+\.[0-9]+</version>" | sed 's/<[^>]*>//g' | sort -V | tail -1)
+          # Compile with the Scala version that Chisel release was built with.
+          scala=$(curl -sf $maven/$chisel/chisel_2.13-$chisel.pom | grep -A1 '<artifactId>scala-library' | grep -oE '2\.13\.[0-9]+')
+          echo "Chisel $chisel, Scala $scala"
+          prefix=$(echo $group | tr a-z A-Z)
+          echo "${prefix}_CHISEL=$chisel" >> "$GITHUB_ENV"
+          echo "${prefix}_SCALA=$scala" >> "$GITHUB_ENV"
+      - run: sbt ${{ matrix.group }}/test
+      - name: Package the artifacts like a release does
+        if: matrix.package
+        run: sbt ${{ matrix.group }}/publishLocal
+      - name: Build the quickstart against the packaged artifacts
+        if: matrix.package && matrix.group == 'chisel7'
+        # Published under a fixed version, as sbt's output in CI is hard to parse for the git-derived one.
+        run: |
+          sbt 'set ThisBuild / version := "0.0.0-QUICKSTART"' chisel7/publishLocal
+          cd examples/quickstart
+          LIFTOFF_VERSION=0.0.0-QUICKSTART sbt test

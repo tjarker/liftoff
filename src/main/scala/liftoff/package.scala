@@ -2,7 +2,6 @@ import liftoff.misc.WorkingDirectory
 import liftoff.chisel.ChiselBridge
 import liftoff.simulation.control.SimController
 import chisel3.reflect.DataMirror
-import Chisel.Data
 import liftoff.chisel.PeekPokeAPI
 import liftoff.simulation.Time._
 import chisel3.Element
@@ -55,7 +54,7 @@ package object liftoff extends misc.Misc with chisel.ChiselPeekPokeAPI with simu
   type WorkingDirectory = liftoff.misc.WorkingDirectory
   type Channel[T] = liftoff.simulation.task.Channel[T]
   val Channel = liftoff.simulation.task.Channel
-  type RoundTripChannel[A, B] = liftoff.simulation.task.RountTripChannel[A, B]
+  type RoundTripChannel[A, B] = liftoff.simulation.task.RoundTripChannel[A, B]
   type RoundTripSenderPort[A, B] = liftoff.verify.RoundTripSenderPort[A, B]
   type RoundTripReceiverPort[A, B] = liftoff.verify.RoundTripReceiverPort[A, B]
   type Receipt[T] = liftoff.simulation.task.Receipt[T]
@@ -66,160 +65,38 @@ package object liftoff extends misc.Misc with chisel.ChiselPeekPokeAPI with simu
   val Component = liftoff.verify.Component
   val Test = liftoff.verify.component.Test
 
-  
-  case class SimulationResult[T](result: T, runTimes: Map[String, Time], freq: Double, cycles: Long, waveFile: File) {
-    def openWaveInSurfer(): Unit = {
-      // launch surfer as detached process
-      val pb = new ProcessBuilder("surfer", waveFile.getAbsolutePath())
-      pb.inheritIO()
-      pb.start()
-    }
-  }
-
-  class ChiselModel[M <: chisel3.Module](dutGen: () => M, modelFactory: VerilatorSimModelFactory, ports: Seq[Data], compilationTime: Time) {
-    def simulate[T](runDir: WorkingDirectory)(block: M => T): SimulationResult[T] = {
-      val simModel = modelFactory.createModel(runDir)
-      val dut = ChiselBridge.elaborate(dutGen())
-      val controller = new SimController(simModel)
-      SimController.runWith(controller) {
-
-        controller.addClockDomain(
-          "clock", 
-          1.ns, 
-          ports.map(ChiselBridge.Port.fromData).map(_.handle).toSeq
+  /** @param result
+    *   what the simulation block returned
+    * @param runTimes
+    *   wall-clock time spent in each part of the simulation
+    * @param freq
+    *   simulated clock cycles per millisecond of wall-clock time (kHz)
+    * @param cycles
+    *   cycles of the clock of a Chisel module, or of the first clock domain of a Verilog model
+    * @param waveFile
+    *   the waves the simulation recorded; empty if the model records none
+    */
+  case class SimulationResult[T](
+      result: T,
+      runTimes: Map[String, Time],
+      freq: Double,
+      cycles: Long,
+      waveFile: Option[File]
+  ) {
+    def openWaveInSurfer(): Unit = waveFile match {
+      case Some(file) =>
+        // launch surfer as detached process
+        val pb = new ProcessBuilder("surfer", file.getAbsolutePath())
+        pb.inheritIO()
+        pb.start()
+      case None =>
+        Reporting.warn(
+          None,
+          "SimulationResult",
+          "The model records no waves, see `waves` of ChiselModel and VerilogModel"
         )
-
-        val root = controller.addTask("rootTask", 0, None)(block(dut))
-        try {
-          val startSimTime = System.nanoTime()
-          val startGcTime = GcTime.totalGcTimeMs
-          controller.run()
-          val endSimTime = System.nanoTime()
-          val total = (endSimTime - startSimTime).ns
-          val endGcTime = GcTime.totalGcTimeMs
-          val totalGc = (endGcTime - startGcTime).ms
-          val verilator = controller.getModelRunTimeNanos().ns
-          val tasks = controller.getTaskRunTimeNanos().ns
-          val overhead = total - verilator - tasks
-          val frequencykhz = dut.clock.cycle / total.ms.toDouble
-
-          val timeOverview = Seq(
-            "Total" -> total,
-            "Verilator" -> verilator,
-            "Tasks" -> tasks,
-            "Scheduler" -> overhead,
-            "GC" -> totalGc,
-            "Compilation" -> compilationTime
-          )
-          Reporting.info(None, "ChiselSimulation", Reporting.table(Seq("Description", "Time") +: timeOverview.toSeq.map { case (k, v) => Seq(k, v.toString()) }))
-          Reporting.info(None, "ChiselSimulation", f"Simulation frequency: ${frequencykhz}%.2f kHz (${dut.clock.cycle} cycles in ${total})")
-          SimulationResult(root.result.get, timeOverview.toMap, frequencykhz, dut.clock.cycle, simModel.waveFile)
-        } catch {
-          // keyboard interrupt
-          case _: InterruptedException =>
-            Reporting.info(None, "ChiselSimulation", s"Simulation interrupted by user")
-            SimulationResult(null.asInstanceOf[T], Map.empty, 0.0d, 0L, simModel.waveFile)
-          case e: Throwable =>
-            Reporting.error(None, "ChiselSimulation", s"Simulation failed with exception: ${e.getMessage}")
-            Reporting.error(None, "ChiselSimulation", s"Stack trace: ${e.getStackTrace.mkString("\n")}")
-            SimulationResult(null.asInstanceOf[T], Map.empty, 0.0d, 0L, simModel.waveFile)
-        } finally {
-          Reporting.info(None, "ChiselSimulation", s"Cleaning up simulation model")
-          simModel.cleanup()
-        }
-      }
     }
   }
-  object ChiselModel {
-    def apply[M <: chisel3.Module](gen: => M, buildDir: WorkingDirectory, additionalVerilogFiles: Seq[File], verilatorOptions: Seq[Verilator.Argument], cOptions: Seq[String]): ChiselModel[M] = {
-      val dut = ChiselBridge.elaborate(gen)
-      val files = ChiselBridge.emitSystemVerilogFile(dut.name, gen, buildDir)
-      val startTime = System.nanoTime()
-      val simModelFactory = liftoff.simulation.verilator.VerilatorSimModelFactory.create(
-        dut.name,
-        buildDir,
-        files ++ additionalVerilogFiles,
-        verilatorOptions = verilatorOptions,
-        cOptions = cOptions
-      )
-      val endTime = System.nanoTime()
-      Reporting.info(None, "ChiselModel", f"Elaboration and Verilator model compilation took ${(endTime - startTime) / 1e6.toDouble}%.2f ms")
-      val ports = DataMirror.fullModulePorts(dut).collect {
-        case (_, el: Element) => el // only collect leaf ports
-      }.filterNot(p => p.name == "clock")
-      new ChiselModel[M](() => gen, simModelFactory, ports.toSeq, (endTime - startTime).ns)
-    }
-
-    def apply[M <: chisel3.Module](gen: => M, buildDir: WorkingDirectory): ChiselModel[M] = {
-      apply(gen, buildDir, Seq.empty, Seq.empty, Seq.empty)
-    }
-  }
-
-  def simulate[T](block: => T) = ???
-  
-
-  def simulateChisel[M <: chisel3.Module, T](m: => M, workingDir: WorkingDirectory)(block: M => T): SimulationResult[T] = {
-
-    val chiselModel = ChiselModel[M](m, workingDir)
-    chiselModel.simulate(workingDir)(block)
-  }
-
-  class VerilogModel(module: VerilogModule, simModelFactory: VerilatorSimModelFactory, compilationTime: Time) {
-    def simulate[T](runDir: WorkingDirectory)(block: VerilogSimModel => T): SimulationResult[T] = {
-      val simModel = simModelFactory.createModel(runDir)
-      val controller = new SimController(simModel)
-      val verilogModule = new VerilogSimModel(controller)
-
-      try {
-        val startSimTime = System.nanoTime()
-        val startGcTime = GcTime.totalGcTimeMs
-        val res = controller.run(block(verilogModule))
-        val endSimTime = System.nanoTime()
-        val total = (endSimTime - startSimTime).ns
-        val endGcTime = GcTime.totalGcTimeMs
-        val totalGc = (endGcTime - startGcTime).ms
-        val verilator = controller.getModelRunTimeNanos().ns
-        val tasks = controller.getTaskRunTimeNanos().ns
-        val overhead = total - verilator - tasks - totalGc
-        SimulationResult(res, Map(
-          "Total" -> total,
-          "Verilator" -> verilator,
-          "Tasks" -> tasks,
-          "GC" -> totalGc,
-          "Overhead" -> overhead,
-          "Compilation" -> compilationTime
-        ), 0.0d, 0L, simModel.waveFile)
-          
-      } finally {
-        simModel.cleanup()
-        SimulationResult(null.asInstanceOf[T], Map.empty, 0.0d, 0L, simModel.waveFile)
-      }
-    }
-  }
-  object VerilogModel {
-    def apply(name: String, files: Seq[File], buildDir: WorkingDirectory, verilatorOptions: Seq[Verilator.Argument], cOptions: Seq[String]): VerilogModel = {
-      val startTime = System.nanoTime()
-      val simModelFactory = liftoff.simulation.verilator.VerilatorSimModelFactory.create(
-        name,
-        buildDir,
-        files,
-        verilatorOptions = verilatorOptions,
-        cOptions = cOptions
-      )
-      val endTime = System.nanoTime()
-      Reporting.info(None, "VerilogModel", f"Verilator model compilation took ${(endTime - startTime) / 1e6.toDouble}%.2f ms")
-      new VerilogModel(VerilogModule(name, files), simModelFactory, (endTime - startTime).ns)
-    }
-    def apply(name: String, files: Seq[File], buildDir: WorkingDirectory): VerilogModel = {
-      apply(name, files, buildDir, Seq.empty, Seq.empty)
-    }
-  }
-
-  def simulateVerilog[T](name: String, files: Seq[File], workingDir: WorkingDirectory)(block: VerilogSimModel => T): T = {
-    val verilogModel = VerilogModel(name, files, workingDir)
-    verilogModel.simulate(workingDir)(block).result
-  }
-
 
   import java.lang.management.ManagementFactory
   import scala.jdk.CollectionConverters._
@@ -227,7 +104,9 @@ package object liftoff extends misc.Misc with chisel.ChiselPeekPokeAPI with simu
   object GcTime {
     def totalGcTimeMs: Long =
       ManagementFactory.getGarbageCollectorMXBeans.asScala
-        .map(_.getCollectionTime).filter(_ >= 0).sum
+        .map(_.getCollectionTime)
+        .filter(_ >= 0)
+        .sum
   }
 
 }

@@ -12,7 +12,7 @@ import scala.collection.mutable
 class DriveCompletion {
   private var finished = false
 
-  private [verify] def markFinished(): Unit = {
+  private[verify] def markFinished(): Unit = {
     finished = true
     waiting.foreach { t =>
       Sim.Scheduler.scheduleTaskNow(t)
@@ -29,11 +29,11 @@ class DriveCompletion {
   }
 }
 
+/** Applies the transactions of the sequences given to `drive` to the design and responds to each with an `R`. */
 abstract class Driver[T, R] extends Component with SimPhase with Drives[T, R] {
 
   val sequencePort = Port.receiver[(BiGen[R, T], DriveCompletion)]
   var currentGen = Option.empty[(BiGen[R, T], DriveCompletion)]
-  
 
   val waitForGenList = mutable.Map.empty[BiGen[R, T], Task[_]]
 
@@ -46,13 +46,13 @@ abstract class Driver[T, R] extends Component with SimPhase with Drives[T, R] {
       case Some((gen, flag)) => {
         gen.next()
       }
-      case None      => throw new Exception(s"Unreachable")
+      case None => throw new Exception(s"Unreachable")
     }
   }
 
   def shouldRespond: Boolean = currentGen match {
     case Some((gen, _)) => gen.expectsFeedback
-    case None    => false
+    case None           => false
   }
 
   def done(resp: R): Unit = {
@@ -64,7 +64,7 @@ abstract class Driver[T, R] extends Component with SimPhase with Drives[T, R] {
           currentGen = None
         }
       }
-      case None      => throw new Exception(s"No current generator to respond to")
+      case None => throw new Exception(s"No current generator to respond to")
     }
   }
 
@@ -76,7 +76,7 @@ abstract class Driver[T, R] extends Component with SimPhase with Drives[T, R] {
           currentGen = None
         }
       }
-      case None      => throw new Exception(s"No current generator to respond to")
+      case None => throw new Exception(s"No current generator to respond to")
     }
   }
 
@@ -88,13 +88,11 @@ abstract class Driver[T, R] extends Component with SimPhase with Drives[T, R] {
     }
   }
 
-
   // External interface
   def drive(gen: BiGen[R, T]): DriveCompletion = {
     val flag = new DriveCompletion()
     sequencePort.channel.send((gen, flag))
     flag
   }
-  
 
 }

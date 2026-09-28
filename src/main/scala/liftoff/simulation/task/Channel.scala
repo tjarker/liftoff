@@ -8,12 +8,13 @@ object Channel {
   def apply[T](): Channel[T] = new Channel[T]()
 }
 
+/** Passes values between tasks. */
 class Channel[T] {
   private val valueQueue = new mutable.Queue[T]()
   private val waitingReaders = new mutable.Queue[Task[?]]()
 
   def send(value: T): Unit = {
-    //Reporting.debug(None, "Channel", s"Sending value $value to channel")
+    // Reporting.debug(None, "Channel", s"Sending value $value to channel")
     valueQueue.enqueue(value)
     if (waitingReaders.nonEmpty) {
       val reader = waitingReaders.dequeue()
@@ -27,7 +28,7 @@ class Channel[T] {
       Sim.Scheduler.suspendTask()
     }
     assert(!valueQueue.isEmpty, "Value queue is empty after waking up")
-    //Reporting.debug(None, "Channel", s"Receiving value ${valueQueue.head} from channel")
+    // Reporting.debug(None, "Channel", s"Receiving value ${valueQueue.head} from channel")
     valueQueue.dequeue()
   }
 
@@ -38,7 +39,6 @@ class Channel[T] {
     }
   }
 }
-
 
 class BufferedRoundTripChannel[A, B] {
 
@@ -75,8 +75,7 @@ class BufferedRoundTripChannel[A, B] {
 
 }
 
-
-class RountTripChannel[A, B] {
+class RoundTripChannel[A, B] {
 
   private var value = Option.empty[A]
   private var waitingReader = Option.empty[Task[?]]

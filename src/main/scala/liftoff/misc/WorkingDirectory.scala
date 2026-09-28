@@ -33,8 +33,8 @@ object WorkingDirectory {
       val out = scala.io.Source
         .fromInputStream(process.getInputStream)
         .getLines()
-      //Reporting.info(None, "WorkingDirectory", s"Recipe output:\n${out.mkString("\n")}")
-        
+      // Reporting.info(None, "WorkingDirectory", s"Recipe output:\n${out.mkString("\n")}")
+
       val exitCode = process.waitFor()
       if (exitCode != 0) {
         throw new RuntimeException(
@@ -53,6 +53,7 @@ object WorkingDirectory {
   }
 }
 
+/** A directory that builds and simulations write their files to; `"path".toDir` creates one. */
 class WorkingDirectory(val dir: File) {
 
   val artifacts = new ArrayBuffer[File]()

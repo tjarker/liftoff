@@ -8,8 +8,10 @@ trait CtrlPortHandle extends PortHandle {
   def backingPort: PortHandle
 }
 
-class CtrlInputHandle(val backingPort: InputPortHandle, ctrl: SimController) extends InputPortHandle with CtrlPortHandle {
-  
+class CtrlInputHandle(val backingPort: InputPortHandle, ctrl: SimController)
+    extends InputPortHandle
+    with CtrlPortHandle {
+
   def width: Int = backingPort.width
   def name: String = backingPort.name
 
@@ -21,7 +23,9 @@ class CtrlInputHandle(val backingPort: InputPortHandle, ctrl: SimController) ext
   }
 }
 
-class CtrlClockHandle(backingPort: InputPortHandle, ctrl: SimController, val period: Time) extends CtrlInputHandle(backingPort, ctrl) with ClockPortHandle{
+class CtrlClockHandle(backingPort: InputPortHandle, ctrl: SimController, val period: Time)
+    extends CtrlInputHandle(backingPort, ctrl)
+    with ClockPortHandle {
 
   override def get(): BigInt = backingPort.get()
   override def set(value: BigInt): Unit = backingPort.set(value)
@@ -42,17 +46,21 @@ class CtrlClockHandle(backingPort: InputPortHandle, ctrl: SimController, val per
       return StepUntilResult.Success(0)
     }
 
-    val response: Option[SimControllerResponse] = ctrl.taskScope.suspend[SimControllerResponse, SimControllerYield](Some(StepUntil(this, port.asInstanceOf[CtrlPortHandle], value, if (maxCycles < 0) None else Some(maxCycles))))
+    val response: Option[SimControllerResponse] = ctrl.taskScope.suspend[SimControllerResponse, SimControllerYield](
+      Some(StepUntil(this, port.asInstanceOf[CtrlPortHandle], value, if (maxCycles < 0) None else Some(maxCycles)))
+    )
     val res = response match {
       case Some(StepUntilResponse(res)) => res
-      case _ => throw new Exception("Invalid response to stepUntil")
+      case _                            => throw new Exception("Invalid response to stepUntil")
     }
     res
   }
 }
 
-class CtrlOutHandle(val backingPort: OutputPortHandle, ctrl: SimController) extends OutputPortHandle with CtrlPortHandle {
-  
+class CtrlOutHandle(val backingPort: OutputPortHandle, ctrl: SimController)
+    extends OutputPortHandle
+    with CtrlPortHandle {
+
   def width: Int = backingPort.width
   def name: String = backingPort.name
 

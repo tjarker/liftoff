@@ -38,23 +38,21 @@ class PeekPokeAPITests extends AnyWordSpec with Matchers with liftoff.chisel.Chi
 
   "The Chisel PeekPokeAPI" should {
     "allow peeking and poking simple, structured and aggregate ports" in {
-      
-
 
       val workingDir = "build/peekpoke_test".toDir
       workingDir.createIfNotExists()
       workingDir.clean()
-      ChiselBridge.emitSystemVerilogFile("MyOtherModule", new MyOtherModule, workingDir)
+      val verilogFiles = ChiselBridge.emitSystemVerilogFile("MyOtherModule", new MyOtherModule, workingDir)
 
       val runDir = workingDir.addSubDir(workingDir / "sim")
 
-      val simModel = VerilatorSimModelFactory.create(
-        "MyOtherModule",
-        workingDir,
-        Seq(workingDir / "MyOtherModule.v"),
-        verilatorOptions = Seq(),
-        cOptions = Seq()
-      ).createModel(runDir)
+      val simModel = VerilatorSimModelFactory
+        .create(
+          "MyOtherModule",
+          workingDir,
+          verilogFiles
+        )
+        .createModel(runDir)
 
       val controller = new SimController(simModel)
 
@@ -62,11 +60,14 @@ class PeekPokeAPITests extends AnyWordSpec with Matchers with liftoff.chisel.Chi
 
       val logger = runDir.addLoggingFile("simulation.log")
 
-      //Reporting.withOutput(logger, colored = false) {
+      // Reporting.withOutput(logger, colored = false) {
 
-        SimController.runWith(controller) {
+      SimController.runWith(controller) {
 
-          controller.addClockDomain("clock", 10.fs, Seq(
+        controller.addClockDomain(
+          "clock",
+          10.fs,
+          Seq(
             dut.reset.getPortHandle,
             dut.io.in.getPortHandle,
             dut.io.out.getPortHandle,
@@ -74,62 +75,73 @@ class PeekPokeAPITests extends AnyWordSpec with Matchers with liftoff.chisel.Chi
             dut.io.bundleIn.b.getPortHandle,
             dut.io.vecIn(0).getPortHandle,
             dut.io.vecIn(1).getPortHandle,
-            dut.io.vecIn(2).getPortHandle,
-          ))
+            dut.io.vecIn(2).getPortHandle
+          )
+        )
 
-          controller.addTask("root", 0) {
+        controller.addTask("root", 0) {
 
+          SimController.current.addTask("monitor", Int.MaxValue) {
+            for (_ <- 0 until 5) {
+              // print inputs and outputs
+              Reporting.info(Some(controller.currentTime), "Test", s"in: ${dut.io.in.peek().litValue}")
+              Reporting.info(Some(controller.currentTime), "Test", s"out: ${dut.io.out.peek().litValue}")
+              Reporting.info(
+                Some(controller.currentTime),
+                "Test",
+                s"bundleIn: a=${dut.io.bundleIn.a.peek().litValue}," +
+                  s" b=${dut.io.bundleIn.b.peek().litValue}"
+              )
+              Reporting.info(
+                Some(controller.currentTime),
+                "Test",
+                s"vecIn: ${dut.io.vecIn.map(_.peek().litValue).mkString(",")}"
+              )
 
-            SimController.current.addTask("monitor", Int.MaxValue) { for (_ <- 0 until 5) {
-                //print inputs and outputs
-                Reporting.info(Some(controller.currentTime), "Test", s"in: ${dut.io.in.peek().litValue}")
-                Reporting.info(Some(controller.currentTime), "Test", s"out: ${dut.io.out.peek().litValue}")
-                Reporting.info(Some(controller.currentTime), "Test", s"bundleIn: a=${dut.io.bundleIn.a.peek().litValue}," +
-                  s" b=${dut.io.bundleIn.b.peek().litValue}")
-                Reporting.info(Some(controller.currentTime), "Test", s"vecIn: ${dut.io.vecIn.map(_.peek().litValue).mkString(",")}")
-                
-                dut.clock.step(1)
-              }
+              dut.clock.step(1)
             }
-
-            dut.io.in.poke(42.U)
-            val outValue = dut.io.out.peek().litValue
-
-            dut.io.bundleIn.poke((new MyBundle).Lit(
-              _.a -> 3.U,
-              _.b -> (-5).S
-            ))
-
-            dut.io.bundleIn.b.expect((-5).S)
-
-            dut.io.vecIn.poke(Vec.Lit(4.U, 3.U, 5.U))
-
-            dut.clock.step(1)
-
-            val outValue2 = dut.io.out.peek().litValue
-
-            dut.io.in.poke(10.U)
-
-            dut.clock.step(1)
-
-            dut.io.bundleIn.a.poke(7.U)
-            dut.io.bundleIn.b.poke(4.S)
-            dut.io.vecIn(0).poke(0.U)
-            dut.io.vecIn(1).poke(1.U)
-            dut.io.vecIn(2).poke(2.U)
-            dut.clock.step(1)
-
-            dut.io.bundleIn.peek().a.litValue shouldBe 7
-            dut.io.bundleIn.peek().b.litValue shouldBe 4
-
-            dut.io.vecIn.peek().map(_.litValue) shouldBe Seq(0, 1, 2)
-
           }
 
-          controller.run()
-          simModel.cleanup()
+          dut.io.in.poke(42.U)
+          val outValue = dut.io.out.peek().litValue
+
+          dut.io.bundleIn.poke(
+            (new MyBundle).Lit(
+              _.a -> 3.U,
+              _.b -> (-5).S
+            )
+          )
+
+          dut.io.bundleIn.b.expect((-5).S)
+
+          dut.io.vecIn.poke(Vec.Lit(4.U, 3.U, 5.U))
+
+          dut.clock.step(1)
+
+          val outValue2 = dut.io.out.peek().litValue
+
+          dut.io.in.poke(10.U)
+
+          dut.clock.step(1)
+
+          dut.io.bundleIn.a.poke(7.U)
+          dut.io.bundleIn.b.poke(4.S)
+          dut.io.vecIn(0).poke(0.U)
+          dut.io.vecIn(1).poke(1.U)
+          dut.io.vecIn(2).poke(2.U)
+          dut.clock.step(1)
+
+          dut.io.bundleIn.peek().a.litValue shouldBe 7
+          dut.io.bundleIn.peek().b.litValue shouldBe 4
+
+          dut.io.vecIn.peek().map(_.litValue) shouldBe Seq(0, 1, 2)
+
         }
-      //}
+
+        controller.run()
+        simModel.cleanup()
+      }
+      // }
     }
   }
 

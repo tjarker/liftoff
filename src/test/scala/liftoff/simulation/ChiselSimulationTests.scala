@@ -8,7 +8,6 @@ import chisel3.experimental.VecLiterals._
 import chisel3.experimental.BundleLiterals._
 import chisel3.util.HasBlackBoxPath
 import circt.stage.ChiselStage
-import liftoff.simulateChisel
 import liftoff.ChiselModel
 
 class ChiselSimulationTests extends AnyWordSpec with Matchers {
@@ -34,11 +33,7 @@ class ChiselSimulationTests extends AnyWordSpec with Matchers {
       val dir = "build/chisel_simulation".toDir
       dir.createIfNotExists()
       dir.clean()
-      val out = dir.addLoggingFile("simulation.log")
-      Reporting.setOutput(out, colored = false)
-
-      simulateChisel(new MyModule, dir) { dut =>
-
+      ChiselModel(new MyModule).log("simulation.log").simulate(dir) { dut =>
         dut.io.out.dependsCombinationallyOn(Seq(dut.io.in.a, dut.io.in.b) ++ dut.io.vecin)
 
         dut.io.in.a.poke(10.U)
@@ -48,15 +43,17 @@ class ChiselSimulationTests extends AnyWordSpec with Matchers {
 
         dut.clock.step(5)
 
-        dut.io.in.poke(chiselTypeOf(dut.io.in).Lit(
-          _.a -> 5.U,
-          _.b -> 15.U
-        ))
+        dut.io.in.poke(
+          chiselTypeOf(dut.io.in).Lit(
+            _.a -> 5.U,
+            _.b -> 15.U
+          )
+        )
         dut.io.vecin.poke(Vec.Lit(2.U, 3.U, 4.U, 5.U))
         dut.io.out.expect(34.U)
 
         dut.clock.step(5)
-        
+
       }
 
     }
@@ -71,7 +68,7 @@ class ChiselSimulationTests extends AnyWordSpec with Matchers {
           val out = Output(UInt(8.W))
         })
         val count = RegInit(0.U(8.W))
-        when (io.inc) {
+        when(io.inc) {
           count := count + 1.U
         }
         io.out := count
@@ -80,9 +77,8 @@ class ChiselSimulationTests extends AnyWordSpec with Matchers {
       val dir = "build/chisel_sequential_simulation".toDir
       dir.createIfNotExists()
       dir.clean()
-      
-      simulateChisel(new MyCounter, dir) { dut =>
 
+      ChiselModel(new MyCounter).simulate(dir) { dut =>
         dut.io.inc.poke(false.B)
         dut.clock.step(3)
         dut.io.out.expect(0.U)
@@ -127,7 +123,7 @@ class ChiselSimulationTests extends AnyWordSpec with Matchers {
       val sim1 = buildDir.addSubDir(buildDir / "sim1")
       val sim2 = buildDir.addSubDir(buildDir / "sim2")
 
-      val model = ChiselModel(new SimpleModule, buildDir)
+      val model = ChiselModel(new SimpleModule).build(buildDir)
       val res1 = model.simulate(sim1) { dut =>
         dut.io.in.poke(3.U)
         dut.clock.step()
@@ -176,61 +172,79 @@ class ChiselSimulationTests extends AnyWordSpec with Matchers {
 
       val c = ChiselStage.convert(new Dummy(new MyBlackBox), Array())
 
-      
+    }
 
+    "fail when an expectation fails" in {
+
+      import chisel3._
+
+      class Delay extends Module {
+        val io = IO(new Bundle {
+          val in = Input(UInt(8.W))
+          val out = Output(UInt(8.W))
+        })
+        io.out := RegNext(io.in)
+      }
+
+      val dir = "build/chisel_failing_expect".toDir
+      dir.createIfNotExists()
+      dir.clean()
+
+      a[liftoff.chisel.FailedExpectationException[_]] should be thrownBy {
+        ChiselModel(new Delay).simulate(dir) { dut =>
+          dut.io.in.poke(1.U)
+          dut.clock.step()
+          dut.io.out.expect(2.U)
+        }
+      }
+    }
+
+    "simulate BlackBoxes and assertions" in {
+
+      import chisel3._
+
+      val workingDir = "build/chisel_blackbox_simulation".toDir
+      workingDir.createIfNotExists()
+      workingDir.clean()
+
+      val verilogFile = workingDir.addFile(
+        "Increment.v",
+        """module Increment (
+          |  input  [7:0] in,
+          |  output [7:0] out
+          |);
+          |  assign out = in + 1;
+          |endmodule
+          |""".stripMargin
+      )
+
+      class Increment extends BlackBox with HasBlackBoxPath {
+        val io = IO(new Bundle {
+          val in = Input(UInt(8.W))
+          val out = Output(UInt(8.W))
+        })
+        addPath(verilogFile.toString())
+      }
+
+      // Chisel 7 emits the assertion into a layer, which lives in files of its own.
+      class WithBlackBox extends Module {
+        val io = IO(new Bundle {
+          val in = Input(UInt(8.W))
+          val out = Output(UInt(8.W))
+        })
+        val increment = Module(new Increment)
+        increment.io.in := io.in
+        io.out := increment.io.out
+        chisel3.assert(io.in =/= 255.U, "in must not overflow")
+      }
+
+      ChiselModel(new WithBlackBox).simulate(workingDir) { dut =>
+        dut.io.in.poke(3.U)
+        dut.clock.step()
+        dut.io.out.expect(4.U)
+      }
     }
 
   }
 
 }
-
-// import chisel3.RawModule
-// import firrtl.{AnnotationSeq, EmittedCircuitAnnotation}
-// import firrtl.annotations.{Annotation, DeletedAnnotation}
-// import firrtl.options.{Dependency, TargetDirAnnotation}
-// import firrtl.stage.{FirrtlCircuitAnnotation, FirrtlStage, RunFirrtlTransformAnnotation}
-
-
-// object Compiler {
-//   private val defaultPasses = Seq()
-//   private def defaultPassesAnnos = defaultPasses.map(p => RunFirrtlTransformAnnotation(p))
-//   def elaborate[M <: RawModule](
-//     gen:           () => M,
-//     annotationSeq: AnnotationSeq,
-//     chiselAnnos:   firrtl.AnnotationSeq
-//   ): (firrtl.CircuitState, M) =
-//     ChiselBridge.elaborate[M](gen, annotationSeq, chiselAnnos)
-//   def toLowFirrtl(state: firrtl2.CircuitState, annos: AnnotationSeq = List()): firrtl2.CircuitState = {
-//     requireTargetDir(state.annotations)
-//     val inAnnos = defaultPassesAnnos ++: annos ++: stateToAnnos(state)
-//     val res = firrtlStage.execute(Array("-E", "low"), inAnnos)
-//     annosToState(res)
-//   }
-//   def lowFirrtlToSystemVerilog(state: firrtl2.CircuitState, annos: AnnotationSeq = List()): firrtl2.CircuitState = {
-//     requireTargetDir(state.annotations)
-//     val inAnnos = defaultPassesAnnos ++: annos ++: stateToAnnos(state)
-//     val res = firrtlStage.execute(Array("--start-from", "low", "-E", "sverilog"), inAnnos)
-//     annosToState(res)
-//   }
-//   private def stateToAnnos(state: firrtl2.CircuitState): AnnotationSeq = {
-//     val annosWithoutCircuit = state.annotations.filterNot(_.isInstanceOf[FirrtlCircuitAnnotation])
-//     FirrtlCircuitAnnotation(state.circuit) +: annosWithoutCircuit
-//   }
-//   def annosToState(annos: AnnotationSeq): firrtl2.CircuitState = {
-//     val circuit = annos.collectFirst { case FirrtlCircuitAnnotation(c) => c }.get
-//     val filteredAnnos = annos.filterNot(isInternalAnno)
-//     firrtl2.CircuitState(circuit, filteredAnnos)
-//   }
-//   private def isInternalAnno(a: Annotation): Boolean = a match {
-//     case _: FirrtlCircuitAnnotation | _: DeletedAnnotation | _: EmittedCircuitAnnotation[_] | _: LogLevelAnnotation =>
-//       true
-//     case _ => false
-//   }
-//   private def firrtlStage = new FirrtlStage
-//   def requireTargetDir(annos: AnnotationSeq): os.Path = {
-//     val targetDirs = annos.collect { case TargetDirAnnotation(d) => d }.toSet
-//     require(targetDirs.nonEmpty, "Expected exactly one target directory, got none!")
-//     require(targetDirs.size == 1, s"Expected exactly one target directory, got multiple: $targetDirs")
-//     os.pwd / os.RelPath(targetDirs.head)
-//   }
-// }

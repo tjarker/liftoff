@@ -8,8 +8,8 @@ import scala.collection.mutable
 import liftoff.simulation.task.Task
 import liftoff.simulation.Sim
 
+/** Observes the design and publishes transactions to its subscribers. */
 abstract class Monitor[T] extends Component with SimPhase with Monitors[T] {
-
 
   val subscribers = mutable.Buffer[ReceiverPort[T]]()
 
@@ -43,11 +43,9 @@ abstract class Monitor[T] extends Component with SimPhase with Monitors[T] {
     }
   }
 
-
   def addSubscriber(c: AnalysisComponent[T]): Unit = {
     subscribers.append(c.port)
   }
-
 
   def waitFor(cond: T => Boolean): Unit = {
     waiters.append((cond, Task.current))

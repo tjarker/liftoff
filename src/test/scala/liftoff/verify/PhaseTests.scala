@@ -55,12 +55,12 @@ class PhaseTests extends AnyWordSpec with Matchers {
           val chan = Config.get(CollectorChannel)
 
           // next should be either otherComp.reset or simComp.sim
-          chan.receive() should (be (s"root.otherComp:reset") or be (s"root.simComp:sim"))
-          chan.receive() should (be (s"root.otherComp:reset") or be (s"root.simComp:sim"))
+          chan.receive() should (be(s"root.otherComp:reset") or be(s"root.simComp:sim"))
+          chan.receive() should (be(s"root.otherComp:reset") or be(s"root.simComp:sim"))
 
           // next should be either otherComp.test or testComponent.test
-          chan.receive() should (be (s"root.otherComp:test") or be (s"root:test"))
-          chan.receive() should (be (s"root.otherComp:test") or be (s"root:test"))
+          chan.receive() should (be(s"root.otherComp:test") or be(s"root:test"))
+          chan.receive() should (be(s"root.otherComp:test") or be(s"root:test"))
 
           // next should be either otherComp.report
           chan.receive() shouldBe s"root.otherComp:report"

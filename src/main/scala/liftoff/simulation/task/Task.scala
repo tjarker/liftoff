@@ -10,14 +10,13 @@ import liftoff.simulation.control.SimControllerResponse
 import liftoff.simulation.Sim
 import liftoff.simulation.Time
 
-trait Cond {
-}
+trait Cond {}
 case class Rising(port: CtrlPortHandle, clk: CtrlClockHandle) extends Cond
 case class Falling(port: CtrlPortHandle, clk: CtrlClockHandle) extends Cond
 case class Period(t: Time) extends Cond
 case class Custom(clk: CtrlClockHandle, condFunc: () => Boolean) extends Cond
 
-
+/** Creates tasks, which run concurrently in simulated time. */
 object Task {
 
   val currentTaskVar = new CoroutineContextVariable[Option[Task[_]]](None)
@@ -29,10 +28,6 @@ object Task {
     currentTaskVar.withValue[T](Some(task)) {
       block
     }
-  }
-
-  def always[T](cond: Cond)(block: => T): CondTask[T] = {
-    ???
   }
 
   def apply[T](block: => T): Task[T] = {
@@ -51,7 +46,9 @@ object Task {
       throw new Exception("Fork can only be called from within a Task")
     }
     if (region.id < parentTask.order) {
-      throw new Exception(s"Cannot create task for region that has already been run (region id: ${region.id}, parent task order: ${parentTask.order})")
+      throw new Exception(
+        s"Cannot create task for region that has already been run (region id: ${region.id}, parent task order: ${parentTask.order})"
+      )
     }
     val childName = parentTask.nextChildName()
     val childTask = Sim.Scheduler.addTask[T](childName, region.id)(block)
@@ -59,7 +56,6 @@ object Task {
     TaskScope.current.foreach(_.addTask(childTask))
     childTask
   }
-
 
   def root[T](block: => T): Task[T] = {
     Sim.Scheduler.addTask[T]("root", 0)(block)
@@ -77,7 +73,8 @@ class CondTask[T](
     order: Int,
     cond: Cond,
     block: => T
-) extends Task[T](name, scope, order, block) with Iterator[T] {
+) extends Task[T](name, scope, order, block)
+    with Iterator[T] {
 
   override def toString(): String = {
     s"RepeatingTask($name, ${cond})"
@@ -92,6 +89,7 @@ class CondTask[T](
 
 }
 
+/** A part of a simulation that runs concurrently with the others; `join()` waits for its result. */
 class Task[T](
     val name: String,
     scope: CoroutineScope,
@@ -105,7 +103,7 @@ class Task[T](
     scope.create[SimControllerResponse, SimControllerYield, T] {
       val res = block
       waitingTasks.foreach(t => {
-        //Reporting.debug(None, "Task",s"Scheduling waiting task ${t.name} after completion of ${this.name}")
+        // Reporting.debug(None, "Task",s"Scheduling waiting task ${t.name} after completion of ${this.name}")
         Sim.Scheduler.scheduleTaskNow(t)
       })
       res
@@ -130,14 +128,14 @@ class Task[T](
 
   def runStep(resp: SimControllerResponse): Result[SimControllerYield, T] = {
     if (isCancelled) {
-      Reporting.error(None, "Task",s"Task $this is cancelled, cannot run step")
+      Reporting.error(None, "Task", s"Task $this is cancelled, cannot run step")
       return Finished(null.asInstanceOf[T])
-      //throw new Exception(s"Task $this is cancelled, cannot run step")
+      // throw new Exception(s"Task $this is cancelled, cannot run step")
     }
     val start = System.nanoTime()
     val res = coroutine.resume(Some(resp)) match {
       case r @ Finished(value) => {
-        //Reporting.debug(None, "Task",s"Task $name finished with result $value")
+        // Reporting.debug(None, "Task",s"Task $name finished with result $value")
         result = Some(value)
         r
       }
@@ -148,15 +146,16 @@ class Task[T](
     res
   }
 
-  def join(): T = if (result.isDefined) { result.get } else {
-    //Reporting.debug(None, "Task",s"Task ${Task.current} is joining $this, suspending until completion")
+  def join(): T = if (result.isDefined) { result.get }
+  else {
+    // Reporting.debug(None, "Task",s"Task ${Task.current} is joining $this, suspending until completion")
     waitingTasks += Task.current
     Sim.Scheduler.suspendTask()
     result.get
   }
 
   def cancel(): Unit = {
-    //Reporting.info(None, "Task",s"Cancelling task $this")
+    // Reporting.info(None, "Task",s"Cancelling task $this")
     isCancelled = true
     Sim.Scheduler.purgeTask(this)
     coroutine.cancel()
@@ -168,7 +167,6 @@ class Task[T](
   }
 
   def getRuntime(): Long = runTime
-
 
   override def toString(): String = {
     val region = if (order == Int.MaxValue) "Monitor" else order.toString

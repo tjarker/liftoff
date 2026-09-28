@@ -13,7 +13,6 @@ object ContextVariableTests {
 
 class ContextVariableTests extends AnyWordSpec with Matchers {
 
-
   "A ContextVariable" should {
     "inherit values to threads" in {
       var t: Thread = null

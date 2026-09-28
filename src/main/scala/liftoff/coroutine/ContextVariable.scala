@@ -25,11 +25,9 @@ class CoroutineContextVariable[T](init: T)(implicit name: sourcecode.Name) exten
   // Register this context variable in the coroutine context system
   Coroutine.Context.set(this, init)
 
-  def value: T = Coroutine.Context.get[T](this) match {
-    case Some(v) => v
-    case None    => throw new Exception(s"No intialization for ContextVariable ${name.value} found")
-  }
-
+  // A context the variable was never set in, such as one created before the variable was
+  // initialized, sees the initial value.
+  def value: T = Coroutine.Context.get[T](this).getOrElse(init)
 
   def value_=(newValue: T): Unit = {
     Coroutine.Context.set[T](this, newValue)

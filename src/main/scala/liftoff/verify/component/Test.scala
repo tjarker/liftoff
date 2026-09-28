@@ -10,12 +10,14 @@ import liftoff.verify.ResetPhase
 import liftoff.verify.ReportPhase
 import liftoff.simulation.Time.TimeUnit
 
+/** The root of a testbench; `test()` runs in the test phase. */
 abstract class Test extends Component with TestPhase {
 
   override def toString(): String = s"Test(${this.getClass().getSimpleName})"
 
 }
 
+/** Runs a test: the sim phase throughout, then the reset, test and report phases. */
 object Test {
   def run(t: => Test): Unit = {
     val root = Component.create(t)
@@ -38,13 +40,19 @@ object Test {
       f" - TestPhase: ${(simEnd - testStart) / 1e6}%.2f ms",
       f" - ReportPhase: ${(end - simEnd) / 1e6}%.2f ms"
     )
-    
+
     Reporting.success(Some(Sim.time), testName, s"Finished\n" + times.mkString("\n"))
 
     val taskRuntimes = root.collectTaskRuntimes()
-    Reporting.info(None, testName, s"Task runtimes:" + Reporting.table(Seq(
-      Seq("Task Name", "Runtime")) ++
-      taskRuntimes.toSeq.sortBy(_._2)(Ordering[liftoff.simulation.Time].reverse).map { case (name, time) => Seq(name, time.toString(TimeUnit.ms)) }
-    ))
+    Reporting.info(
+      None,
+      testName,
+      s"Task runtimes:" + Reporting.table(
+        Seq(Seq("Task Name", "Runtime")) ++
+          taskRuntimes.toSeq.sortBy(_._2)(Ordering[liftoff.simulation.Time].reverse).map { case (name, time) =>
+            Seq(name, time.toString(TimeUnit.ms))
+          }
+      )
+    )
   }
 }

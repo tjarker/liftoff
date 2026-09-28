@@ -20,6 +20,13 @@ class MyOtherComponent(hello: Int, world: String) extends MyComponent(hello, wor
   override def quack(): String = s"Other: ${super.quack()}"
 }
 
+object BuilderParam extends Config[Int]
+class ReadsBuilderParam extends Component {
+  val value = Config.get(BuilderParam)
+}
+class BuildsWithParam extends Component {
+  val child = Component.builder.withParam(BuilderParam, 5).create[ReadsBuilderParam]()
+}
 
 class NestedComponent extends Component {
   val child1 = Component.create[MyComponent](1, "one")
@@ -85,7 +92,6 @@ class TestMonitor extends Monitor[Tx] {
   }
 
 }
-
 
 class ComponentTests extends AnyWordSpec with Matchers {
 
@@ -166,19 +172,21 @@ class ComponentTests extends AnyWordSpec with Matchers {
         val comp = Component.create[NestedComponent]()
         Config.set(Key, 100)
 
-        comp.createTask {
-          Config.get(Key) shouldBe 42
+        comp
+          .createTask {
+            Config.get(Key) shouldBe 42
 
-          Config.set(Key, 7)
-          Task {
-            Config.get(Key) shouldBe 7
-            Config.set(Key, 3)
-            Task.current.name shouldBe "comp.task[0].task[0]"
+            Config.set(Key, 7)
+            Task {
+              Config.get(Key) shouldBe 7
+              Config.set(Key, 3)
+              Task.current.name shouldBe "comp.task[0].task[0]"
+            }
+            Config.set(Key, 11)
+            Config.get(Key) shouldBe 11
+
           }
-          Config.set(Key, 11)
-          Config.get(Key) shouldBe 11
-
-        }.join()
+          .join()
 
         comp.child1.createTask {
           Task {
@@ -192,6 +200,18 @@ class ComponentTests extends AnyWordSpec with Matchers {
 
     }
 
+    "pass builder parameters to the component it creates" in {
+
+      val ctrl = new SimController(new DummySimModel)
+
+      ctrl.run {
+        val comp = Component.create(new BuildsWithParam)
+        comp.child.value shouldBe 5
+        comp.child.createTask(Config.get(BuilderParam) shouldBe 5).join()
+        Config.tryGet(BuilderParam) shouldBe None
+      }
+    }
+
     "show correct component in reporting" in {
 
       val ctrl = new SimController(new DummySimModel)
@@ -202,24 +222,30 @@ class ComponentTests extends AnyWordSpec with Matchers {
       ctrl.run {
         val comp = Component.create[NestedComponent]()
 
-        comp.createTask {
-          Reporting.warn(None, Task.current.toString())
-          Reporting.info(None, "Hello from root task")
-          comp.child1.createTask {
+        comp
+          .createTask {
             Reporting.warn(None, Task.current.toString())
-            Reporting.info(None, "Hello from child1 task")
-          }.join()
-          comp.child2.createTask {
-            Reporting.warn(None, Task.current.toString())
-            Reporting.info(None, "Hello from child2 task")
-          }.join()
-        }.join()
+            Reporting.info(None, "Hello from root task")
+            comp.child1
+              .createTask {
+                Reporting.warn(None, Task.current.toString())
+                Reporting.info(None, "Hello from child1 task")
+              }
+              .join()
+            comp.child2
+              .createTask {
+                Reporting.warn(None, Task.current.toString())
+                Reporting.info(None, "Hello from child2 task")
+              }
+              .join()
+          }
+          .join()
       }
 
       val outStr = output.toString()
-      outStr should include ("comp")
-      outStr should include ("comp.child1")
-      outStr should include ("comp.child2")
+      outStr should include("comp")
+      outStr should include("comp.child1")
+      outStr should include("comp.child2")
 
     }
 
@@ -248,7 +274,6 @@ class ComponentTests extends AnyWordSpec with Matchers {
   "A Driver" should {
 
     "pull and drive transactions from simple generator" in {
-
 
       val ctrl = new SimController(new DummySimModel)
 
@@ -298,7 +323,6 @@ class ComponentTests extends AnyWordSpec with Matchers {
     }
 
   }
-
 
   "A Monitor" should {
 

@@ -1,10 +1,10 @@
 package liftoff.chisel
 
-/* 
-  This PeekPokeAPI implementation is a modified version of the Chisel3 PeekPokeAPI.
+/*
+  This PeekPokeAPI implementation is a modified version of the Chisel PeekPokeAPI, which is
+  licensed under the Apache License 2.0:
 
   https://github.com/chipsalliance/chisel/blob/main/src/main/scala/chisel3/simulator/PeekPokeAPI.scala
-
  */
 
 import chisel3._
@@ -28,38 +28,43 @@ import liftoff.simulation.control.CtrlInputHandle
 
 trait Peekable[T <: Data] {
 
-  /**
-    * Get the value of a data port as a literal.
+  /** Get the value of a data port as a literal.
     *
-    * @return the value of the peeked data
+    * @return
+    *   the value of the peeked data
     */
   def peek()(implicit sourceInfo: SourceInfo): T
 
-  /**
-      * Expect the value of a data port to be equal to the expected value.
-      *
-      * @param expected the expected value
-      * @throws FailedExpectationException if the observed value does not match the expected value
-      */
+  /** Expect the value of a data port to be equal to the expected value.
+    *
+    * @param expected
+    *   the expected value
+    * @throws FailedExpectationException
+    *   if the observed value does not match the expected value
+    */
   def expect(expected: T)(implicit sourceInfo: SourceInfo): Unit = expect(expected, "")
 
-  /**
-  * Expect the value of a data port to be equal to the expected value.
-  *
-  * @param expected the expected value
-  * @param message a message for the failure case
-  * @throws FailedExpectationException if the observed value does not match the expected value
-  */
+  /** Expect the value of a data port to be equal to the expected value.
+    *
+    * @param expected
+    *   the expected value
+    * @param message
+    *   a message for the failure case
+    * @throws FailedExpectationException
+    *   if the observed value does not match the expected value
+    */
   def expect(expected: T, message: String)(implicit sourceInfo: SourceInfo): Unit
 
   private[liftoff] def dataToString(value: Data): String = {
     value match {
       case x: Bundle =>
-        x.elements.map { case (name, elt) =>
-          s"$name: ${dataToString(elt)}"
-        }.mkString("{", ", ", "}")
-      case x: Vec[_]   => x.getElements.map(dataToString).mkString("[", ", ", "]")
-      case x: EnumType => x.toString
+        x.elements
+          .map { case (name, elt) =>
+            s"$name: ${dataToString(elt)}"
+          }
+          .mkString("{", ", ", "}")
+      case x: Vec[_]    => x.getElements.map(dataToString).mkString("[", ", ", "]")
+      case x: EnumType  => x.toString
       case x if x.isLit => x.litValue.toString
       case _            => value.toString
     }
@@ -68,10 +73,10 @@ trait Peekable[T <: Data] {
 
 trait Pokable[T <: Data] {
 
-  /**
-    * Sets the value of a data port.
+  /** Sets the value of a data port.
     *
-    * @param literal the value to set, which must be a literal
+    * @param literal
+    *   the value to set, which must be a literal
     */
   def poke(literal: T): Unit
 }
@@ -98,12 +103,14 @@ trait PeekPokable[T <: Data] extends Peekable[T] with Pokable[T] with AnyTestabl
 
 trait PeekPokeApiException extends NoStackTrace
 
-/**
-  * Exception thrown when an expectation fails.
+/** Exception thrown when an expectation fails.
   *
-  * @param observed the observed value
-  * @param expected the expected value
-  * @param message the message to display
+  * @param observed
+  *   the observed value
+  * @param expected
+  *   the expected value
+  * @param message
+  *   the message to display
   */
 case class FailedExpectationException[T <: Serializable](observed: T, expected: T, message: String)
     extends RuntimeException(
@@ -118,10 +125,10 @@ case class FailedExpectationException[T <: Serializable](observed: T, expected: 
 
 object FailedExpectationException {
   def apply[T <: Serializable](
-    observed:   T,
-    expected:   T,
-    message:    String,
-    sourceInfo: SourceInfo
+      observed: T,
+      expected: T,
+      message: String,
+      sourceInfo: SourceInfo
   ): FailedExpectationException[T] = {
     val extraContext =
       sourceInfo match {
@@ -157,21 +164,24 @@ case class UninitializedElementException(message: String)(implicit sourceInfo: S
 
 sealed trait TestableAggregate[T <: Aggregate] extends PeekPokable[T] {
 
-  /**
-   * Expect the value of a data port to be equal to the expected value, skipping all uninitialized elements.
-   *
-   * @param expected the expected value
-   *  @param message a message for the failure case
-   * @throws FailedExpectationException if the observed value does not match the expected value
-   */
+  /** Expect the value of a data port to be equal to the expected value, skipping all uninitialized elements.
+    *
+    * @param expected
+    *   the expected value
+    * @param message
+    *   a message for the failure case
+    * @throws FailedExpectationException
+    *   if the observed value does not match the expected value
+    */
   def expectPartial(expected: T, message: String)(implicit sourceInfo: SourceInfo): Unit
 
-  /**
-   * Expect the value of a data port to be equal to the expected value, skipping all uninitialized elements.
-   *
-   * @param expected the expected value
-   * @throws FailedExpectationException if the observed value does not match the expected value
-   */
+  /** Expect the value of a data port to be equal to the expected value, skipping all uninitialized elements.
+    *
+    * @param expected
+    *   the expected value
+    * @throws FailedExpectationException
+    *   if the observed value does not match the expected value
+    */
   def expectPartial(expected: T)(implicit sourceInfo: SourceInfo): Unit =
     expectPartial(expected, "")
 }
@@ -202,12 +212,12 @@ sealed trait TestableElement[T <: Element] extends PeekPokable[T] {
   }
 
   protected final def expect[U](
-    expected:       U,
-    sameValue:      (ChiselBridge.Value, U) => Boolean,
-    formatObserved: (ChiselBridge.Value) => String,
-    formatExpected: U => String,
-    buildMessage:   (ChiselBridge.Value, U) => String,
-    sourceInfo:     SourceInfo
+      expected: U,
+      sameValue: (ChiselBridge.Value, U) => Boolean,
+      formatObserved: (ChiselBridge.Value) => String,
+      formatExpected: U => String,
+      buildMessage: (ChiselBridge.Value, U) => String,
+      sourceInfo: SourceInfo
   ): Unit = {
     check(observedValue =>
       if (!sameValue(observedValue, expected)) {
@@ -222,11 +232,11 @@ sealed trait TestableElement[T <: Element] extends PeekPokable[T] {
   }
 
   protected final def expect[U](
-    expected:       U,
-    sameValue:      (ChiselBridge.Value, U) => Boolean,
-    formatObserved: (ChiselBridge.Value) => String,
-    formatExpected: U => String,
-    sourceInfo:     SourceInfo
+      expected: U,
+      sameValue: (ChiselBridge.Value, U) => Boolean,
+      formatObserved: (ChiselBridge.Value) => String,
+      formatExpected: U => String,
+      sourceInfo: SourceInfo
   ): Unit = expect[U](
     expected,
     sameValue,
@@ -238,10 +248,10 @@ sealed trait TestableElement[T <: Element] extends PeekPokable[T] {
   )
 
   protected final def expect[U](
-    expected:     U,
-    sameValue:    (ChiselBridge.Value, U) => Boolean,
-    buildMessage: (ChiselBridge.Value, U) => String,
-    sourceInfo:   SourceInfo
+      expected: U,
+      sameValue: (ChiselBridge.Value, U) => Boolean,
+      buildMessage: (ChiselBridge.Value, U) => String,
+      sourceInfo: SourceInfo
   ): Unit = expect[U](
     expected,
     sameValue,
@@ -251,15 +261,17 @@ sealed trait TestableElement[T <: Element] extends PeekPokable[T] {
     sourceInfo
   )
 
-  /**
-  * Expect the value of a data port to be equal to the expected value.
-  *
-  * @param expected the expected value
-  * @param buildMessage a function taking (observedValue: T, expectedValue: T) and returning a String message for the failure case
-  * @throws FailedExpectationException if the observed value does not match the expected value
-  */
-  def expect(expected: T, buildMessage: (T, T) => String)(
-    implicit sourceInfo: SourceInfo
+  /** Expect the value of a data port to be equal to the expected value.
+    *
+    * @param expected
+    *   the expected value
+    * @param buildMessage
+    *   a function taking (observedValue: T, expectedValue: T) and returning a String message for the failure case
+    * @throws FailedExpectationException
+    *   if the observed value does not match the expected value
+    */
+  def expect(expected: T, buildMessage: (T, T) => String)(implicit
+      sourceInfo: SourceInfo
   ): Unit = {
     require(expected.isLit, s"Expected value: $expected must be a literal")
     expect[T](
@@ -317,9 +329,9 @@ object PeekPokeAPI {
     }
 
     /** Ticks this clock up to `maxCycles`.
-    *
-    * Stops early if the `sentinelPort` is equal to the `sentinelValue`.
-    */
+      *
+      * Stops early if the `sentinelPort` is equal to the `sentinelValue`.
+      */
     def stepUntil[T <: Data](sentinelPort: T, sentinelValue: T, maxCycles: Int = -1): StepUntilResult = {
       require(sentinelValue.isLit, s"Sentinel value: $sentinelValue must be a literal")
       val result = simulationPort.tickUntil(
@@ -393,12 +405,12 @@ object PeekPokeAPI {
       )
     }
 
-    def expect(expected: T, buildMessage: (T, T, String) => String, allowPartial: Boolean = false)(
-      implicit sourceInfo: SourceInfo
+    def expect(expected: T, buildMessage: (T, T, String) => String, allowPartial: Boolean = false)(implicit
+        sourceInfo: SourceInfo
     ): Unit = {
       data.elements.foreach { case (elName, portEl) =>
         expected.elements(elName) match {
-          case expEl: Element if ChiselExposer.topBindingOpt(expEl) == Some(ChiselExposer.dontCareBinding()) =>
+          case expEl: Element if ChiselExposer.isDontCare(expEl) =>
             if (!allowPartial) {
               throw new UninitializedElementException(
                 s"Element '$elName' in the expected value is not initialized"
@@ -426,10 +438,10 @@ object PeekPokeAPI {
     }
 
     private def defaultMessageBuilder(
-      observed:    T,
-      expected:    T,
-      elName:      String,
-      userMessage: String = ""
+        observed: T,
+        expected: T,
+        elName: String,
+        userMessage: String = ""
     ): String = (if (userMessage.nonEmpty) s"$userMessage\n" else "") +
       s"Expectation failed for element '$elName': observed value ${dataToString(observed.elements(elName))} != expected value ${dataToString(expected.elements(elName))}"
 
@@ -468,10 +480,10 @@ object PeekPokeAPI {
     }
 
     private def defaultMessageBuilder(
-      observed:    Vec[T],
-      expected:    Vec[T],
-      elIndex:     Int,
-      userMessage: String = ""
+        observed: Vec[T],
+        expected: Vec[T],
+        elIndex: Int,
+        userMessage: String = ""
     ): String = (if (userMessage.nonEmpty) s"$userMessage\n" else "") +
       s"Expectation failed for Vec element at index $elIndex: observed value ${dataToString(observed(elIndex))} != expected value ${dataToString(expected(elIndex))}"
 
@@ -481,11 +493,11 @@ object PeekPokeAPI {
     override def expect(expected: Vec[T], message: String)(implicit sourceInfo: SourceInfo): Unit =
       expect(expected, defaultMessageBuilder(_, _, _, message), allowPartial = false)
 
-    def expect(expected: Vec[T], buildMessage: (Vec[T], Vec[T], Int) => String, allowPartial: Boolean = false)(
-      implicit sourceInfo: SourceInfo
+    def expect(expected: Vec[T], buildMessage: (Vec[T], Vec[T], Int) => String, allowPartial: Boolean = false)(implicit
+        sourceInfo: SourceInfo
     ): Unit = {
       data.getElements.zip(expected).zipWithIndex.foreach {
-        case ((datEl: Element, expEl: Element), idx) if ChiselExposer.topBindingOpt(expEl) == Some(ChiselExposer.dontCareBinding()) =>
+        case ((datEl: Element, expEl: Element), idx) if ChiselExposer.isDontCare(expEl) =>
           if (!allowPartial)
             throw new UninitializedElementException(
               s"Vec element at index $idx in the expected value is not initialized"
@@ -518,7 +530,7 @@ object PeekPokeAPI {
         case x: EnumType => new TestableEnum(x)
         case x: Record   => new TestableRecord(x)
         case x: Vec[_]   => new TestableVec(x)
-        case x => throw new Exception(s"don't know how to peek $x")
+        case x           => throw new Exception(s"don't know how to peek $x")
       }
     }
 
@@ -547,7 +559,7 @@ object PeekPokeAPI {
       case (x: SInt, lit: SInt) => new TestableSInt(x).poke(lit)
       case (x: EnumType, lit: EnumType) if ChiselExposer.enumFactory(x) == ChiselExposer.enumFactory(lit) =>
         new TestableEnum(x).poke(lit)
-      case (x: Record, lit: Record) => new TestableRecord(x).poke(lit)
+      case (x: Record, lit: Record)                               => new TestableRecord(x).poke(lit)
       case (x: Vec[_], lit: Vec[_]) if x.getClass == lit.getClass =>
         new TestableVec(x).poke(lit.asInstanceOf[x.type])
       case (x, lit) => throw new Exception(s"Don't know how to poke $x with $lit")
@@ -576,5 +588,3 @@ trait ChiselPeekPokeAPI {
 
   implicit def toTestableData[T <: Data](data: T): PeekPokeAPI.TestableData[T] = new PeekPokeAPI.TestableData(data)
 }
-
-

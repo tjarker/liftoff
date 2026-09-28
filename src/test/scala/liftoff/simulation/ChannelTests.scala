@@ -103,6 +103,5 @@ class ChannelTests extends AnyWordSpec with Matchers {
       }
     }
   }
-  
 
 }
