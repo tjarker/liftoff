@@ -6,8 +6,12 @@ Simulate Chisel and Verilog designs with Verilator and verify them with Scala te
 
 ## Install
 
-Liftoff needs JDK 22 or newer, Verilator, a C++ compiler and zlib. Use the artifact of your Chisel
-version: `liftoff-chisel36` (3.6.x), `liftoff-chisel6` (6.x) or `liftoff-chisel7` (7.x).
+Liftoff needs JDK 22 or newer, Verilator, a C++ compiler and zlib. Newer Verilator versions, such
+as 5.052, also need lz4 to record FST waves. With Homebrew on Apple Silicon, `brew install lz4` and
+export `CPATH=$(brew --prefix)/include` and `LIBRARY_PATH=$(brew --prefix)/lib`.
+
+Use the artifact of your Chisel version: `liftoff-chisel36` (3.6.x), `liftoff-chisel6` (6.x) or
+`liftoff-chisel7` (7.x).
 
 ```scala
 libraryDependencies += "io.github.tjarker" %% "liftoff-chisel7" % "0.0.1-RC1"

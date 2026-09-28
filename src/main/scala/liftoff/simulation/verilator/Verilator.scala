@@ -149,6 +149,18 @@ object Verilator {
     Success(Seq(base, new File(base, "vltstd")))
   }
 
+  /** Whether the FST writer of this Verilator needs lz4, like the one of Verilator 5.052. Verilator's own makefile then
+    * links FST models with `-llz4`, so liftoff has to as well.
+    */
+  lazy val fstNeedsLz4: Boolean = getIncludeDir().toOption.exists { dirs =>
+    val makefile = new File(dirs.head, "verilated.mk")
+    makefile.exists() && {
+      val source = scala.io.Source.fromFile(makefile)
+      try source.getLines().exists(_.contains("-llz4"))
+      finally source.close()
+    }
+  }
+
   /** Runs `command`, a complete Verilator invocation building the model `name` into `dir`, and returns the object files
     * to link: the model, the Verilator runtime, the runtime of `trace` and one object per C++ file in `cppSources`.
     */

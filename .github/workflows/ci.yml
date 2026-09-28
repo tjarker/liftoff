@@ -63,7 +63,12 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y verilator
       - name: Install Verilator
         if: runner.os == 'macOS'
-        run: brew install verilator
+        # Newer Verilator versions write FST waves with lz4, which the Homebrew formula does not install. Homebrew's
+        # prefix is not on the compiler's search paths on Apple Silicon.
+        run: |
+          brew install verilator lz4
+          echo "CPATH=$(brew --prefix)/include" >> "$GITHUB_ENV"
+          echo "LIBRARY_PATH=$(brew --prefix)/lib" >> "$GITHUB_ENV"
       - name: Use the newest Chisel release of the group
         if: matrix.chisel == 'newest'
         run: |

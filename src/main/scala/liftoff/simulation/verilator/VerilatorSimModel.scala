@@ -113,7 +113,9 @@ private[liftoff] object VerilatorSimModelFactory {
     val objects = artifacts :+ compiledHarness
     val libFile = dir / (s"lib${functionPrefix}" + SharedObject.sharedLibraryExtension)
     val linkCommand = build.link(
-      Seq("g++", "-shared", "-fPIC") ++ objects.map(_.getAbsolutePath) ++ Seq("-lz") ++ extraCOptions
+      Seq("g++", "-shared", "-fPIC") ++ objects.map(_.getAbsolutePath) ++
+        Option.when(build.waves == Verilator.TraceFormat.Fst && Verilator.fstNeedsLz4)("-llz4") ++
+        Seq("-lz") ++ extraCOptions
     ) ++ Seq("-o", libFile.getAbsolutePath())
 
     rebuildOnChange(dir, "link", linkCommand)(Seq(libFile))
