@@ -3,8 +3,17 @@
 // in src/<scope>/scala-<group>; the root project only aggregates the groups.
 // Run `sbt chisel7/test` for a single group.
 
-ThisBuild / version := "0.0.1"
+// The version comes from the latest git tag (sbt-ci-release, see RELEASING.md).
 ThisBuild / organization := "io.github.tjarker"
+ThisBuild / homepage := Some(url("https://github.com/tjarker/liftoff"))
+ThisBuild / licenses := List("Apache-2.0" -> url("https://www.apache.org/licenses/LICENSE-2.0"))
+ThisBuild / developers := List(
+  Developer("tjarker", "Tjark Petersen", "tjark-petersen@gmx.de", url("https://github.com/tjarker"))
+)
+ThisBuild / scmInfo := Some(
+  ScmInfo(url("https://github.com/tjarker/liftoff"), "scm:git:https://github.com/tjarker/liftoff.git")
+)
+ThisBuild / versionScheme := Some("early-semver")
 ThisBuild / scalacOptions ++= Seq(
   "-language:reflectiveCalls",
   "-deprecation",

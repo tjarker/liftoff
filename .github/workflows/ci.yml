@@ -7,34 +7,63 @@ on:
   # Weekly, to find out when a new Chisel release breaks a group.
   schedule:
     - cron: "0 6 * * 1"
+  # The release workflow runs these checks before publishing.
+  workflow_call:
 
 permissions:
   contents: read
 
 jobs:
-  test:
-    name: test (${{ matrix.group }}, ${{ matrix.chisel }} Chisel)
+  format:
     runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        group: [chisel36, chisel6, chisel7]
-        chisel: [oldest]
-        # Chisel 3.6 gets no new releases, so only the other groups are also tested against their
-        # newest release.
-        include:
-          - { group: chisel6, chisel: newest }
-          - { group: chisel7, chisel: newest }
     steps:
       - uses: actions/checkout@v7
-      # liftoff needs JDK 22 or newer (virtual threads, continuations, the foreign memory API).
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 23
           cache: sbt
       - uses: sbt/setup-sbt@v1
-      - run: sudo apt-get update && sudo apt-get install -y verilator
+      - run: sbt scalafmtCheckAll scalafmtSbtCheck
+
+  test:
+    name: test (${{ matrix.group }}, ${{ matrix.chisel }} Chisel, JDK ${{ matrix.jdk }}, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # liftoff needs JDK 22 or newer. Each group is compiled with the Scala version of its Chisel
+        # release, and only Scala 2.13.17 and newer support JDK 25, so only the newest Chisel 7
+        # release runs on JDK 25 and 26. The jobs with `package` build the artifacts like a release
+        # does and build the quickstart against them.
+        include:
+          - { group: chisel36, chisel: oldest, jdk: 22, os: ubuntu-24.04 }
+          - { group: chisel36, chisel: oldest, jdk: 23, os: ubuntu-24.04, package: true }
+          - { group: chisel6, chisel: oldest, jdk: 22, os: ubuntu-24.04 }
+          - { group: chisel6, chisel: oldest, jdk: 23, os: ubuntu-24.04, package: true }
+          - { group: chisel6, chisel: newest, jdk: 23, os: ubuntu-24.04 }
+          - { group: chisel7, chisel: oldest, jdk: 22, os: ubuntu-24.04 }
+          - { group: chisel7, chisel: oldest, jdk: 23, os: ubuntu-24.04, package: true }
+          - { group: chisel7, chisel: newest, jdk: 25, os: ubuntu-24.04 }
+          - { group: chisel7, chisel: newest, jdk: 26, os: ubuntu-24.04 }
+          - { group: chisel7, chisel: oldest, jdk: 23, os: macos-15 }
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # the version of the published artifacts is derived from the git history
+          fetch-depth: 0
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.jdk }}
+          cache: sbt
+      - uses: sbt/setup-sbt@v1
+      - name: Install Verilator
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y verilator
+      - name: Install Verilator
+        if: runner.os == 'macOS'
+        run: brew install verilator
       - name: Use the newest Chisel release of the group
         if: matrix.chisel == 'newest'
         run: |
@@ -49,5 +78,11 @@ jobs:
           echo "${prefix}_SCALA=$scala" >> "$GITHUB_ENV"
       - run: sbt ${{ matrix.group }}/test
       - name: Package the artifacts like a release does
-        if: matrix.chisel == 'oldest'
+        if: matrix.package
         run: sbt ${{ matrix.group }}/publishLocal
+      - name: Build the quickstart against the packaged artifacts
+        if: matrix.package && matrix.group == 'chisel7'
+        run: |
+          export LIFTOFF_VERSION=$(sbt -batch -error "print chisel7/version" | tail -1)
+          cd examples/quickstart
+          sbt test
