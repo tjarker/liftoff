@@ -176,17 +176,6 @@ case class VerilatorBuild(
     link: Seq[String] => Seq[String] = identity
 )
 
-
-/*
-
-harness:
-	g++ -I. -I/usr/share/verilator/include -I/usr/share/verilator/include/vltstd -fPIC -fpermissive -c -o new_ALU_harness.o ../ALU_harness.cpp
-
-other:
-	g++ -shared -fPIC ./new_ALU_harness.o verilated.o verilated_fst_c.o verilated_threads.o VALU__ALL.a   -lz  -pthread -lpthread -latomic   -o libtest.so
-
-*/
-
 class VerilatorSimModelFactory(
   val name: String,
   val functionPrefix: String,
@@ -213,8 +202,6 @@ class VerilatorSimModelFactory(
     lib.functionHandle(VerilatorModelHarness.evalFunName(functionPrefix), FunctionDescriptor.ofVoid(ADDRESS))
   val tickHandle =
     lib.functionHandle(VerilatorModelHarness.tickFunName(functionPrefix), FunctionDescriptor.ofVoid(ADDRESS, JAVA_LONG))
-  val quackHandle =
-    lib.functionHandle(VerilatorModelHarness.quackFunName(functionPrefix), FunctionDescriptor.ofVoid())
   val getPointerHandle =
     lib.functionHandle(VerilatorModelHarness.getPointerFunName(functionPrefix), FunctionDescriptor.of(ADDRESS, ADDRESS, JAVA_LONG))
 

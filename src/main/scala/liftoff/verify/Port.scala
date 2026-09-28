@@ -1,7 +1,7 @@
 package liftoff.verify
 
 import liftoff.simulation.task.Channel
-import liftoff.simulation.task.RountTripChannel
+import liftoff.simulation.task.RoundTripChannel
 import liftoff.simulation.Time.TimeUnit.s
 
 import scala.collection.mutable

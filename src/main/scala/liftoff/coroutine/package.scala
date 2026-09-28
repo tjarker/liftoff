@@ -1,7 +1,6 @@
 package liftoff
 
 import scala.collection.mutable
-import os.copy.over
 import liftoff.misc.Reporting
 
 package object coroutine {

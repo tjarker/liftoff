@@ -41,7 +41,6 @@ def groupProject(baseGroup: ChiselGroup, macros: Project): Project = {
         group.dependency,
         "org.scala-lang" % "scala-reflect" % scalaVersion.value,
         "net.java.dev.jna" % "jna" % "5.13.0",
-        "org.scala-sbt" % "test-interface" % "1.0",
         "com.lihaoyi" %% "fansi" % "0.5.0",
         "com.lihaoyi" %% "sourcecode" % "0.4.2",
         "org.scalatest" %% "scalatest" % "3.2.19" % Test,

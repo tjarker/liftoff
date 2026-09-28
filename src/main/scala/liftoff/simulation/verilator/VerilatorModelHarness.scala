@@ -16,7 +16,6 @@ object VerilatorModelHarness {
   def deleteContextFunName(m: String) = s"${m}_delete_context"
   def evalFunName(m: String) = s"${m}_eval"
   def tickFunName(m: String) = s"${m}_tick"
-  def quackFunName(m: String) = s"${m}_quack"
   def getPointerFunName(m: String) = s"${m}_get_pointer"
 
   private def traced(trace: Verilator.TraceFormat) = trace != Verilator.TraceFormat.NoTrace
@@ -126,9 +125,6 @@ object VerilatorModelHarness {
         |${eval(functionPrefix).indent(2)}
         |${tick(functionPrefix, trace).indent(2)}
         |${getPointer(functionPrefix, syms).indent(2)}
-        |  void ${quackFunName(functionPrefix)}() {
-        |    printf("Quack $functionPrefix!\\n");
-        |  }
         |}
         |""".stripMargin
 

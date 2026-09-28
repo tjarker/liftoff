@@ -16,7 +16,6 @@ object ChiselBridge {
 
   def elaborate[M <: chisel3.RawModule](gen: => M): M = {
     val elaboratePhase = new chisel3.stage.phases.Elaborate
-    val converter = new chisel3.stage.phases.Convert
 
     val genAnno = chisel3.stage.ChiselGeneratorAnnotation(() => gen)
     val elaborationAnnos: firrtl.AnnotationSeq =

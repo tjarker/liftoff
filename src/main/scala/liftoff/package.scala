@@ -54,7 +54,7 @@ package object liftoff extends misc.Misc with chisel.ChiselPeekPokeAPI with simu
   type WorkingDirectory = liftoff.misc.WorkingDirectory
   type Channel[T] = liftoff.simulation.task.Channel[T]
   val Channel = liftoff.simulation.task.Channel
-  type RoundTripChannel[A, B] = liftoff.simulation.task.RountTripChannel[A, B]
+  type RoundTripChannel[A, B] = liftoff.simulation.task.RoundTripChannel[A, B]
   type RoundTripSenderPort[A, B] = liftoff.verify.RoundTripSenderPort[A, B]
   type RoundTripReceiverPort[A, B] = liftoff.verify.RoundTripReceiverPort[A, B]
   type Receipt[T] = liftoff.simulation.task.Receipt[T]
@@ -78,8 +78,6 @@ package object liftoff extends misc.Misc with chisel.ChiselPeekPokeAPI with simu
         Reporting.warn(None, "SimulationResult", "The model records no waves, see `waves` of ChiselModel and VerilogModel")
     }
   }
-
-  def simulate[T](block: => T) = ???
 
 
   import java.lang.management.ManagementFactory

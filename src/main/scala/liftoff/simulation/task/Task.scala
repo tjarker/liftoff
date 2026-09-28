@@ -31,9 +31,6 @@ object Task {
     }
   }
 
-  def always[T](cond: Cond)(block: => T): CondTask[T] = {
-    ???
-  }
 
   def apply[T](block: => T): Task[T] = {
     val parentTask = currentTaskVar.value.getOrElse {

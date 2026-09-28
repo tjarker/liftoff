@@ -1,10 +1,10 @@
 package liftoff.chisel
 
-/* 
-  This PeekPokeAPI implementation is a modified version of the Chisel3 PeekPokeAPI.
+/*
+  This PeekPokeAPI implementation is a modified version of the Chisel PeekPokeAPI, which is
+  licensed under the Apache License 2.0:
 
   https://github.com/chipsalliance/chisel/blob/main/src/main/scala/chisel3/simulator/PeekPokeAPI.scala
-
  */
 
 import chisel3._

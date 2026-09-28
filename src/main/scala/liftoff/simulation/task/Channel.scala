@@ -76,7 +76,7 @@ class BufferedRoundTripChannel[A, B] {
 }
 
 
-class RountTripChannel[A, B] {
+class RoundTripChannel[A, B] {
 
   private var value = Option.empty[A]
   private var waitingReader = Option.empty[Task[?]]
