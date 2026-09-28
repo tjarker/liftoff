@@ -19,8 +19,6 @@ javaOptions ++= Seq(
 )
 ```
 
-JDK 25 and newer need Scala 2.13.17 or newer, so Chisel 7.2 or newer.
-
 ## Simulate
 
 ```scala
