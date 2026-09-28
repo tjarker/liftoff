@@ -12,7 +12,7 @@ class Receipt[T] {
 
   def complete(value: T): Unit = {
     this.value = Some(value)
-    //Reporting.debug(None, "Receipt", s"Receipt completed with value $value, resuming tasks: ${waiting.map(_.name).mkString(", ")}")
+    // Reporting.debug(None, "Receipt", s"Receipt completed with value $value, resuming tasks: ${waiting.map(_.name).mkString(", ")}")
     waiting.foreach(Sim.Scheduler.scheduleTaskNow)
     derivedReceipts.foreach(_(value))
   }

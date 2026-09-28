@@ -8,7 +8,7 @@ object Path {
   def path[A](f: A => Any): String = macro pathImpl[A]
 
   def pathImpl[A: c.WeakTypeTag](
-    c: blackbox.Context
+      c: blackbox.Context
   )(f: c.Expr[A => Any]): c.Expr[String] = {
     import c.universe._
 

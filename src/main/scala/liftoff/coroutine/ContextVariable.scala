@@ -30,7 +30,6 @@ class CoroutineContextVariable[T](init: T)(implicit name: sourcecode.Name) exten
     case None    => throw new Exception(s"No intialization for ContextVariable ${name.value} found")
   }
 
-
   def value_=(newValue: T): Unit = {
     Coroutine.Context.set[T](this, newValue)
   }

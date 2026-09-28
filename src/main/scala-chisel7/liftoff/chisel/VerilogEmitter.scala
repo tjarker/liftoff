@@ -2,13 +2,12 @@ package liftoff.chisel
 
 import java.io.File
 
-/** Verilog emission for Chisel 7: firtool writes one SystemVerilog file per module and lists
-  * them, with the black boxes, in `filelist.f`.
+/** Verilog emission for Chisel 7: firtool writes one SystemVerilog file per module and lists them, with the black
+  * boxes, in `filelist.f`.
   */
 private[chisel] object VerilogEmitter {
 
-  /** Emits `gen`, whose top module is `name`, into `targetDir` and returns the files Verilator
-    * has to compile.
+  /** Emits `gen`, whose top module is `name`, into `targetDir` and returns the files Verilator has to compile.
     */
   def emit(name: String, gen: => chisel3.RawModule, targetDir: File): Seq[File] = {
     // firtool never removes the files of an older design, so start from an empty directory.
@@ -22,10 +21,14 @@ private[chisel] object VerilogEmitter {
     val fileList = scala.io.Source.fromFile(new File(targetDir, "filelist.f"))
     val design =
       try
-        fileList.getLines().filter(_.nonEmpty).map { line =>
-          val file = new File(line)
-          if (file.isAbsolute) file else new File(targetDir, line)
-        }.toSeq
+        fileList
+          .getLines()
+          .filter(_.nonEmpty)
+          .map { line =>
+            val file = new File(line)
+            if (file.isAbsolute) file else new File(targetDir, line)
+          }
+          .toSeq
       finally fileList.close()
 
     // Layers are not in filelist.f. Chisel 7 puts assertions into the Verification layer, so

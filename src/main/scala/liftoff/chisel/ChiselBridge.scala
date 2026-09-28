@@ -11,7 +11,6 @@ import chisel3.Input
 import liftoff.simulation.control.SimController
 import java.io.File
 
-
 object ChiselBridge {
 
   def elaborate[M <: chisel3.RawModule](gen: => M): M = {
@@ -29,10 +28,9 @@ object ChiselBridge {
     dut
   }
 
-  /** Emits `m`, whose top module is `name`, into `dir` and returns the files Verilator has to
-    * compile. How the Verilog is produced depends on the Chisel version (see `VerilogEmitter`).
-    * A file is only replaced when its content changed, so an unchanged design does not rebuild
-    * the Verilator model.
+  /** Emits `m`, whose top module is `name`, into `dir` and returns the files Verilator has to compile. How the Verilog
+    * is produced depends on the Chisel version (see `VerilogEmitter`). A file is only replaced when its content
+    * changed, so an unchanged design does not rebuild the Verilator model.
     */
   def emitSystemVerilogFile(name: String, m: => chisel3.RawModule, dir: WorkingDirectory): Seq[java.io.File] = {
     VerilogEmitter.emit(name, m, dir / "tmp").map { emitted =>
@@ -48,8 +46,8 @@ object ChiselBridge {
     }
   }
 
-  /** Interprets the low `width` bits of `value` as a two's complement number. Input handles return
-    * the value that was set, which may be negative, while output handles return the raw bits.
+  /** Interprets the low `width` bits of `value` as a two's complement number. Input handles return the value that was
+    * set, which may be negative, while output handles return the raw bits.
     */
   private def toSigned(width: Int, value: BigInt): BigInt = {
     val bits = value & ((BigInt(1) << width) - 1)
@@ -67,29 +65,30 @@ object ChiselBridge {
   }
   object Port {
     def fromHandle(handle: PortHandle): Port = handle match {
-      case ch: ClockPortHandle   => new ClockPort(ch)
-      case ih: InputPortHandle   => new InputPort(ih)
-      case oh: OutputPortHandle  => new OutputPort(oh)
+      case ch: ClockPortHandle  => new ClockPort(ch)
+      case ih: InputPortHandle  => new InputPort(ih)
+      case oh: OutputPortHandle => new OutputPort(oh)
     }
     def fromData(data: Data): Port = {
-        val portName = data.toNamed.name
-        val noDots = portName.replace('.', '_')
+      val portName = data.toNamed.name
+      val noDots = portName.replace('.', '_')
 
-        // replace [(\d+)] with _$1
-        val noBrackets = noDots.replaceAll("\\[(\\d+)\\]", "_$1")
+      // replace [(\d+)] with _$1
+      val noBrackets = noDots.replaceAll("\\[(\\d+)\\]", "_$1")
 
-        val finalName = noBrackets
+      val finalName = noBrackets
 
-        val controller = SimController.current
-        ChiselBridge.Port.fromHandle(controller.getClockPortHandle(finalName) match { // first try to find clock
-          case Some(clockPort) => clockPort
-          case None => 
-            controller.getInputPortHandle(finalName) match { // then input
+      val controller = SimController.current
+      ChiselBridge.Port.fromHandle(controller.getClockPortHandle(finalName) match { // first try to find clock
+        case Some(clockPort) => clockPort
+        case None            =>
+          controller.getInputPortHandle(finalName) match { // then input
             case Some(inputPort) => inputPort
-            case None       => controller.getOutputPortHandle(finalName) match { // finally output
-              case Some(outputPort) => outputPort
-              case None       => throw new Exception(s"Could not find port handle for port: $finalName")
-            }
+            case None            =>
+              controller.getOutputPortHandle(finalName) match { // finally output
+                case Some(outputPort) => outputPort
+                case None             => throw new Exception(s"Could not find port handle for port: $finalName")
+              }
           }
       })
     }
@@ -106,7 +105,9 @@ object ChiselBridge {
       checkFn(v)
     }
     def tick(cycles: Int): Unit = throw new Exception(s"Cannot tick input port handle: ${handle.name}")
-    def tickUntil(port: Data, value: BigInt, maxCycles: Int = -1): StepUntilResult = throw new Exception(s"Cannot tickUntil on input port handle: ${handle.name}")
+    def tickUntil(port: Data, value: BigInt, maxCycles: Int = -1): StepUntilResult = throw new Exception(
+      s"Cannot tickUntil on input port handle: ${handle.name}"
+    )
 
     def handle: PortHandle = this.handle
     def cycle: Int = throw new Exception(s"Cannot get cycle of input port handle: ${handle.name}")
@@ -114,7 +115,7 @@ object ChiselBridge {
 
   class ClockPort(handle: ClockPortHandle) extends Port {
 
-    def set(value: BigInt): Unit = 
+    def set(value: BigInt): Unit =
       throw new Exception(s"Cannot set clock port handle: ${handle.name}")
     def get(isSigned: Boolean): Value = {
       throw new Exception(s"Cannot get clock port handle: ${handle.name}")
@@ -150,7 +151,7 @@ object ChiselBridge {
       val v = get(isSigned)
       checkFn(v)
     }
-    def tick(cycles: Int): Unit = 
+    def tick(cycles: Int): Unit =
       throw new Exception(s"Cannot tick output port handle: ${phandle.name}")
 
     def tickUntil(port: Data, value: BigInt, maxCycles: Int): StepUntilResult = {
@@ -168,7 +169,6 @@ object ChiselBridge {
     def asBigInt: BigInt = value
   }
 
-
   object Message {
     def dramaticMessage(header: Option[String], body: String): String = {
       val headerLine = header.map(h => s"=== $h ===\n").getOrElse("")
@@ -183,5 +183,3 @@ object ChiselBridge {
   }
 
 }
-
-  

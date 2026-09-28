@@ -1,6 +1,5 @@
 package liftoff.simulation.task
 
-
 object TaskScope {
   val currentScopeVar = new liftoff.coroutine.CoroutineContextVariable[Option[TaskScope]](None)
 
@@ -11,7 +10,6 @@ object TaskScope {
       block
     }
   }
-
 
   def apply[T](block: => T): T = {
     val scope = new TaskScope
@@ -33,6 +31,5 @@ class TaskScope {
   def waitAll(): Unit = {
     tasks.toSeq.foreach(_.join())
   }
-
 
 }

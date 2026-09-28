@@ -30,9 +30,12 @@ object Backend {
 
 /** Options that only affect how a built model is simulated.
   *
-  * @param clock   name and period of the clock; `clock` with a period of 1 ns for Chisel modules
-  * @param backend coroutine backend of the tasks; the fastest available one if empty
-  * @param log     file in the run directory that receives the reports of the simulation
+  * @param clock
+  *   name and period of the clock; `clock` with a period of 1 ns for Chisel modules
+  * @param backend
+  *   coroutine backend of the tasks; the fastest available one if empty
+  * @param log
+  *   file in the run directory that receives the reports of the simulation
   */
 case class RunSettings(
     clock: Option[(String, Time)] = None,
@@ -40,8 +43,8 @@ case class RunSettings(
     log: Option[String] = None
 )
 
-/** Options of a model: how it is built and how it is simulated. Settings are plain values, so a
-  * test suite can share them: `ModelSettings().waves(Waves.Off).jobs(8)`.
+/** Options of a model: how it is built and how it is simulated. Settings are plain values, so a test suite can share
+  * them: `ModelSettings().waves(Waves.Off).jobs(8)`.
   */
 case class ModelSettings(build: VerilatorBuild = VerilatorBuild(), run: RunSettings = RunSettings())
     extends BuildOptions[ModelSettings] {
@@ -72,10 +75,10 @@ trait RunOptions[Self] {
 
 /** Options for building a model, and the run options it starts with.
   *
-  * `verilator`, `cxx` and `link` give complete control over the three commands that build the
-  * model. Each receives the whole command liftoff would run, program first and with all options
-  * already turned into flags, and returns the command to run instead. Calling a hook again
-  * applies both, in order. See [[VerilatorBuild]] for the flags liftoff appends afterwards.
+  * `verilator`, `cxx` and `link` give complete control over the three commands that build the model. Each receives the
+  * whole command liftoff would run, program first and with all options already turned into flags, and returns the
+  * command to run instead. Calling a hook again applies both, in order. See [[VerilatorBuild]] for the flags liftoff
+  * appends afterwards.
   */
 trait BuildOptions[Self] extends RunOptions[Self] {
 
@@ -154,9 +157,13 @@ class ChiselModelBuilder[M <: chisel3.Module] private[liftoff] (
     val files = ChiselBridge.emitSystemVerilogFile(dut.name, gen(), buildDir)
     val factory = VerilatorSimModelFactory.create(dut.name, buildDir, files, current.build)
     val endTime = System.nanoTime()
-    Reporting.info(None, "ChiselModel", f"Elaboration and Verilator model compilation took ${(endTime - startTime) / 1e6.toDouble}%.2f ms")
-    val ports = DataMirror.fullModulePorts(dut).collect {
-      case (_, el: Element) => el // only collect leaf ports
+    Reporting.info(
+      None,
+      "ChiselModel",
+      f"Elaboration and Verilator model compilation took ${(endTime - startTime) / 1e6.toDouble}%.2f ms"
+    )
+    val ports = DataMirror.fullModulePorts(dut).collect { case (_, el: Element) =>
+      el // only collect leaf ports
     }
     new ChiselModel[M](gen, factory, ports.toSeq, (endTime - startTime).ns, current)
   }
@@ -215,9 +222,23 @@ class ChiselModel[M <: chisel3.Module] private[liftoff] (
           "GC" -> totalGc,
           "Compilation" -> compilationTime
         )
-        Reporting.info(None, "ChiselSimulation", Reporting.table(Seq("Description", "Time") +: timeOverview.toSeq.map { case (k, v) => Seq(k, v.toString()) }))
-        Reporting.info(None, "ChiselSimulation", f"Simulation frequency: ${frequencykhz}%.2f kHz (${dut.clock.cycle} cycles in ${total})")
-        SimulationResult(root.result.get, timeOverview.toMap, frequencykhz, dut.clock.cycle, ModelRun.waveFile(simModel))
+        Reporting.info(
+          None,
+          "ChiselSimulation",
+          Reporting.table(Seq("Description", "Time") +: timeOverview.toSeq.map { case (k, v) => Seq(k, v.toString()) })
+        )
+        Reporting.info(
+          None,
+          "ChiselSimulation",
+          f"Simulation frequency: ${frequencykhz}%.2f kHz (${dut.clock.cycle} cycles in ${total})"
+        )
+        SimulationResult(
+          root.result.get,
+          timeOverview.toMap,
+          frequencykhz,
+          dut.clock.cycle,
+          ModelRun.waveFile(simModel)
+        )
       } catch {
         // keyboard interrupt
         case e: InterruptedException =>
@@ -258,7 +279,11 @@ class VerilogModelBuilder private[liftoff] (
     val startTime = System.nanoTime()
     val simModelFactory = VerilatorSimModelFactory.create(name, buildDir, files, current.build)
     val endTime = System.nanoTime()
-    Reporting.info(None, "VerilogModel", f"Verilator model compilation took ${(endTime - startTime) / 1e6.toDouble}%.2f ms")
+    Reporting.info(
+      None,
+      "VerilogModel",
+      f"Verilator model compilation took ${(endTime - startTime) / 1e6.toDouble}%.2f ms"
+    )
     new VerilogModel(VerilogModule(name, files), simModelFactory, (endTime - startTime).ns, current)
   }
 
@@ -281,43 +306,50 @@ class VerilogModel private[liftoff] (
   /** The commands that built the model: Verilator, the harness compilation and the link. */
   def commands: Seq[String] = ModelRun.commands(simModelFactory)
 
-  def simulate[T](runDir: WorkingDirectory)(block: VerilogSimModel => T): SimulationResult[T] = ModelRun.logged(current.run, runDir) {
-    val simModel = simModelFactory.createModel(runDir)
-    val controller = new SimController(simModel, current.run.backend)
-    val verilogModule = new VerilogSimModel(controller)
+  def simulate[T](runDir: WorkingDirectory)(block: VerilogSimModel => T): SimulationResult[T] =
+    ModelRun.logged(current.run, runDir) {
+      val simModel = simModelFactory.createModel(runDir)
+      val controller = new SimController(simModel, current.run.backend)
+      val verilogModule = new VerilogSimModel(controller)
 
-    try {
-      val startSimTime = System.nanoTime()
-      val startGcTime = GcTime.totalGcTimeMs
-      val res = controller.run {
-        current.run.clock.foreach { case (clockName, period) =>
-          val domain = verilogModule.nameToPort.collect { case (portName, port) if portName != clockName => port }
-          verilogModule.addClockDomain(clockName, period)(domain.toSeq: _*)
+      try {
+        val startSimTime = System.nanoTime()
+        val startGcTime = GcTime.totalGcTimeMs
+        val res = controller.run {
+          current.run.clock.foreach { case (clockName, period) =>
+            val domain = verilogModule.nameToPort.collect { case (portName, port) if portName != clockName => port }
+            verilogModule.addClockDomain(clockName, period)(domain.toSeq: _*)
+          }
+          block(verilogModule)
         }
-        block(verilogModule)
-      }
-      val endSimTime = System.nanoTime()
-      val total = (endSimTime - startSimTime).ns
-      val endGcTime = GcTime.totalGcTimeMs
-      val totalGc = (endGcTime - startGcTime).ms
-      val verilator = controller.getModelRunTimeNanos().ns
-      val tasks = controller.getTaskRunTimeNanos().ns
-      val overhead = total - verilator - tasks - totalGc
-      // cycles of the first clock domain, like the single clock of a Chisel module
-      val cycles = verilogModule.clocks.headOption.map(_.cycle.toLong).getOrElse(0L)
-      SimulationResult(res, Map(
-        "Total" -> total,
-        "Verilator" -> verilator,
-        "Tasks" -> tasks,
-        "GC" -> totalGc,
-        "Overhead" -> overhead,
-        "Compilation" -> compilationTime
-      ), ModelRun.frequencyKHz(cycles, total), cycles, ModelRun.waveFile(simModel))
+        val endSimTime = System.nanoTime()
+        val total = (endSimTime - startSimTime).ns
+        val endGcTime = GcTime.totalGcTimeMs
+        val totalGc = (endGcTime - startGcTime).ms
+        val verilator = controller.getModelRunTimeNanos().ns
+        val tasks = controller.getTaskRunTimeNanos().ns
+        val overhead = total - verilator - tasks - totalGc
+        // cycles of the first clock domain, like the single clock of a Chisel module
+        val cycles = verilogModule.clocks.headOption.map(_.cycle.toLong).getOrElse(0L)
+        SimulationResult(
+          res,
+          Map(
+            "Total" -> total,
+            "Verilator" -> verilator,
+            "Tasks" -> tasks,
+            "GC" -> totalGc,
+            "Overhead" -> overhead,
+            "Compilation" -> compilationTime
+          ),
+          ModelRun.frequencyKHz(cycles, total),
+          cycles,
+          ModelRun.waveFile(simModel)
+        )
 
-    } finally {
-      simModel.cleanup()
+      } finally {
+        simModel.cleanup()
+      }
     }
-  }
 }
 
 object VerilogModel {

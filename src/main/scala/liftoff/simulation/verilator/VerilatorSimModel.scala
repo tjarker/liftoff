@@ -1,6 +1,5 @@
 package liftoff.simulation.verilator
 
-
 import liftoff.simulation._
 import liftoff.misc.SharedObject
 import liftoff.misc.WorkingDirectory
@@ -49,8 +48,8 @@ private[liftoff] object VerilatorSimModelFactory {
         Verilator.Arguments.CFlags("-fPIC -fpermissive -O3")
       ) ++ build.arguments
         // Generated files may include each other by name (Chisel 7 layers, for example).
-        ++ verilogSources.map(_.getAbsoluteFile.getParent).distinct.map(Verilator.Arguments.Include(_))
-      ).flatMap(_.toStrings) ++
+        ++ verilogSources.map(_.getAbsoluteFile.getParent).distinct.map(Verilator.Arguments.Include(_)))
+        .flatMap(_.toStrings) ++
         (verilogSources ++ build.dpi).map(_.getAbsolutePath)
     ) ++ (
       Seq(Verilator.Arguments.CC, Verilator.Arguments.Build) ++
@@ -76,7 +75,7 @@ private[liftoff] object VerilatorSimModelFactory {
 
     val portDescriptors = PortCollector.collectPorts(verilatorDir / s"V${topName}.h")
 
-    //Reporting.debug(None, "Verilator", s"Collected ports:\n - ${portDescriptors.mkString("\n - ")}")
+    // Reporting.debug(None, "Verilator", s"Collected ports:\n - ${portDescriptors.mkString("\n - ")}")
 
     val functionPrefix = uniqueName(topName)
 
@@ -106,8 +105,7 @@ private[liftoff] object VerilatorSimModelFactory {
 
     val compiledHarness = harnessCompileRecipe.invoke()
 
-
-    val extraCOptions = 
+    val extraCOptions =
       if (System.getProperty("os.name").toLowerCase.contains("windows")) Seq()
       else if (System.getProperty("os.name").toLowerCase.contains("mac")) Seq()
       else Seq("-pthread", "-lpthread", "-latomic")
@@ -147,11 +145,15 @@ private[liftoff] object VerilatorSimModelFactory {
       throw new IllegalStateException("liftoff needs Verilator to build models, but `verilator` is not on the PATH")
   }
 
-  /** Records the `command` of a build step in `<step>.cmd` and, if it differs from the command
-    * recorded by the last build, deletes the `outputs` of the step so that it runs again. make
-    * would miss the change: it compares timestamps, and two builds can happen within its resolution.
+  /** Records the `command` of a build step in `<step>.cmd` and, if it differs from the command recorded by the last
+    * build, deletes the `outputs` of the step so that it runs again. make would miss the change: it compares
+    * timestamps, and two builds can happen within its resolution.
     */
-  private def rebuildOnChange(dir: WorkingDirectory, step: String, command: Seq[String])(outputs: => Seq[File]): Unit = {
+  private def rebuildOnChange(
+      dir: WorkingDirectory,
+      step: String,
+      command: Seq[String]
+  )(outputs: => Seq[File]): Unit = {
     val record = dir / s"$step.cmd"
     val recorded = command.mkString(" ") + "\n"
     val previous = if (record.exists()) Some(java.nio.file.Files.readString(record.toPath)) else None
@@ -165,16 +167,19 @@ private[liftoff] object VerilatorSimModelFactory {
 
 /** How a Verilator model is built.
   *
-  * `verilator`, `cxx` and `link` receive the complete command liftoff would run for their build step,
-  * program first, and return the command to run instead. The commands are run by make, so they
-  * go through the shell. Afterwards liftoff appends what the harness relies on: `--cc --build`, the
-  * flag of `waves`, `--Mdir` and `--top-module` to Verilator, `-c -o <harness>.o <harness>.cpp` to
-  * the harness compilation and `-o <library>` to the link.
+  * `verilator`, `cxx` and `link` receive the complete command liftoff would run for their build step, program first,
+  * and return the command to run instead. The commands are run by make, so they go through the shell. Afterwards
+  * liftoff appends what the harness relies on: `--cc --build`, the flag of `waves`, `--Mdir` and `--top-module` to
+  * Verilator, `-c -o <harness>.o <harness>.cpp` to the harness compilation and `-o <library>` to the link.
   *
-  * @param waves     format of the waves the model records
-  * @param arguments Verilator arguments, part of the command the `verilator` hook receives
-  * @param sources   additional Verilog sources
-  * @param dpi       C++ sources that Verilator compiles and liftoff links into the model
+  * @param waves
+  *   format of the waves the model records
+  * @param arguments
+  *   Verilator arguments, part of the command the `verilator` hook receives
+  * @param sources
+  *   additional Verilog sources
+  * @param dpi
+  *   C++ sources that Verilator compiles and liftoff links into the model
   */
 case class VerilatorBuild(
     waves: Verilator.TraceFormat = Verilator.TraceFormat.Fst,
@@ -187,33 +192,40 @@ case class VerilatorBuild(
 )
 
 private[liftoff] class VerilatorSimModelFactory(
-  val name: String,
-  val functionPrefix: String,
-  val ports: Seq[VerilatorPortDescriptor],
-  val libFile: SharedObject,
-  val waves: Verilator.TraceFormat,
-  /** The commands that built the model: Verilator, the harness compilation and the link. */
-  val commands: Seq[Seq[String]]
+    val name: String,
+    val functionPrefix: String,
+    val ports: Seq[VerilatorPortDescriptor],
+    val libFile: SharedObject,
+    val waves: Verilator.TraceFormat,
+    /** The commands that built the model: Verilator, the harness compilation and the link. */
+    val commands: Seq[Seq[String]]
 ) {
 
   val lib = libFile.load()
 
   import ValueLayout._
 
-  val createContextHandle = lib.functionHandle(VerilatorModelHarness.createContextFunName(functionPrefix), FunctionDescriptor.of(
+  val createContextHandle = lib.functionHandle(
+    VerilatorModelHarness.createContextFunName(functionPrefix),
+    FunctionDescriptor.of(
       ADDRESS, // returns a pointer to the context
       ADDRESS, // wave file path
       ADDRESS, // time unit
       ADDRESS, // args
       JAVA_INT // num args
-    ))
-  val deleteContextHandle = lib.functionHandle(VerilatorModelHarness.deleteContextFunName(functionPrefix), FunctionDescriptor.ofVoid(ADDRESS))
+    )
+  )
+  val deleteContextHandle =
+    lib.functionHandle(VerilatorModelHarness.deleteContextFunName(functionPrefix), FunctionDescriptor.ofVoid(ADDRESS))
   val evalHandle =
     lib.functionHandle(VerilatorModelHarness.evalFunName(functionPrefix), FunctionDescriptor.ofVoid(ADDRESS))
   val tickHandle =
     lib.functionHandle(VerilatorModelHarness.tickFunName(functionPrefix), FunctionDescriptor.ofVoid(ADDRESS, JAVA_LONG))
   val getPointerHandle =
-    lib.functionHandle(VerilatorModelHarness.getPointerFunName(functionPrefix), FunctionDescriptor.of(ADDRESS, ADDRESS, JAVA_LONG))
+    lib.functionHandle(
+      VerilatorModelHarness.getPointerFunName(functionPrefix),
+      FunctionDescriptor.of(ADDRESS, ADDRESS, JAVA_LONG)
+    )
 
   def createModel(dir: WorkingDirectory): VerilatorSimModel = {
     new VerilatorSimModel(name, ports, this, dir)
@@ -221,15 +233,13 @@ private[liftoff] class VerilatorSimModelFactory(
 
 }
 
-
 private[liftoff] class VerilatorSimModel(
-  val name: String,
-  val portDescriptors: Seq[VerilatorPortDescriptor],
-  val factory: VerilatorSimModelFactory,
-  val dir: WorkingDirectory
+    val name: String,
+    val portDescriptors: Seq[VerilatorPortDescriptor],
+    val factory: VerilatorSimModelFactory,
+    val dir: WorkingDirectory
 ) extends SimModel {
 
-  
   val waveFile: File = dir / s"wave.${factory.waves.fileExtension}"
 
   val arena = Arena.ofShared()
@@ -245,20 +255,18 @@ private[liftoff] class VerilatorSimModel(
   )
 
   val ports: Seq[VerilatorPortHandle] = portDescriptors.map(VerilatorPortHandle(this, _))
-  
 
-  override def inputs: Seq[InputPortHandle] = ports.collect {
-    case i: InputPortHandle => i
+  override def inputs: Seq[InputPortHandle] = ports.collect { case i: InputPortHandle =>
+    i
   }
 
-  override def outputs: Seq[OutputPortHandle] = ports.collect {
-    case o: OutputPortHandle => o
+  override def outputs: Seq[OutputPortHandle] = ports.collect { case o: OutputPortHandle =>
+    o
   }
 
   override def getInputPortHandle(portName: String): Option[InputPortHandle] = ports.collectFirst {
     case p: InputPortHandle if p.name == portName => p
   }
-  
 
   override def getOutputPortHandle(portName: String): Option[OutputPortHandle] = ports.collectFirst {
     case p: OutputPortHandle if p.name == portName => p
@@ -289,19 +297,19 @@ private[liftoff] object VerilatorPortDescriptor {
   }
 }
 private[liftoff] case class VerilatorInputDescriptor(
-  name: String,
-  id: Int,
-  width: Int
+    name: String,
+    id: Int,
+    width: Int
 ) extends VerilatorPortDescriptor
 
 private[liftoff] case class VerilatorOutputDescriptor(
-  name: String,
-  id: Int,
-  width: Int
+    name: String,
+    id: Int,
+    width: Int
 ) extends VerilatorPortDescriptor
 
 private[liftoff] trait VerilatorPortHandle extends PortHandle {
-  def id : Int
+  def id: Int
   def model: VerilatorSimModel
   val address: MemorySegment = model.factory.getPointerHandle.invokeExact(model.contextPtr, id.toLong)
   def get(): BigInt
@@ -310,11 +318,17 @@ private[liftoff] trait VerilatorPortHandle extends PortHandle {
 
 private[liftoff] object VerilatorPortHandle {
   def unapply(handle: VerilatorPortHandle): Option[(String, Int, Int)] = {
-    Some((handle.model.name, handle.id, handle match {
-      case i: InputPortHandle => i.width
-      case o: OutputPortHandle => o.width
-      case _ => 0
-    }))
+    Some(
+      (
+        handle.model.name,
+        handle.id,
+        handle match {
+          case i: InputPortHandle  => i.width
+          case o: OutputPortHandle => o.width
+          case _                   => 0
+        }
+      )
+    )
   }
 
   def apply(model: VerilatorSimModel, port: VerilatorPortDescriptor): VerilatorPortHandle = {
@@ -337,51 +351,51 @@ private[liftoff] object VerilatorPortHandle {
   }
 }
 
-
-
 private[liftoff] class VerilatorWideInputPortHandle(
-  val id: Int,
-  val model: VerilatorSimModel,
-  val name: String,
-  val width: Int,
-  val mem: MemorySegment
-) extends InputPortHandle with VerilatorPortHandle {
+    val id: Int,
+    val model: VerilatorSimModel,
+    val name: String,
+    val width: Int,
+    val mem: MemorySegment
+) extends InputPortHandle
+    with VerilatorPortHandle {
 
   val words = (width + 31) / 32
   val seg = mem.reinterpret(words * 4)
   val bytes = new Array[Byte](words * 4)
 
   def get(): BigInt = {
-    for (i <- 0 until 4*words) {
-      bytes(i) = seg.get(ValueLayout.JAVA_BYTE, (4*words) - i)
+    for (i <- 0 until 4 * words) {
+      bytes(i) = seg.get(ValueLayout.JAVA_BYTE, (4 * words) - i)
     }
     BigInt(bytes)
   }
 
   def set(value: BigInt): Unit = {
     val bytes = value.toByteArray
-    for (i <- 0 until 4*words) {
+    for (i <- 0 until 4 * words) {
       val byte = if (i < bytes.length) bytes(bytes.length - 1 - i) else 0.toByte
-      seg.set(ValueLayout.JAVA_BYTE, (4*words) - i, byte)
+      seg.set(ValueLayout.JAVA_BYTE, (4 * words) - i, byte)
     }
   }
 }
 
 private[liftoff] class VerilatorWideOutputPortHandle(
-  val id: Int,
-  val model: VerilatorSimModel,
-  val name: String,
-  val width: Int,
-  val mem: MemorySegment
-) extends OutputPortHandle with VerilatorPortHandle {
+    val id: Int,
+    val model: VerilatorSimModel,
+    val name: String,
+    val width: Int,
+    val mem: MemorySegment
+) extends OutputPortHandle
+    with VerilatorPortHandle {
 
   val words = (width + 31) / 32
   val seg = mem.reinterpret(words * 4)
   val bytes = new Array[Byte](words * 4)
 
   def get(): BigInt = {
-    for (i <- 0 until 4*words) {
-      bytes(i) = seg.get(ValueLayout.JAVA_BYTE, (4*words) - i)
+    for (i <- 0 until 4 * words) {
+      bytes(i) = seg.get(ValueLayout.JAVA_BYTE, (4 * words) - i)
     }
     BigInt(bytes)
   }
@@ -389,12 +403,13 @@ private[liftoff] class VerilatorWideOutputPortHandle(
 }
 
 private[liftoff] class VerilatorU8InputPortHandle(
-  val model: VerilatorSimModel,
-  val name: String,
-  val id: Int,
-  val width: Int,
-  val mem: MemorySegment
-) extends InputPortHandle with VerilatorPortHandle {
+    val model: VerilatorSimModel,
+    val name: String,
+    val id: Int,
+    val width: Int,
+    val mem: MemorySegment
+) extends InputPortHandle
+    with VerilatorPortHandle {
 
   val seg = mem.reinterpret(1)
 
@@ -407,12 +422,13 @@ private[liftoff] class VerilatorU8InputPortHandle(
 }
 
 private[liftoff] class VerilatorU16InputPortHandle(
-  val model: VerilatorSimModel,
-  val name: String,
-  val id: Int,
-  val width: Int,
-  val mem: MemorySegment
-) extends InputPortHandle with VerilatorPortHandle {
+    val model: VerilatorSimModel,
+    val name: String,
+    val id: Int,
+    val width: Int,
+    val mem: MemorySegment
+) extends InputPortHandle
+    with VerilatorPortHandle {
 
   val seg = mem.reinterpret(2)
 
@@ -425,12 +441,13 @@ private[liftoff] class VerilatorU16InputPortHandle(
 }
 
 private[liftoff] class VerilatorU32InputPortHandle(
-  val model: VerilatorSimModel,
-  val name: String,
-  val id: Int,
-  val width: Int,
-  val mem: MemorySegment
-) extends InputPortHandle with VerilatorPortHandle {
+    val model: VerilatorSimModel,
+    val name: String,
+    val id: Int,
+    val width: Int,
+    val mem: MemorySegment
+) extends InputPortHandle
+    with VerilatorPortHandle {
 
   val seg = mem.reinterpret(4)
 
@@ -443,12 +460,13 @@ private[liftoff] class VerilatorU32InputPortHandle(
 }
 
 private[liftoff] class VerilatorU64InputPortHandle(
-  val model: VerilatorSimModel,
-  val name: String,
-  val id: Int,
-  val width: Int,
-  val mem: MemorySegment
-) extends InputPortHandle with VerilatorPortHandle {
+    val model: VerilatorSimModel,
+    val name: String,
+    val id: Int,
+    val width: Int,
+    val mem: MemorySegment
+) extends InputPortHandle
+    with VerilatorPortHandle {
 
   val seg = mem.reinterpret(8)
 
@@ -461,66 +479,69 @@ private[liftoff] class VerilatorU64InputPortHandle(
 }
 
 private[liftoff] class VerilatorU8OutputPortHandle(
-  val model: VerilatorSimModel,
-  val name: String,
-  val id: Int,
-  val width: Int,
-  val mem: MemorySegment
-) extends OutputPortHandle with VerilatorPortHandle {
+    val model: VerilatorSimModel,
+    val name: String,
+    val id: Int,
+    val width: Int,
+    val mem: MemorySegment
+) extends OutputPortHandle
+    with VerilatorPortHandle {
 
   val seg = mem.reinterpret(1)
 
   def get(): BigInt = {
     BigInt(seg.get(ValueLayout.JAVA_BYTE, 0)) & mask
   }
-  
+
 }
 
 private[liftoff] class VerilatorU16OutputPortHandle(
-  val model: VerilatorSimModel,
-  val name: String,
-  val id: Int,
-  val width: Int,
-  val mem: MemorySegment
-) extends OutputPortHandle with VerilatorPortHandle {
+    val model: VerilatorSimModel,
+    val name: String,
+    val id: Int,
+    val width: Int,
+    val mem: MemorySegment
+) extends OutputPortHandle
+    with VerilatorPortHandle {
 
   val seg = mem.reinterpret(2)
 
   def get(): BigInt = {
     BigInt(seg.get(ValueLayout.JAVA_SHORT, 0)) & mask
   }
-  
+
 }
 
 private[liftoff] class VerilatorU32OutputPortHandle(
-  val model: VerilatorSimModel,
-  val name: String,
-  val id: Int,
-  val width: Int,
-  val mem: MemorySegment
-) extends OutputPortHandle with VerilatorPortHandle {
+    val model: VerilatorSimModel,
+    val name: String,
+    val id: Int,
+    val width: Int,
+    val mem: MemorySegment
+) extends OutputPortHandle
+    with VerilatorPortHandle {
 
   val seg = mem.reinterpret(4)
 
   def get(): BigInt = {
     BigInt(seg.get(ValueLayout.JAVA_INT, 0)) & mask
   }
-  
+
 }
 
-
 private[liftoff] class VerilatorU64OutputPortHandle(
-  val model: VerilatorSimModel,
-  val name: String,
-  val id: Int,
-  val width: Int,
-  val mem: MemorySegment
-) extends OutputPortHandle with VerilatorPortHandle {
+    val model: VerilatorSimModel,
+    val name: String,
+    val id: Int,
+    val width: Int,
+    val mem: MemorySegment
+) extends OutputPortHandle
+    with VerilatorPortHandle {
 
   val seg = mem.reinterpret(8)
 
   def get(): BigInt = {
     BigInt(seg.get(ValueLayout.JAVA_LONG, 0)) & mask
   }
-  
+
 }

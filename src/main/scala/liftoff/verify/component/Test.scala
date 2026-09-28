@@ -38,13 +38,19 @@ object Test {
       f" - TestPhase: ${(simEnd - testStart) / 1e6}%.2f ms",
       f" - ReportPhase: ${(end - simEnd) / 1e6}%.2f ms"
     )
-    
+
     Reporting.success(Some(Sim.time), testName, s"Finished\n" + times.mkString("\n"))
 
     val taskRuntimes = root.collectTaskRuntimes()
-    Reporting.info(None, testName, s"Task runtimes:" + Reporting.table(Seq(
-      Seq("Task Name", "Runtime")) ++
-      taskRuntimes.toSeq.sortBy(_._2)(Ordering[liftoff.simulation.Time].reverse).map { case (name, time) => Seq(name, time.toString(TimeUnit.ms)) }
-    ))
+    Reporting.info(
+      None,
+      testName,
+      s"Task runtimes:" + Reporting.table(
+        Seq(Seq("Task Name", "Runtime")) ++
+          taskRuntimes.toSeq.sortBy(_._2)(Ordering[liftoff.simulation.Time].reverse).map { case (name, time) =>
+            Seq(name, time.toString(TimeUnit.ms))
+          }
+      )
+    )
   }
 }

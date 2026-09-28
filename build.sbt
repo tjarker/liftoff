@@ -24,8 +24,10 @@ def macrosProject(baseGroup: ChiselGroup): Project = {
     .settings(
       scalaVersion := group.scalaVersion,
       libraryDependencies += "org.scala-lang" % "scala-reflect" % scalaVersion.value,
-      Compile / unmanagedSourceDirectories := Seq((ThisBuild / baseDirectory).value / "macros" / "src" / "main" / "scala"),
-      publish / skip := true,
+      Compile / unmanagedSourceDirectories := Seq(
+        (ThisBuild / baseDirectory).value / "macros" / "src" / "main" / "scala"
+      ),
+      publish / skip := true
     )
 }
 
@@ -43,11 +45,15 @@ def groupProject(baseGroup: ChiselGroup, macros: Project): Project = {
         "net.java.dev.jna" % "jna" % "5.13.0",
         "com.lihaoyi" %% "fansi" % "0.5.0",
         "com.lihaoyi" %% "sourcecode" % "0.4.2",
-        "org.scalatest" %% "scalatest" % "3.2.19" % Test,
+        "org.scalatest" %% "scalatest" % "3.2.19" % Test
       ),
       addCompilerPlugin(group.compilerPlugin),
       Compile / unmanagedSourceDirectories :=
-        sourceDirs((ThisBuild / baseDirectory).value, "main", group) :+ (ThisBuild / baseDirectory).value / "src" / "main" / "java",
+        sourceDirs(
+          (ThisBuild / baseDirectory).value,
+          "main",
+          group
+        ) :+ (ThisBuild / baseDirectory).value / "src" / "main" / "java",
       Test / unmanagedSourceDirectories := sourceDirs((ThisBuild / baseDirectory).value, "test", group),
       // User code expands the macros, so they ship inside the liftoff jar.
       Compile / packageBin / mappings ++= (macros / Compile / packageBin / mappings).value,
@@ -60,8 +66,8 @@ def groupProject(baseGroup: ChiselGroup, macros: Project): Project = {
         "-Djdk.virtualThreadScheduler.maxPoolSize=1",
         "-Djdk.virtualThreadScheduler.minRunnable=1",
         "--add-exports=java.base/jdk.internal.vm=ALL-UNNAMED",
-        "--enable-native-access=ALL-UNNAMED",
-      ),
+        "--enable-native-access=ALL-UNNAMED"
+      )
     )
 }
 
@@ -75,11 +81,11 @@ lazy val macrosChisel7 = macrosProject(ChiselGroup.chisel7)
 lazy val chisel7 = groupProject(ChiselGroup.chisel7, macrosChisel7)
 
 lazy val root = (project in file("."))
-  .aggregate(chisel36, chisel6, chisel7)
+  .aggregate(chisel36, chisel6, chisel7, macrosChisel36, macrosChisel6, macrosChisel7)
   .settings(
     name := "liftoff",
     scalaVersion := ChiselGroup.chisel7.scalaVersion,
     Compile / unmanagedSourceDirectories := Nil,
     Test / unmanagedSourceDirectories := Nil,
-    publish / skip := true,
+    publish / skip := true
   )

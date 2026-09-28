@@ -14,7 +14,6 @@ import liftoff.intToTime
 import liftoff.pathToFileOps
 import liftoff.simulation.control.SimController
 
-
 class SimControllerTests extends AnyWordSpec with Matchers {
 
   val buildDir = "build/sim_controller_test".toDir
@@ -44,9 +43,7 @@ class SimControllerTests extends AnyWordSpec with Matchers {
     |endmodule
     |""".stripMargin
 
-  
-  val verilogFile = buildDir.addFile("alu.sv", verilog)  
-  
+  val verilogFile = buildDir.addFile("alu.sv", verilog)
 
   val factory = VerilatorSimModelFactory.create(
     topName,
@@ -54,11 +51,8 @@ class SimControllerTests extends AnyWordSpec with Matchers {
     Seq(verilogFile)
   )
 
-
-
   "A SimController" should {
     "run an ALU simulation" in {
-
 
       val simModel = factory.createModel(buildDir.addSubDir(buildDir / "sim"))
       val ctrl = new SimController(simModel)
@@ -81,7 +75,6 @@ class SimControllerTests extends AnyWordSpec with Matchers {
             Dut.clk.step()
             Dut.result.get() shouldBe 8
           }
-          
 
           ctrl.run()
           simModel.cleanup()
@@ -91,7 +84,7 @@ class SimControllerTests extends AnyWordSpec with Matchers {
     }
 
     "support stepUntil" in {
-    
+
       val simModel = factory.createModel(buildDir.addSubDir(buildDir / "sim"))
       val ctrl = new SimController(simModel)
 
@@ -119,13 +112,11 @@ class SimControllerTests extends AnyWordSpec with Matchers {
             stepResult2.succeeded shouldBe true
             stepResult2.waitedCycles shouldBe 9
           }
-          
 
           ctrl.run()
           simModel.cleanup()
         }
       }
-
 
     }
 

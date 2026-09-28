@@ -14,7 +14,6 @@ class NativeTests extends AnyWordSpec with Matchers {
   "Native" should {
     "be available" in {
 
-
       val cFile = s"""
         |#include <stdio.h>
         |#include <stdlib.h>
@@ -56,14 +55,12 @@ class NativeTests extends AnyWordSpec with Matchers {
       val resultPtr: MemorySegment = quackHandle.invokeExact()
       val ptr = resultPtr.reinterpret(4 * 4)
 
-
       // print bytes in hex
       for (i <- 0 until 16) {
         val word = ptr.get(ValueLayout.JAVA_BYTE, i)
         print(f"$word%02x ")
       }
       println()
-
 
       // interpret this as a BigInt
       // BigInt takes a big endian byte array, so we need to reverse the order of the words
@@ -77,7 +74,6 @@ class NativeTests extends AnyWordSpec with Matchers {
 
       val resultBigInt = BigInt(reversedBytes.toArray(ValueLayout.JAVA_BYTE))
       println(s"Result: ${resultBigInt.toString(16)}")
-
 
       val newBigInt = BigInt("0102030405060708090a0b0c0d0e0f10", 16)
 

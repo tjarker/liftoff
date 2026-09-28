@@ -15,7 +15,6 @@ object Gen {
     }
   }
 
-
   def emit[T, F](v: T): Option[F] = {
     val scope = Coroutine.currentScope.getOrElse {
       throw new Exception("Calling emit outside of a generator")
@@ -85,7 +84,7 @@ object Gen {
     }
   }
 
-  def shuffle[T,F](a: BiGen[F, T], b: BiGen[F, T]): BiGen[F, T] = {
+  def shuffle[T, F](a: BiGen[F, T], b: BiGen[F, T]): BiGen[F, T] = {
     BiGen[F, T] {
       val rand = new scala.util.Random
       while (a.hasNext || b.hasNext) {
@@ -104,7 +103,7 @@ object Gen {
     }
   }
 
-  def repeat[T,F](n: Int)(gen: => BiGen[F, T]): BiGen[F, T] = {
+  def repeat[T, F](n: Int)(gen: => BiGen[F, T]): BiGen[F, T] = {
     BiGen[F, T] {
       for (i <- 0 until n) {
         Gen.emit(gen)
@@ -112,7 +111,7 @@ object Gen {
     }
   }
 
-  def shuffle[T,F](gens: BiGen[F, T]*): BiGen[F, T] = {
+  def shuffle[T, F](gens: BiGen[F, T]*): BiGen[F, T] = {
     BiGen[F, T] {
       val rand = new scala.util.Random
       while (gens.exists(_.hasNext)) {
@@ -138,7 +137,6 @@ object Gen {
       }
     }
   }
-
 
   def apply[T](block: => Unit): Gen[T] = new Gen[T](block)
 
@@ -166,7 +164,6 @@ object Gen {
 
 }
 
-
 class Gen[T](block: => Unit) extends BiGen[Nothing, T](block) with Iterator[T] {
 
   override def expectsFeedback: Boolean = false
@@ -178,7 +175,6 @@ class Gen[T](block: => Unit) extends BiGen[Nothing, T](block) with Iterator[T] {
   }
 
 }
-
 
 object BiGen {
   def apply[I, O](block: => Unit): BiGen[I, O] = new BiGen[I, O](block)
@@ -195,7 +191,6 @@ object BiGen {
 
   case class HandshakeException(msg: String) extends RuntimeException(msg)
 }
-
 
 class BiGen[I, O](block: => Unit) {
 

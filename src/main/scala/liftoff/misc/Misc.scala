@@ -3,16 +3,15 @@ package liftoff.misc
 import java.io.File
 
 class PathToFileOps(val path: String) extends AnyVal {
-    def toFile: File = new File(path)
-    def toDir: WorkingDirectory = WorkingDirectory(path)
-  }
+  def toFile: File = new File(path)
+  def toDir: WorkingDirectory = WorkingDirectory(path)
+}
 
 class BigIntOps(val x: BigInt) {
   def toWordArray: Array[Int] = {
-    (0 until (x.bitLength + 31) / 32)
-      .map { i =>
-        (x >> (i * 32)).toInt
-      }.toArray
+    (0 until (x.bitLength + 31) / 32).map { i =>
+      (x >> (i * 32)).toInt
+    }.toArray
   }
 }
 
@@ -31,7 +30,6 @@ trait Misc {
   implicit def pathToFileOps(path: String): PathToFileOps = new PathToFileOps(path)
   implicit def bigIntOps(x: BigInt): BigIntOps = new BigIntOps(x)
   implicit def wordArrayOps(arr: Array[Int]): WordArrayOps = new WordArrayOps(arr)
-  
 
   def forever(block: => Unit): Nothing = {
     while (true) {
@@ -39,5 +37,5 @@ trait Misc {
     }
     throw new Exception("Unreachable")
   }
-  
+
 }

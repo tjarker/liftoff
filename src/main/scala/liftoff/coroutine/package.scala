@@ -12,13 +12,11 @@ package object coroutine {
 
     def parent: Option[Coroutine[_, _, _]]
 
-
     private[coroutine] var in: Option[I]
     private[coroutine] var out: Result[O, R]
   }
 
-  class ResumedCancelledCoroutineException
-      extends Exception("Resumed a cancelled coroutine")
+  class ResumedCancelledCoroutineException extends Exception("Resumed a cancelled coroutine")
 
   trait CoroutineScope {
     def create[I, O, R](block: => R): Coroutine[I, O, R]
@@ -32,7 +30,7 @@ package object coroutine {
     def get[T](key: AnyRef): Option[T] = mapping.get(key).asInstanceOf[Option[T]]
     def set[T](key: AnyRef, value: T): Unit = mapping.update(key, value)
     def capture(): CoroutineContext = new CoroutineContext(mutable.Map.from(mapping))
-    private [coroutine] def map: mutable.Map[AnyRef, Any] = mapping
+    private[coroutine] def map: mutable.Map[AnyRef, Any] = mapping
     override def toString(): String = {
       val entries = mapping.map { case (k, v) => s"$k -> $v" }.mkString(", ")
       s"CoroutineContext@${this.hashCode().toHexString}($entries)"
@@ -42,7 +40,6 @@ package object coroutine {
       s"CoroutineContext@${this.hashCode().toHexString}:\n$entries"
     }
   }
-
 
   trait Result[+O, +R] {
 
@@ -79,7 +76,7 @@ package object coroutine {
       }
 
     // Check if the Virtual Threads API is available
-    val hasVirtualThreads: Boolean = 
+    val hasVirtualThreads: Boolean =
       try {
         val thread = Thread.ofVirtual()
         true
@@ -87,7 +84,6 @@ package object coroutine {
         case _: NoSuchMethodError => false
         case _: Throwable         => false
       }
-  
 
     val factory: () => CoroutineScope =
       if (hasContinuations) { () =>
@@ -110,7 +106,6 @@ package object coroutine {
 
       import java.lang.{InheritableThreadLocal, ThreadLocal}
 
-
       val defaultContext = new CustomInheritableThreadLocal[CoroutineContext] {
         override def initialValue(): CoroutineContext = new CoroutineContext(mutable.Map.empty)
         override protected def inheritance(parentValue: CoroutineContext): CoroutineContext = {
@@ -132,7 +127,7 @@ package object coroutine {
               defaultContext.get().set[T](key, value)
             }
           }
-          case None        => defaultContext.get().set[T](key, value)
+          case None => defaultContext.get().set[T](key, value)
         }
       }
       def withValue[T, R](key: AnyRef, value: T)(block: => R): R = {
@@ -174,13 +169,13 @@ package object coroutine {
   }
 
   object CurrentScope extends ContextVariable[Option[CoroutineScope]] {
-    val inheritableThreadLocal =new InheritableThreadLocal[Option[CoroutineScope]] {
+    val inheritableThreadLocal = new InheritableThreadLocal[Option[CoroutineScope]] {
       override def initialValue(): Option[CoroutineScope] = None
     }
 
     def value: Option[CoroutineScope] = inheritableThreadLocal.get()
     def value_=(newValue: Option[CoroutineScope]): Unit = inheritableThreadLocal.set(newValue)
 
-  } 
+  }
 
 }

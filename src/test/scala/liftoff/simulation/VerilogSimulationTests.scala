@@ -34,14 +34,13 @@ class VerilogSimulationTests extends AnyWordSpec with Matchers {
         |endmodule
         |""".stripMargin
 
-      val verilogFile = buildDir.addFile("inverter.sv", verilog)  
+      val verilogFile = buildDir.addFile("inverter.sv", verilog)
 
       Reporting.setOutput(Reporting.NullStream)
 
       val inverterModule = VerilogModule(topName, Seq(verilogFile))
 
       VerilogModel(topName, verilogFile).simulate(buildDir) { inverter =>
-
         inverter.addCombinationalDependency(
           inverter.out("out"),
           Seq(inverter.in("in"))
@@ -54,15 +53,17 @@ class VerilogSimulationTests extends AnyWordSpec with Matchers {
           }
         }
 
-        Task.withRegion(Region.Monitor) {
-          for (i <- 1 until 10) {
-            for (j <- 0 until i) {
-              Reporting.info(Some(Sim.time), "Test", s"$i,$j: ${inverter("out").peek()}")
-              inverter("out").peek() shouldBe (if ((i % 2) == 0) 1 else 0)
-              Sim.time.tick(1.ns)
+        Task
+          .withRegion(Region.Monitor) {
+            for (i <- 1 until 10) {
+              for (j <- 0 until i) {
+                Reporting.info(Some(Sim.time), "Test", s"$i,$j: ${inverter("out").peek()}")
+                inverter("out").peek() shouldBe (if ((i % 2) == 0) 1 else 0)
+                Sim.time.tick(1.ns)
+              }
             }
           }
-        }.join()
+          .join()
       }
 
     }
@@ -96,7 +97,7 @@ class VerilogSimulationTests extends AnyWordSpec with Matchers {
         |endmodule
         |""".stripMargin
 
-      val verilogFile = buildDir.addFile("alu.sv", verilog)  
+      val verilogFile = buildDir.addFile("alu.sv", verilog)
 
       Reporting.setOutput(Reporting.NullStream)
 
@@ -104,7 +105,10 @@ class VerilogSimulationTests extends AnyWordSpec with Matchers {
 
       VerilogModel(topName, verilogFile).simulate(buildDir) { alu =>
         alu.addClockDomain("clk", 2.ns)(
-          alu("a"), alu("b"), alu("op"), alu("result")
+          alu("a"),
+          alu("b"),
+          alu("op"),
+          alu("result")
         )
 
         for (op <- 0 to 3) {
@@ -121,7 +125,7 @@ class VerilogSimulationTests extends AnyWordSpec with Matchers {
                 case 2 => aval & bval
                 case 3 => aval | bval
               }
-              val expectedMasked = expected & 0xF
+              val expectedMasked = expected & 0xf
 
               alu("result").peek() shouldBe expectedMasked
             }
@@ -129,7 +133,6 @@ class VerilogSimulationTests extends AnyWordSpec with Matchers {
         }
 
       }
-
 
     }
 

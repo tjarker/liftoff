@@ -90,7 +90,6 @@ class TaskTests extends AnyWordSpec with Matchers {
 
   }
 
-
   "A TaskScope" should {
     val ctrl = new SimController(new DummySimModel)
     "take no time without any tasks" in ctrl.run {

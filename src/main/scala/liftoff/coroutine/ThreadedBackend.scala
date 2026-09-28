@@ -10,17 +10,17 @@ case object ThreadedCoroutineCancelledException extends Exception
 
 class PlatformThreadedCoroutineScope extends ThreadedCoroutineScope(r => new Thread(r))
 
-class VirtualThreadedCoroutineScope extends ThreadedCoroutineScope(Thread.ofVirtual().name("liftoff-virt-", 0L).factory().newThread)
+class VirtualThreadedCoroutineScope
+    extends ThreadedCoroutineScope(Thread.ofVirtual().name("liftoff-virt-", 0L).factory().newThread)
 
 class ThreadedCoroutineScope(val threadFactory: Runnable => Thread) extends CoroutineScope {
-
 
   var shouldWait: Boolean = false
 
   var current: Option[ThreadedCoroutine[Any, Any, Any]] = None
   def currentCoroutine: Option[Coroutine[_, _, _]] = current
 
-  def create[I, O, R](block: => R): Coroutine[I, O,R] = {
+  def create[I, O, R](block: => R): Coroutine[I, O, R] = {
     new ThreadedCoroutine[I, O, R](block, this, current)
   }
 
@@ -29,7 +29,7 @@ class ThreadedCoroutineScope(val threadFactory: Runnable => Thread) extends Coro
     val self = this.current.get
     self.out = value match {
       case Some(v) => YieldedWith(v)
-      case None => Yielded
+      case None    => Yielded
     }
     self.shouldSleep = true // setup sleeping
     this.shouldWait = false // setup caller waking
@@ -47,7 +47,11 @@ class ThreadedCoroutineScope(val threadFactory: Runnable => Thread) extends Coro
 
 }
 
-class ThreadedCoroutine[I, O, R](block: => R, scope: ThreadedCoroutineScope, val parent: Option[Coroutine[Any, Any, Any]]) extends Coroutine[I, O, R] {
+class ThreadedCoroutine[I, O, R](
+    block: => R,
+    scope: ThreadedCoroutineScope,
+    val parent: Option[Coroutine[Any, Any, Any]]
+) extends Coroutine[I, O, R] {
 
   var hasStarted: Boolean = false
   var hasBeenCancelled: Boolean = false
@@ -59,24 +63,24 @@ class ThreadedCoroutine[I, O, R](block: => R, scope: ThreadedCoroutineScope, val
 
   val thread = scope.threadFactory(new Runnable {
 
-      def run(): Unit = {
-        try {
-          CurrentScope.value = Some(scope)
-          val res = block
-          out = Finished(res)
-        } catch {
-          case ThreadedCoroutineCancelledException =>
-            // just exit
-          case e: Throwable =>
-            out = Failed(e)
-        } finally {
-          // No-op for now
-        }
-        scope.shouldWait = false
-        LockSupport.unpark(callerThread)
-      
+    def run(): Unit = {
+      try {
+        CurrentScope.value = Some(scope)
+        val res = block
+        out = Finished(res)
+      } catch {
+        case ThreadedCoroutineCancelledException =>
+        // just exit
+        case e: Throwable =>
+          out = Failed(e)
+      } finally {
+        // No-op for now
       }
-    })
+      scope.shouldWait = false
+      LockSupport.unpark(callerThread)
+
+    }
+  })
 
   // this is caller code
   def resume(value: Option[I]): Result[O, R] = {
@@ -122,5 +126,5 @@ class ThreadedCoroutine[I, O, R](block: => R, scope: ThreadedCoroutineScope, val
     while (scope.shouldWait) LockSupport.park()
     scope.current = caller
   }
-  
+
 }

@@ -9,10 +9,7 @@ import javax.sound.midi.Receiver
 import liftoff.simulation.task.BufferedRoundTripChannel
 import liftoff.simulation.task.Receipt
 
-trait Port[T] {
-
-}
-
+trait Port[T] {}
 
 class SenderPort[T](val portName: String) extends Port[T] {
   override def toString(): String = s"SenderPort($portName)"
@@ -67,11 +64,11 @@ class RoundTripSenderPort[A, B](val portName: String) extends RoundTripPort[A, B
   override def toString(): String = s"RoundTripSenderPort($portName)"
 
   var endPoint = Option.empty[RoundTripReceiverPort[A, B]]
-  
+
   def send(value: A): Receipt[B] = {
     endPoint match {
       case Some(receiver) => receiver.send(value)
-      case None => throw new RuntimeException(s"No receiver connected to $this")
+      case None           => throw new RuntimeException(s"No receiver connected to $this")
     }
   }
   def connect(r: RoundTripReceiverPort[A, B]): Unit = {

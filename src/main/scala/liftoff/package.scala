@@ -65,14 +65,24 @@ package object liftoff extends misc.Misc with chisel.ChiselPeekPokeAPI with simu
   val Component = liftoff.verify.Component
   val Test = liftoff.verify.component.Test
 
-  
-  /** @param result   what the simulation block returned
-    * @param runTimes wall-clock time spent in each part of the simulation
-    * @param freq     simulated clock cycles per millisecond of wall-clock time (kHz)
-    * @param cycles   cycles of the clock of a Chisel module, or of the first clock domain of a Verilog model
-    * @param waveFile the waves the simulation recorded; empty if the model records none
+  /** @param result
+    *   what the simulation block returned
+    * @param runTimes
+    *   wall-clock time spent in each part of the simulation
+    * @param freq
+    *   simulated clock cycles per millisecond of wall-clock time (kHz)
+    * @param cycles
+    *   cycles of the clock of a Chisel module, or of the first clock domain of a Verilog model
+    * @param waveFile
+    *   the waves the simulation recorded; empty if the model records none
     */
-  case class SimulationResult[T](result: T, runTimes: Map[String, Time], freq: Double, cycles: Long, waveFile: Option[File]) {
+  case class SimulationResult[T](
+      result: T,
+      runTimes: Map[String, Time],
+      freq: Double,
+      cycles: Long,
+      waveFile: Option[File]
+  ) {
     def openWaveInSurfer(): Unit = waveFile match {
       case Some(file) =>
         // launch surfer as detached process
@@ -80,10 +90,13 @@ package object liftoff extends misc.Misc with chisel.ChiselPeekPokeAPI with simu
         pb.inheritIO()
         pb.start()
       case None =>
-        Reporting.warn(None, "SimulationResult", "The model records no waves, see `waves` of ChiselModel and VerilogModel")
+        Reporting.warn(
+          None,
+          "SimulationResult",
+          "The model records no waves, see `waves` of ChiselModel and VerilogModel"
+        )
     }
   }
-
 
   import java.lang.management.ManagementFactory
   import scala.jdk.CollectionConverters._
@@ -91,7 +104,9 @@ package object liftoff extends misc.Misc with chisel.ChiselPeekPokeAPI with simu
   object GcTime {
     def totalGcTimeMs: Long =
       ManagementFactory.getGarbageCollectorMXBeans.asScala
-        .map(_.getCollectionTime).filter(_ >= 0).sum
+        .map(_.getCollectionTime)
+        .filter(_ >= 0)
+        .sum
   }
 
 }

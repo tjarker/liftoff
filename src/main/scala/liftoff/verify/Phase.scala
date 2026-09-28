@@ -38,7 +38,7 @@ object Phase {
       case c if c == classOf[ResetPhase]  => (p: P) => p.asInstanceOf[ResetPhase].reset()
       case c if c == classOf[TestPhase]   => (p: P) => p.asInstanceOf[TestPhase].test()
       case c if c == classOf[ReportPhase] => (p: P) => p.asInstanceOf[ReportPhase].report()
-      case _  => throw new Exception(s"Unknown phase type: ${ct.runtimeClass}")
+      case _                              => throw new Exception(s"Unknown phase type: ${ct.runtimeClass}")
     }
   }
 
@@ -48,7 +48,7 @@ object Phase {
       case c if c == classOf[ResetPhase]  => "ResetPhase"
       case c if c == classOf[TestPhase]   => "TestPhase"
       case c if c == classOf[ReportPhase] => "ReportPhase"
-      case _  => throw new Exception(s"Unknown phase type: ${ct.runtimeClass}")
+      case _                              => throw new Exception(s"Unknown phase type: ${ct.runtimeClass}")
     }
   }
 
@@ -73,7 +73,4 @@ object Phase {
     tasks.toSeq
   }
 
-
 }
-
-

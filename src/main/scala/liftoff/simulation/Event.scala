@@ -11,8 +11,7 @@ import liftoff.misc.Reporting
 import scala.collection.mutable
 import liftoff.chisel.ChiselBridge.InputPort
 
-/**
-  * Ordering at a time step in each region is as follows:
+/** Ordering at a time step in each region is as follows:
   *   1. Run tasks
   *   2. Drive inputs
   *   3. Apply clock edges
@@ -20,21 +19,19 @@ import liftoff.chisel.ChiselBridge.InputPort
 trait Event extends Ordered[Event] {
   def time: AbsoluteTime
 
-
   def toInt: Int = this match {
-    case _: Event.RunTask => 0
+    case _: Event.RunTask         => 0
     case _: Event.CondWaitingTask => 0
-    case _: Event.ClockEdge => 1
+    case _: Event.ClockEdge       => 1
   }
 
-
- /*
-  * The result sign has the following meaning:
-  *
-  *  - negative if x < y (this is before that)
-  *  - positive if x > y (this is after that)
-  *  - zero otherwise (if x == y)
-  */
+  /*
+   * The result sign has the following meaning:
+   *
+   *  - negative if x < y (this is before that)
+   *  - positive if x > y (this is after that)
+   *  - zero otherwise (if x == y)
+   */
   def compare(that: Event): Int = {
     if (this.time.fs == that.time.fs) { // is this at the same time as that?
       (this, that) match {
@@ -64,17 +61,19 @@ object Event {
   case class RunTask(time: AbsoluteTime, task: Task[_], order: Int) extends TaskRelease {
     override def toString(): String = s"RunTask(${time}, ${task})"
   }
-  case class CondWaitingTask(time: AbsoluteTime, task: Task[_], order: Int, cond: StepUntil, waited: Int) extends TaskRelease {
-    override def toString(): String = s"CondRunTask(${time}, ${task}, ${cond.port} == ${cond.value}, waited: ${waited}/${cond.maxCycles})"
+  case class CondWaitingTask(time: AbsoluteTime, task: Task[_], order: Int, cond: StepUntil, waited: Int)
+      extends TaskRelease {
+    override def toString(): String =
+      s"CondRunTask(${time}, ${task}, ${cond.port} == ${cond.value}, waited: ${waited}/${cond.maxCycles})"
   }
   case class CondRunTask(time: AbsoluteTime, task: Task[_], order: Int, cond: Cond) extends TaskRelease {
     override def toString(): String = s"PeriodicTask(${time}, ${task}, ${cond})"
   }
   case class ClockEdge(time: AbsoluteTime, clock: CtrlClockHandle, rising: Boolean) extends Event {
-    override def toString(): String = s"ClockEdge(${time}, ${clock}, ${clock.period}, ${if (rising) "rising" else "falling"})"
+    override def toString(): String =
+      s"ClockEdge(${time}, ${clock}, ${clock.period}, ${if (rising) "rising" else "falling"})"
   }
 }
-
 
 class EventQueue {
 
@@ -82,13 +81,14 @@ class EventQueue {
 
   var taskCount = 0
 
-  val nextEdge = mutable.Map.empty[InputPortHandle, (AbsoluteTime, Boolean, Time)] // clock -> (next edge time, is rising edge)
+  val nextEdge =
+    mutable.Map.empty[InputPortHandle, (AbsoluteTime, Boolean, Time)] // clock -> (next edge time, is rising edge)
 
- def enqueue(event: Event): Unit = {
+  def enqueue(event: Event): Unit = {
     event match {
       case e: Event.TaskRelease => taskCount += 1
-      case e: Event.ClockEdge => nextEdge(e.clock) = (e.time, e.rising, e.clock.period)
-      case _ => // do nothing
+      case e: Event.ClockEdge   => nextEdge(e.clock) = (e.time, e.rising, e.clock.period)
+      case _                    => // do nothing
     }
     queue.enqueue(event)
   }
@@ -104,7 +104,7 @@ class EventQueue {
       val event = queue.dequeue()
       event match {
         case e: Event.TaskRelease => taskCount -= 1
-        case _ => // do nothing
+        case _                    => // do nothing
       }
       Some(event)
     }
@@ -147,13 +147,13 @@ class EventQueue {
   def purgeTask(task: Task[_]): Unit = {
     val all = queue.dequeueAll[Event]
     val filtered = all.filter {
-      case Event.RunTask(_, t, _) if t == task => 
+      case Event.RunTask(_, t, _) if t == task =>
         taskCount -= 1
         false
-      case Event.CondWaitingTask(_, t, _, _, _) if t == task => 
+      case Event.CondWaitingTask(_, t, _, _, _) if t == task =>
         taskCount -= 1
         false
-      case Event.CondRunTask(_, t, _, _) if t == task => 
+      case Event.CondRunTask(_, t, _, _) if t == task =>
         taskCount -= 1
         false
       case _ => true

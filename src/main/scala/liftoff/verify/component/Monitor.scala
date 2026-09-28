@@ -10,7 +10,6 @@ import liftoff.simulation.Sim
 
 abstract class Monitor[T] extends Component with SimPhase with Monitors[T] {
 
-
   val subscribers = mutable.Buffer[ReceiverPort[T]]()
 
   val waiters = mutable.Buffer[(T => Boolean, Task[_])]()
@@ -43,11 +42,9 @@ abstract class Monitor[T] extends Component with SimPhase with Monitors[T] {
     }
   }
 
-
   def addSubscriber(c: AnalysisComponent[T]): Unit = {
     subscribers.append(c.port)
   }
-
 
   def waitFor(cond: T => Boolean): Unit = {
     waiters.append((cond, Task.current))

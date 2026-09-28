@@ -34,7 +34,6 @@ class ChiselSimulationTests extends AnyWordSpec with Matchers {
       dir.createIfNotExists()
       dir.clean()
       ChiselModel(new MyModule).log("simulation.log").simulate(dir) { dut =>
-
         dut.io.out.dependsCombinationallyOn(Seq(dut.io.in.a, dut.io.in.b) ++ dut.io.vecin)
 
         dut.io.in.a.poke(10.U)
@@ -44,15 +43,17 @@ class ChiselSimulationTests extends AnyWordSpec with Matchers {
 
         dut.clock.step(5)
 
-        dut.io.in.poke(chiselTypeOf(dut.io.in).Lit(
-          _.a -> 5.U,
-          _.b -> 15.U
-        ))
+        dut.io.in.poke(
+          chiselTypeOf(dut.io.in).Lit(
+            _.a -> 5.U,
+            _.b -> 15.U
+          )
+        )
         dut.io.vecin.poke(Vec.Lit(2.U, 3.U, 4.U, 5.U))
         dut.io.out.expect(34.U)
 
         dut.clock.step(5)
-        
+
       }
 
     }
@@ -67,7 +68,7 @@ class ChiselSimulationTests extends AnyWordSpec with Matchers {
           val out = Output(UInt(8.W))
         })
         val count = RegInit(0.U(8.W))
-        when (io.inc) {
+        when(io.inc) {
           count := count + 1.U
         }
         io.out := count
@@ -76,9 +77,8 @@ class ChiselSimulationTests extends AnyWordSpec with Matchers {
       val dir = "build/chisel_sequential_simulation".toDir
       dir.createIfNotExists()
       dir.clean()
-      
-      ChiselModel(new MyCounter).simulate(dir) { dut =>
 
+      ChiselModel(new MyCounter).simulate(dir) { dut =>
         dut.io.inc.poke(false.B)
         dut.clock.step(3)
         dut.io.out.expect(0.U)
@@ -172,8 +172,6 @@ class ChiselSimulationTests extends AnyWordSpec with Matchers {
 
       val c = ChiselStage.convert(new Dummy(new MyBlackBox), Array())
 
-
-
     }
 
     "fail when an expectation fails" in {
@@ -192,7 +190,7 @@ class ChiselSimulationTests extends AnyWordSpec with Matchers {
       dir.createIfNotExists()
       dir.clean()
 
-      a [liftoff.chisel.FailedExpectationException[_]] should be thrownBy {
+      a[liftoff.chisel.FailedExpectationException[_]] should be thrownBy {
         ChiselModel(new Delay).simulate(dir) { dut =>
           dut.io.in.poke(1.U)
           dut.clock.step()
@@ -209,14 +207,16 @@ class ChiselSimulationTests extends AnyWordSpec with Matchers {
       workingDir.createIfNotExists()
       workingDir.clean()
 
-      val verilogFile = workingDir.addFile("Increment.v",
+      val verilogFile = workingDir.addFile(
+        "Increment.v",
         """module Increment (
           |  input  [7:0] in,
           |  output [7:0] out
           |);
           |  assign out = in + 1;
           |endmodule
-          |""".stripMargin)
+          |""".stripMargin
+      )
 
       class Increment extends BlackBox with HasBlackBoxPath {
         val io = IO(new Bundle {

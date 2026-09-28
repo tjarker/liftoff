@@ -33,7 +33,10 @@ object Sim {
       SimController.current.getOutputPortHandle(portName)
     }
     def addClockDomain(clockPortName: String, period: Time, ports: Seq[PortHandle]): ClockPortHandle = {
-      require(ports.forall(_.isInstanceOf[CtrlPortHandle]), s"Can't add clock domain with non-CtrlPortHandle ports: ${ports.filterNot(_.isInstanceOf[CtrlPortHandle])}")
+      require(
+        ports.forall(_.isInstanceOf[CtrlPortHandle]),
+        s"Can't add clock domain with non-CtrlPortHandle ports: ${ports.filterNot(_.isInstanceOf[CtrlPortHandle])}"
+      )
       SimController.current.addClockDomain(clockPortName, period, ports.asInstanceOf[Seq[CtrlPortHandle]])
     }
     def getCycles(c: ClockPortHandle): Int = {
@@ -42,8 +45,14 @@ object Sim {
     }
     def addCombinationalDependency(output: OutputPortHandle, inputs: Seq[InputPortHandle]): Unit = {
       require(output.isInstanceOf[CtrlOutHandle], s"Can't add combinational dependency to non-CtrlOutHandle: $output")
-      require(inputs.forall(_.isInstanceOf[CtrlInputHandle]), s"Can't add combinational dependency from non-CtrlInputHandle: ${inputs.filterNot(_.isInstanceOf[CtrlInputHandle])}")
-      SimController.current.addCombinationDependency(output.asInstanceOf[CtrlOutHandle], inputs.asInstanceOf[Seq[CtrlInputHandle]])
+      require(
+        inputs.forall(_.isInstanceOf[CtrlInputHandle]),
+        s"Can't add combinational dependency from non-CtrlInputHandle: ${inputs.filterNot(_.isInstanceOf[CtrlInputHandle])}"
+      )
+      SimController.current.addCombinationDependency(
+        output.asInstanceOf[CtrlOutHandle],
+        inputs.asInstanceOf[Seq[CtrlInputHandle]]
+      )
     }
   }
   def time: SimTime = SimController.current.currentTime

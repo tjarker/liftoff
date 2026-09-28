@@ -45,13 +45,14 @@ object Verilator {
     }
   }
 
-  /** Waveform/activity format Verilator was asked to emit. Determines which
-    * runtime object must be linked and which tracer class the harness uses.
+  /** Waveform/activity format Verilator was asked to emit. Determines which runtime object must be linked and which
+    * tracer class the harness uses.
     */
   sealed trait TraceFormat {
     def runtimeObject: String
     def tracerClass: String
     def header: String
+
     /** The Verilator flag enabling this format, if any. */
     def argument: Option[Argument]
     def fileExtension: String
@@ -126,8 +127,7 @@ object Verilator {
     try {
       val path = Seq("which", "verilator").!!.trim
       Some(new File(path))
-    } 
-    catch {
+    } catch {
       case _: Throwable => None
     }
   }
@@ -139,7 +139,7 @@ object Verilator {
       return Failure(new Exception("Verilator executable not found."))
     }
 
-    val base  = (verilatorBin.getParentFile.getAbsolutePath() + "/../share/verilator/include").toFile
+    val base = (verilatorBin.getParentFile.getAbsolutePath() + "/../share/verilator/include").toFile
 
     if (!base.exists() || !base.isDirectory) {
       return Failure(new Exception(s"Verilator include directory not found: ${base.getAbsolutePath}"))
@@ -149,9 +149,8 @@ object Verilator {
     Success(Seq(base, new File(base, "vltstd")))
   }
 
-  /** Runs `command`, a complete Verilator invocation building the model `name` into `dir`, and
-    * returns the object files to link: the model, the Verilator runtime, the runtime of `trace`
-    * and one object per C++ file in `cppSources`.
+  /** Runs `command`, a complete Verilator invocation building the model `name` into `dir`, and returns the object files
+    * to link: the model, the Verilator runtime, the runtime of `trace` and one object per C++ file in `cppSources`.
     */
   def createRecipe(
       dir: WorkingDirectory,
@@ -162,13 +161,14 @@ object Verilator {
       cppSources: Seq[File]
   ): WorkingDirectory.Recipe[Seq[File]] = {
 
-    val ext = if (System.getProperty("os.name").toLowerCase.contains("mac")) ".a"
-    else ".o"
+    val ext =
+      if (System.getProperty("os.name").toLowerCase.contains("mac")) ".a"
+      else ".o"
 
     val targets = Seq(
       dir / (s"V${name}__ALL" + ext),
       dir / "verilated.o",
-      dir / "verilated_threads.o",
+      dir / "verilated_threads.o"
     ) ++ Option.when(trace != TraceFormat.NoTrace)(dir / trace.runtimeObject) ++
       cppSources.map(f => dir / (f.getName.stripSuffix(".cpp").stripSuffix(".cc") + ".o"))
 

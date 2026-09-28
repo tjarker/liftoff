@@ -24,7 +24,7 @@ class ConfigTests extends AnyWordSpec with Matchers {
 
     "should be inherited by tasks" in {
       Reporting.setOutput(Reporting.NullStream)
-      SimController.set(new SimController(new DummySimModel)) 
+      SimController.set(new SimController(new DummySimModel))
       Config.set(TestParam, 77)
 
       val task = Sim.Scheduler.addTask("test-task", 0) {
@@ -38,7 +38,7 @@ class ConfigTests extends AnyWordSpec with Matchers {
 
       Config.set(TestParam, 33)
       SimController.current.run()
-      
+
     }
 
   }

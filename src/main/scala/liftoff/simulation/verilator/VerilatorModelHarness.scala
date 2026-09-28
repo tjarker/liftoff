@@ -1,6 +1,5 @@
 package liftoff.simulation.verilator
 
-
 import java.io.File
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
@@ -113,7 +112,12 @@ private[liftoff] object VerilatorModelHarness {
         |""".stripMargin
   }
 
-  def harness(moduleName: String, functionPrefix: String, syms: Seq[VerilatorPortDescriptor], trace: Verilator.TraceFormat): String =
+  def harness(
+      moduleName: String,
+      functionPrefix: String,
+      syms: Seq[VerilatorPortDescriptor],
+      trace: Verilator.TraceFormat
+  ): String =
     s"""|${imports(moduleName, trace)}
         |
         |double sc_time_stamp() { return 0; }
@@ -128,7 +132,13 @@ private[liftoff] object VerilatorModelHarness {
         |}
         |""".stripMargin
 
-  def writeHarness(dir: WorkingDirectory, moduleName: String, functionPrefix: String, syms: Seq[VerilatorPortDescriptor], trace: Verilator.TraceFormat) = {
+  def writeHarness(
+      dir: WorkingDirectory,
+      moduleName: String,
+      functionPrefix: String,
+      syms: Seq[VerilatorPortDescriptor],
+      trace: Verilator.TraceFormat
+  ) = {
     dir.addFile(s"${functionPrefix}_harness.cpp", harness(moduleName, functionPrefix, syms, trace))
   }
 

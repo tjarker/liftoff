@@ -16,7 +16,7 @@ class CoroutineTests extends AnyWordSpec with Matchers {
 
   "A Coroutine" when {
 
-   for (backend <- Seq(ContinuationBackend, VirtualThreadBackend, PlatformThreadBackend)) {
+    for (backend <- Seq(ContinuationBackend, VirtualThreadBackend, PlatformThreadBackend)) {
       s"using the $backend backend" should {
 
         val scope = Coroutine.createScope(backend)
@@ -101,7 +101,7 @@ class CoroutineTests extends AnyWordSpec with Matchers {
         "work with nested ContextVariables" in {
 
           val dyn = new CoroutineContextVariable[Int](-1)
-          
+
           var nestedCont: Coroutine[Unit, Unit, Unit] = null
 
           dyn.value shouldBe -1

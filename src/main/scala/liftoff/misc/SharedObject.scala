@@ -78,4 +78,3 @@ private[liftoff] object SharedObject {
   }
 
 }
-

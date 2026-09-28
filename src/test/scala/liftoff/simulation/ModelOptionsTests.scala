@@ -127,9 +127,11 @@ class ModelOptionsTests extends AnyWordSpec with Matchers {
 
       val settings = ModelSettings().waves(Waves.Off).params("WIDTH" -> 2).clock("clk", 2.ns)
 
-      VerilogModel("register", settings, source).simulate(dir) { m =>
-        m("out").width shouldBe 2
-      }.waveFile shouldBe None
+      VerilogModel("register", settings, source)
+        .simulate(dir) { m =>
+          m("out").width shouldBe 2
+        }
+        .waveFile shouldBe None
     }
   }
 }

@@ -9,11 +9,11 @@ import liftoff.coroutine.Gen._
 class GeneratorTests extends AnyWordSpec with Matchers {
 
   Reporting.setOutput(Reporting.NullStream)
-  
+
   "A Generator" should {
     "produce values correctly" in {
       val gen = Gen[Int] {
-        for (i <- 1 to 5) Gen.emit(i * 10) 
+        for (i <- 1 to 5) Gen.emit(i * 10)
       }
 
       gen.toSeq shouldEqual Seq(10, 20, 30, 40, 50)
@@ -214,7 +214,7 @@ class GeneratorTests extends AnyWordSpec with Matchers {
         Gen.emit(innerGen(a))
       }
 
-      val results = gen.eval(Seq(1,2,3,4,5)).toSeq
+      val results = gen.eval(Seq(1, 2, 3, 4, 5)).toSeq
 
       results shouldEqual Seq(1, 2, 3, 4, 5)
     }

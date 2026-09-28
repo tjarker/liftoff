@@ -3,8 +3,6 @@ package liftoff.simulation
 import liftoff.simulation.Time.RelativeTime
 import liftoff.misc.Reporting
 
-
-
 trait SimModel {
 
   def name: String
@@ -30,7 +28,7 @@ trait SimModel {
     }
   }
 
-  val hook = new Thread(() => doCleanup(), s"$name-cleanup-hook-"+this.hashCode())
+  val hook = new Thread(() => doCleanup(), s"$name-cleanup-hook-" + this.hashCode())
   Runtime.getRuntime.addShutdownHook(hook)
 
   def clearHook(): Unit = {
@@ -47,7 +45,6 @@ object SimModel {
     (model.name, model.inputs, model.outputs)
   }
 }
-
 
 trait PortHandle {
 
@@ -86,7 +83,6 @@ trait ClockPortHandle extends InputPortHandle {
 
   override def toString(): String = s"Clock($name, $width.W)"
 
-
   def cycle: Int
   def period: Time
   def step(n: Int = 1): Unit
@@ -99,4 +95,3 @@ trait OutputPortHandle extends PortHandle {
   override def toString(): String = s"Output($name, $width.W)"
 
 }
-

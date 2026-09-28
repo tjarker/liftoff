@@ -12,20 +12,22 @@ class DecoupledProducer[T <: Data](port: DecoupledIO[T], clock: Clock) {
     val startCycle = clock.cycle
     val startTime = Sim.time
 
-    val result = Task.withRegion(Region.Monitor) {
+    val result = Task
+      .withRegion(Region.Monitor) {
 
-      clock.stepUntil(port.ready, 1.B, maxCycles = timeout) match {
-        case StepUntilResult.Success(_) =>
-          val acceptedCycle = clock.cycle
-          val acceptedTime = Sim.time
-          DecoupledTransfer.Ok(data, startCycle, acceptedCycle, startTime, acceptedTime)
-        
-        case StepUntilResult.Timeout(_) =>
-          val timedOutCycle = clock.cycle
-          val timedOutTime = Sim.time
-          DecoupledTransfer.Timeout(data, startCycle, timedOutCycle, startTime, timedOutTime)
+        clock.stepUntil(port.ready, 1.B, maxCycles = timeout) match {
+          case StepUntilResult.Success(_) =>
+            val acceptedCycle = clock.cycle
+            val acceptedTime = Sim.time
+            DecoupledTransfer.Ok(data, startCycle, acceptedCycle, startTime, acceptedTime)
+
+          case StepUntilResult.Timeout(_) =>
+            val timedOutCycle = clock.cycle
+            val timedOutTime = Sim.time
+            DecoupledTransfer.Timeout(data, startCycle, timedOutCycle, startTime, timedOutTime)
+        }
       }
-    }.join()
+      .join()
 
     clock.step() // commit handshake
     port.valid.poke(0.B)
@@ -43,21 +45,23 @@ class DecoupledConsumer[T <: Data](port: DecoupledIO[T], clock: Clock) {
   def receive(timeout: Int = -1): DecoupledTransfer[T] = {
     port.ready.poke(1.B)
 
-    val result = Task.withRegion(Region.Monitor) {
-      clock.stepUntil(port.valid, 1.B, maxCycles = timeout) match {
+    val result = Task
+      .withRegion(Region.Monitor) {
+        clock.stepUntil(port.valid, 1.B, maxCycles = timeout) match {
 
-        case StepUntilResult.Success(_) =>
-          val receivedCycle = clock.cycle
-          val receivedTime = Sim.time
-          val received = port.bits.peek()
-          DecoupledTransfer.Ok(received, receivedCycle - 1, receivedCycle, receivedTime, receivedTime)
-        
-        case StepUntilResult.Timeout(_) =>
-          val timedOutCycle = clock.cycle
-          val timedOutTime = Sim.time
-          DecoupledTransfer.Timeout(port.bits.peek(), timedOutCycle, timedOutCycle, timedOutTime, timedOutTime)
+          case StepUntilResult.Success(_) =>
+            val receivedCycle = clock.cycle
+            val receivedTime = Sim.time
+            val received = port.bits.peek()
+            DecoupledTransfer.Ok(received, receivedCycle - 1, receivedCycle, receivedTime, receivedTime)
+
+          case StepUntilResult.Timeout(_) =>
+            val timedOutCycle = clock.cycle
+            val timedOutTime = Sim.time
+            DecoupledTransfer.Timeout(port.bits.peek(), timedOutCycle, timedOutCycle, timedOutTime, timedOutTime)
+        }
       }
-    }.join()
+      .join()
 
     clock.step() // commit handshake
     port.ready.poke(0.B)
@@ -71,22 +75,24 @@ class DecoupledConsumer[T <: Data](port: DecoupledIO[T], clock: Clock) {
   def expect(expected: T, timeout: Int = -1): DecoupledTransfer[T] = {
     port.ready.poke(1.B)
 
-    val result = Task.withRegion(Region.Monitor) {
-      clock.stepUntil(port.valid, 1.B, maxCycles = timeout) match {
+    val result = Task
+      .withRegion(Region.Monitor) {
+        clock.stepUntil(port.valid, 1.B, maxCycles = timeout) match {
 
-        case StepUntilResult.Success(_) =>
-          val receivedCycle = clock.cycle
-          val receivedTime = Sim.time
-          val received = port.bits.peek()
-          port.bits.expect(expected)
-          DecoupledTransfer.Ok(received, receivedCycle - 1, receivedCycle, receivedTime, receivedTime)
-        
-        case StepUntilResult.Timeout(_) =>
-          val timedOutCycle = clock.cycle
-          val timedOutTime = Sim.time
-          DecoupledTransfer.Timeout(port.bits.peek(), timedOutCycle, timedOutCycle, timedOutTime, timedOutTime)
+          case StepUntilResult.Success(_) =>
+            val receivedCycle = clock.cycle
+            val receivedTime = Sim.time
+            val received = port.bits.peek()
+            port.bits.expect(expected)
+            DecoupledTransfer.Ok(received, receivedCycle - 1, receivedCycle, receivedTime, receivedTime)
+
+          case StepUntilResult.Timeout(_) =>
+            val timedOutCycle = clock.cycle
+            val timedOutTime = Sim.time
+            DecoupledTransfer.Timeout(port.bits.peek(), timedOutCycle, timedOutCycle, timedOutTime, timedOutTime)
+        }
       }
-    }.join()
+      .join()
 
     clock.step() // commit handshake
     port.ready.poke(0.B)

@@ -2,8 +2,7 @@ package chisel3
 
 import scala.annotation.nowarn
 
-/** Access to Chisel internals, for Chisel 7. Chisel 7 moved the bindings into
-  * `chisel3.internal.binding`.
+/** Access to Chisel internals, for Chisel 7. Chisel 7 moved the bindings into `chisel3.internal.binding`.
   */
 object ChiselExposer {
 

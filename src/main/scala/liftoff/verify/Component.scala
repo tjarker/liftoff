@@ -22,7 +22,7 @@ case class CompPath(val name: String, val hiearchy: Seq[Component]) {
       name
     }
   }
-  
+
 }
 
 abstract class Component {
@@ -35,10 +35,10 @@ abstract class Component {
   val name = path.name
 
   Component.currentComponent.value = Some(this) // set this so that child components can find their parent
-                                                           // it will be undone by the Component.create method
+  // it will be undone by the Component.create method
 
   Reporting.setProvider(path.toString()) // set reporting provider to this component's path
-                                              // will be undone by Component.create method
+  // will be undone by Component.create method
   // Capture the coroutine context for spawning tasks later on
   val componentContext: CoroutineContext = Coroutine.Context.capture()
 
@@ -86,12 +86,11 @@ abstract class Component {
 
   def path(f: this.type => Component): String = macro liftoff.macros.Path.pathImpl[this.type]
 
-  
 }
 
 case class ComponentBuilder(
-  params: Seq[(Config[Any], Any)],
-  typeOverrides: Seq[(ClassTag[_], ClassTag[_])]
+    params: Seq[(Config[Any], Any)],
+    typeOverrides: Seq[(ClassTag[_], ClassTag[_])]
 ) {
 
   def withParam[T](c: Config[T], value: T): ComponentBuilder = {
@@ -107,7 +106,7 @@ case class ComponentBuilder(
     typeOverrides.foreach { case (base, overrideType) =>
       Component.overrideType_(base, overrideType)
     }
-    val oldParams = params.map { case (c, v) => c -> Config.swap(c,v) }
+    val oldParams = params.map { case (c, v) => c -> Config.swap(c, v) }
     val comp = Component.create[C](args: _*)(implicitly[ClassTag[C]], name)
 
     Component.restoreOverrides(oldOverrides)
@@ -118,7 +117,6 @@ case class ComponentBuilder(
   }
 
 }
-
 
 object Component {
 
@@ -191,18 +189,20 @@ object ReflectiveFactory {
       case a    => a.getClass
     }.toArray
 
-    val ctor = cls.getConstructors.find { c =>
-      val params = c.getParameterTypes
-      params.length == argClasses.length &&
+    val ctor = cls.getConstructors
+      .find { c =>
+        val params = c.getParameterTypes
+        params.length == argClasses.length &&
         params.zip(argClasses).forall { case (p, a) =>
           p.isAssignableFrom(a) ||
           primitiveWrapperMatch(p, a)
         }
-    }.getOrElse {
-      throw new NoSuchMethodException(
-        s"No matching constructor for ${cls.getName}(${argClasses.mkString(", ")})"
-      )
-    }
+      }
+      .getOrElse {
+        throw new NoSuchMethodException(
+          s"No matching constructor for ${cls.getName}(${argClasses.mkString(", ")})"
+        )
+      }
 
     ctor.newInstance(args.map(_.asInstanceOf[AnyRef]): _*).asInstanceOf[T]
   }
@@ -210,9 +210,9 @@ object ReflectiveFactory {
   private def primitiveWrapperMatch(p: Class[_], a: Class[_]): Boolean =
     (p, a) match {
       case (java.lang.Integer.TYPE, c) if c == classOf[java.lang.Integer] => true
-      case (java.lang.Long.TYPE,    c) if c == classOf[java.lang.Long]    => true
-      case (java.lang.Double.TYPE,  c) if c == classOf[java.lang.Double]  => true
+      case (java.lang.Long.TYPE, c) if c == classOf[java.lang.Long]       => true
+      case (java.lang.Double.TYPE, c) if c == classOf[java.lang.Double]   => true
       case (java.lang.Boolean.TYPE, c) if c == classOf[java.lang.Boolean] => true
-      case _ => false
+      case _                                                              => false
     }
 }

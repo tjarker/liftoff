@@ -25,6 +25,4 @@ abstract class AnalysisComponent[T] extends Component with SimPhase with ReportP
 
 }
 
-abstract class Scoreboard[T] extends AnalysisComponent[T] {
-  
-}
+abstract class Scoreboard[T] extends AnalysisComponent[T] {}
