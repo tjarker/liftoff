@@ -23,6 +23,7 @@ class SimTime(t: Long) extends AbsoluteTime(t) {
 
 }
 
+/** The running simulation: its current time, model and scheduler. */
 object Sim {
 
   object Model {

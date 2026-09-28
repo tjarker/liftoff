@@ -53,6 +53,7 @@ object WorkingDirectory {
   }
 }
 
+/** A directory that builds and simulations write their files to; `"path".toDir` creates one. */
 class WorkingDirectory(val dir: File) {
 
   val artifacts = new ArrayBuffer[File]()

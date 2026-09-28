@@ -3,6 +3,7 @@ package liftoff.coroutine
 import scala.util.DynamicVariable
 import liftoff.misc.Reporting
 
+/** Creates and combines sequences; `emit` produces the next value. */
 object Gen {
 
   implicit class ScalaSeqToGen[T](seq: Seq[T]) {
@@ -164,6 +165,7 @@ object Gen {
 
 }
 
+/** A sequence of values of type `T`. */
 class Gen[T](block: => Unit) extends BiGen[Nothing, T](block) with Iterator[T] {
 
   override def expectsFeedback: Boolean = false
@@ -192,6 +194,7 @@ object BiGen {
   case class HandshakeException(msg: String) extends RuntimeException(msg)
 }
 
+/** A sequence of values of type `O` that receives an `I` back for each value, such as a driver's response. */
 class BiGen[I, O](block: => Unit) {
 
   val coroutineScope = Coroutine.createScope()

@@ -10,12 +10,14 @@ import liftoff.verify.ResetPhase
 import liftoff.verify.ReportPhase
 import liftoff.simulation.Time.TimeUnit
 
+/** The root of a testbench; `test()` runs in the test phase. */
 abstract class Test extends Component with TestPhase {
 
   override def toString(): String = s"Test(${this.getClass().getSimpleName})"
 
 }
 
+/** Runs a test: the sim phase throughout, then the reset, test and report phases. */
 object Test {
   def run(t: => Test): Unit = {
     val root = Component.create(t)

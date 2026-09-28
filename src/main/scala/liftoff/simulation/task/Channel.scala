@@ -8,6 +8,7 @@ object Channel {
   def apply[T](): Channel[T] = new Channel[T]()
 }
 
+/** Passes values between tasks. */
 class Channel[T] {
   private val valueQueue = new mutable.Queue[T]()
   private val waitingReaders = new mutable.Queue[Task[?]]()

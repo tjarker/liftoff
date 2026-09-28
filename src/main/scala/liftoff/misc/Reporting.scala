@@ -3,6 +3,7 @@ package liftoff.misc
 import liftoff.simulation.Time
 import liftoff.coroutine.CoroutineContextVariable
 
+/** Reports of a simulation, tagged with the simulation time and the reporting component. */
 object Reporting {
 
   val successTag = fansi.Color.Green("success")

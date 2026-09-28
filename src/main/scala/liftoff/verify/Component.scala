@@ -25,6 +25,7 @@ case class CompPath(val name: String, val hiearchy: Seq[Component]) {
 
 }
 
+/** A part of a testbench. Components form a hierarchy and run their phases as tasks. */
 abstract class Component {
 
   val path = Component.currentPath.value.getOrElse {
@@ -121,6 +122,7 @@ case class ComponentBuilder(
 
 }
 
+/** Creates components, directly or with parameters and type overrides through `builder`. */
 object Component {
 
   val overrideMap = new CoroutineContextVariable[mutable.Map[ClassTag[_], ClassTag[_]]](mutable.Map.empty)

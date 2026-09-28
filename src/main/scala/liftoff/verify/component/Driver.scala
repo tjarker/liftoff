@@ -29,6 +29,7 @@ class DriveCompletion {
   }
 }
 
+/** Applies the transactions of the sequences given to `drive` to the design and responds to each with an `R`. */
 abstract class Driver[T, R] extends Component with SimPhase with Drives[T, R] {
 
   val sequencePort = Port.receiver[(BiGen[R, T], DriveCompletion)]

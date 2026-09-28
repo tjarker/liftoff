@@ -5,6 +5,7 @@ import liftoff.verify.SimPhase
 import liftoff.verify.ReportPhase
 import liftoff.verify.Port
 
+/** Receives the transactions of the monitors it subscribes to. */
 abstract class AnalysisComponent[T] extends Component with SimPhase with ReportPhase {
 
   val port = Port.receiver[T]
@@ -25,4 +26,5 @@ abstract class AnalysisComponent[T] extends Component with SimPhase with ReportP
 
 }
 
+/** An analysis component that checks transactions. */
 abstract class Scoreboard[T] extends AnalysisComponent[T] {}

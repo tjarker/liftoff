@@ -13,19 +13,23 @@ trait Phase { This: Component =>
   }
 }
 
+/** Runs `sim()` for the whole test, for example a driver or monitor loop. */
 trait SimPhase extends Phase { This: Component =>
   def sim(): Unit
 }
 
+/** Runs `reset()` before the test phase. */
 trait ResetPhase extends Phase { This: Component =>
   def reset(): Unit
 
 }
 
+/** Runs `test()` once reset is done. */
 trait TestPhase extends Phase { This: Component =>
   def test(): Unit
 }
 
+/** Runs `report()` after the test phase. */
 trait ReportPhase extends Phase { This: Component =>
   def report(): Unit
 }

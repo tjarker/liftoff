@@ -8,6 +8,7 @@ import scala.collection.mutable
 import liftoff.simulation.task.Task
 import liftoff.simulation.Sim
 
+/** Observes the design and publishes transactions to its subscribers. */
 abstract class Monitor[T] extends Component with SimPhase with Monitors[T] {
 
   val subscribers = mutable.Buffer[ReceiverPort[T]]()

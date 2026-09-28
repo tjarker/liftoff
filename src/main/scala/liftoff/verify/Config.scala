@@ -2,6 +2,7 @@ package liftoff.verify
 
 import liftoff.coroutine.Coroutine
 
+/** Reads and sets configuration values. */
 object Config {
 
   def tryGet[T](c: Config[T]): Option[T] = {
@@ -37,6 +38,7 @@ object Config {
 
 }
 
+/** A configuration value of type `T`, set per component and task, with an optional default. */
 abstract class Config[T](val default: Option[T]) {
   def this() = this(None)
   def this(default: T) = this(Some(default))

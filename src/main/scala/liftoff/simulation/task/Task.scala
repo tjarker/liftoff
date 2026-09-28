@@ -16,6 +16,7 @@ case class Falling(port: CtrlPortHandle, clk: CtrlClockHandle) extends Cond
 case class Period(t: Time) extends Cond
 case class Custom(clk: CtrlClockHandle, condFunc: () => Boolean) extends Cond
 
+/** Creates tasks, which run concurrently in simulated time. */
 object Task {
 
   val currentTaskVar = new CoroutineContextVariable[Option[Task[_]]](None)
@@ -88,6 +89,7 @@ class CondTask[T](
 
 }
 
+/** A part of a simulation that runs concurrently with the others; `join()` waits for its result. */
 class Task[T](
     val name: String,
     scope: CoroutineScope,
