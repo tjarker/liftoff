@@ -46,9 +46,10 @@ object SimController {
 
 
 
-class SimController(simModel: SimModel) {
+/** @param backend coroutine backend of the simulation tasks; the fastest available one if empty */
+class SimController(simModel: SimModel, backend: Option[CoroutineBackend] = None) {
 
-  val taskScope = Coroutine.createScope()
+  val taskScope = backend.map(Coroutine.createScope(_)).getOrElse(Coroutine.createScope())
 
   val eventQueue: EventQueue = new EventQueue
   var currentTime: SimTime = new SimTime(0)

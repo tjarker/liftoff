@@ -51,9 +51,7 @@ class PeekPokeAPITests extends AnyWordSpec with Matchers with liftoff.chisel.Chi
       val simModel = VerilatorSimModelFactory.create(
         "MyOtherModule",
         workingDir,
-        verilogFiles,
-        verilatorOptions = Seq(),
-        cOptions = Seq()
+        verilogFiles
       ).createModel(runDir)
 
       val controller = new SimController(simModel)

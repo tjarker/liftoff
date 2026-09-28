@@ -3,10 +3,10 @@ package liftoff.simulation
 import org.scalatest.wordspec.AnyWordSpec
 import org.scalatest.matchers.should.Matchers
 import liftoff.misc.PathToFileOps
-import liftoff.simulateVerilog
 import liftoff.simulation.Time._
 import liftoff.misc.Reporting
 import liftoff.verilog.VerilogModule
+import liftoff.VerilogModel
 import liftoff.pathToFileOps
 import liftoff.intToTime
 import liftoff.simulation.task.Task
@@ -40,7 +40,7 @@ class VerilogSimulationTests extends AnyWordSpec with Matchers {
 
       val inverterModule = VerilogModule(topName, Seq(verilogFile))
 
-      simulateVerilog(topName, Seq(verilogFile), buildDir) { inverter =>
+      VerilogModel(topName, verilogFile).simulate(buildDir) { inverter =>
 
         inverter.addCombinationalDependency(
           inverter.out("out"),
@@ -102,7 +102,7 @@ class VerilogSimulationTests extends AnyWordSpec with Matchers {
 
       val aluModule = VerilogModule(topName, Seq(verilogFile))
 
-      simulateVerilog(topName, Seq(verilogFile), buildDir) { alu =>
+      VerilogModel(topName, verilogFile).simulate(buildDir) { alu =>
         alu.addClockDomain("clk", 2.ns)(
           alu("a"), alu("b"), alu("op"), alu("result")
         )

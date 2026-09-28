@@ -62,5 +62,20 @@ object SharedObject {
 
   }
 
+  /** Runs `command`, a complete link command producing `libFile` from `deps`. */
+  def createRecipe(
+      libFile: File,
+      dir: WorkingDirectory,
+      deps: Seq[File],
+      command: Seq[String]
+  ): WorkingDirectory.Recipe[SharedObject] = {
+    dir.addRecipe(
+      Seq(libFile),
+      deps,
+      command,
+      fs => new SharedObject(fs.head)
+    )
+  }
+
 }
 

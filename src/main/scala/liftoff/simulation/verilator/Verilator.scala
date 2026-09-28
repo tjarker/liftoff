@@ -52,33 +52,38 @@ object Verilator {
     def runtimeObject: String
     def tracerClass: String
     def header: String
+    /** The Verilator flag enabling this format, if any. */
+    def argument: Option[Argument]
+    def fileExtension: String
   }
   object TraceFormat {
     case object Vcd extends TraceFormat {
       val runtimeObject = "verilated_vcd_c.o"
       val tracerClass = "VerilatedVcdC"
       val header = "verilated_vcd_c.h"
+      val argument = Some(TraceVcd)
+      val fileExtension = "vcd"
     }
     case object Fst extends TraceFormat {
       val runtimeObject = "verilated_fst_c.o"
       val tracerClass = "VerilatedFstC"
       val header = "verilated_fst_c.h"
+      val argument = Some(TraceFst)
+      val fileExtension = "fst"
     }
     case object Saif extends TraceFormat {
       val runtimeObject = "verilated_saif_c.o"
       val tracerClass = "VerilatedSaifC"
       val header = "verilated_saif_c.h"
+      val argument = Some(TraceSaif)
+      val fileExtension = "saif"
     }
-
-    /** Most specific flag wins, so a caller-supplied --trace-saif overrides the
-      * default FST request rather than silently linking the wrong runtime.
-      */
-    def fromArguments(args: Seq[Argument]): Option[TraceFormat] = {
-      val flags = args.flatMap(_.toStrings)
-      if (flags.contains("--trace-saif")) Some(Saif)
-      else if (flags.contains("--trace-fst")) Some(Fst)
-      else if (flags.contains("--trace")) Some(Vcd)
-      else None
+    case object NoTrace extends TraceFormat {
+      val runtimeObject = ""
+      val tracerClass = ""
+      val header = ""
+      val argument = None
+      val fileExtension = ""
     }
   }
 
@@ -144,17 +149,18 @@ object Verilator {
     Success(Seq(base, new File(base, "vltstd")))
   }
 
+  /** Runs `command`, a complete Verilator invocation building the model `name` into `dir`, and
+    * returns the object files to link: the model, the Verilator runtime, the runtime of `trace`
+    * and one object per C++ file in `cppSources`.
+    */
   def createRecipe(
       dir: WorkingDirectory,
       name: String,
-      args: Seq[Argument],
-      files: Seq[File]
+      command: Seq[String],
+      deps: Seq[File],
+      trace: TraceFormat,
+      cppSources: Seq[File]
   ): WorkingDirectory.Recipe[Seq[File]] = {
-
-    val command = Seq("verilator") ++
-      (args ++ Seq(Arguments.BuildDir(dir.path), Arguments.TopModule(name)))
-        .flatMap(_.toStrings) ++
-      files.map(_.getAbsolutePath)
 
     val ext = if (System.getProperty("os.name").toLowerCase.contains("mac")) ".a"
     else ".o"
@@ -163,11 +169,12 @@ object Verilator {
       dir / (s"V${name}__ALL" + ext),
       dir / "verilated.o",
       dir / "verilated_threads.o",
-    ) ++ TraceFormat.fromArguments(args).map(f => dir / f.runtimeObject)
+    ) ++ Option.when(trace != TraceFormat.NoTrace)(dir / trace.runtimeObject) ++
+      cppSources.map(f => dir / (f.getName.stripSuffix(".cpp").stripSuffix(".cc") + ".o"))
 
     dir.addRecipe(
       targets,
-      files,
+      deps,
       command,
       identity
     )

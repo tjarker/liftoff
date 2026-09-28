@@ -30,9 +30,8 @@ object VerilatorSimModelFactory {
       topName: String,
       dir: WorkingDirectory,
       sources: Seq[File],
-      verilatorOptions: Seq[Verilator.Argument],
-      cOptions: Seq[String]
-  )= {
+      build: VerilatorBuild = VerilatorBuild()
+  ): VerilatorSimModelFactory = {
 
     if (buildDirs.contains(dir)) {
       throw new Exception(s"Working dir for $topName (${dir.dir.getAbsolutePath()}) has already been used in this run.")
@@ -40,31 +39,35 @@ object VerilatorSimModelFactory {
     buildDirs += dir
 
     val verilatorDir = dir.addSubDir(dir / "verilator")
+    val verilogSources = sources ++ build.sources
 
-    // Only default to FST if the caller did not ask for a format themselves --
-    // passing both --trace-fst and --trace-saif links the wrong runtime.
-    val traceFormat =
-      Verilator.TraceFormat.fromArguments(verilatorOptions).getOrElse(Verilator.TraceFormat.Fst)
+    val verilateCommand = build.verilator(
+      Seq("verilator") ++ (Seq(
+        Verilator.Arguments.OptimizationLevel("3"),
+        Verilator.Arguments.CFlags("-fPIC -fpermissive -O3")
+      ) ++ build.arguments
+        // Generated files may include each other by name (Chisel 7 layers, for example).
+        ++ verilogSources.map(_.getAbsoluteFile.getParent).distinct.map(Verilator.Arguments.Include(_))
+      ).flatMap(_.toStrings) ++
+        (verilogSources ++ build.dpi).map(_.getAbsolutePath)
+    ) ++ (
+      Seq(Verilator.Arguments.CC, Verilator.Arguments.Build) ++
+        build.waves.argument ++
+        Seq(Verilator.Arguments.BuildDir(verilatorDir.path), Verilator.Arguments.TopModule(topName))
+    ).flatMap(_.toStrings)
 
-    val traceArgument = traceFormat match {
-      case Verilator.TraceFormat.Vcd  => Verilator.Arguments.TraceVcd
-      case Verilator.TraceFormat.Fst  => Verilator.Arguments.TraceFst
-      case Verilator.TraceFormat.Saif => Verilator.Arguments.TraceSaif
-    }
+    // Verilator's own make also compares timestamps, so all of its objects have to go.
+    rebuildOnChange(verilatorDir, "verilate", verilateCommand)(
+      verilatorDir.dir.listFiles().toSeq.filter(f => f.getName.endsWith(".o") || f.getName.endsWith(".a"))
+    )
 
     val verilateRecipe = Verilator.createRecipe(
       verilatorDir,
       topName,
-      Seq(
-        Verilator.Arguments.CC,
-        Verilator.Arguments.Build,
-        traceArgument,
-        Verilator.Arguments.OptimizationLevel("3"),
-        Verilator.Arguments.CFlags("-fPIC -fpermissive -O3")
-      ) ++ verilatorOptions.filterNot(_ == traceArgument)
-        // Generated files may include each other by name (Chisel 7 layers, for example).
-        ++ sources.map(_.getAbsoluteFile.getParent).distinct.map(Verilator.Arguments.Include(_)),
-      sources
+      verilateCommand,
+      verilogSources ++ build.dpi,
+      build.waves,
+      build.dpi
     )
 
     val artifacts = verilateRecipe.invoke()
@@ -80,24 +83,22 @@ object VerilatorSimModelFactory {
       topName,
       functionPrefix,
       portDescriptors,
-      traceFormat
+      build.waves
     )
 
+    val harnessObject = dir / s"${functionPrefix}_harness.o"
+    val harnessCommand = build.cxx(
+      Seq("g++", "-I.") ++
+        Verilator.getIncludeDir().get.map(p => s"-I$p") ++
+        Seq("-fPIC", "-O3", "-fpermissive")
+    ) ++ Seq("-c", "-o", harnessObject.getAbsolutePath(), harnessFile.getAbsolutePath())
+
+    rebuildOnChange(verilatorDir, "harness", harnessCommand)(Seq(harnessObject))
+
     val harnessCompileRecipe = verilatorDir.addRecipe(
-      Seq(dir / s"${functionPrefix}_harness.o"),
+      Seq(harnessObject),
       Seq(harnessFile),
-      Seq(
-        "g++",
-        "-I.") ++
-        Verilator.getIncludeDir().get.map(p => s"-I$p") ++ Seq(
-        "-fPIC",
-        "-O3",
-        "-fpermissive",
-        "-c",
-        "-o",
-        (dir / s"${functionPrefix}_harness.o").getAbsolutePath(),
-        harnessFile.getAbsolutePath()
-      ),
+      harnessCommand,
       _.head
     )
 
@@ -109,13 +110,19 @@ object VerilatorSimModelFactory {
       else if (System.getProperty("os.name").toLowerCase.contains("mac")) Seq()
       else Seq("-pthread", "-lpthread", "-latomic")
 
+    val objects = artifacts :+ compiledHarness
+    val libFile = dir / (s"lib${functionPrefix}" + SharedObject.sharedLibraryExtension)
+    val linkCommand = build.link(
+      Seq("g++", "-shared", "-fPIC") ++ objects.map(_.getAbsolutePath) ++ Seq("-lz") ++ extraCOptions
+    ) ++ Seq("-o", libFile.getAbsolutePath())
+
+    rebuildOnChange(dir, "link", linkCommand)(Seq(libFile))
+
     val sharedObjectRecipe = SharedObject.createRecipe(
-      libname = s"lib${functionPrefix}",
+      libFile,
       dir,
-      sources = artifacts :+ compiledHarness,
-      options = Seq(
-          "-lz",
-        ) ++ extraCOptions ++ cOptions
+      objects,
+      linkCommand
     )
 
     val sharedObject = sharedObjectRecipe.invoke()
@@ -124,11 +131,50 @@ object VerilatorSimModelFactory {
       topName,
       functionPrefix,
       portDescriptors,
-      sharedObject
+      sharedObject,
+      build.waves,
+      Seq(verilateCommand, harnessCommand, linkCommand)
     )
   }
 
+  /** Records the `command` of a build step in `<step>.cmd` and, if it differs from the command
+    * recorded by the last build, deletes the `outputs` of the step so that it runs again. make
+    * would miss the change: it compares timestamps, and two builds can happen within its resolution.
+    */
+  private def rebuildOnChange(dir: WorkingDirectory, step: String, command: Seq[String])(outputs: => Seq[File]): Unit = {
+    val record = dir / s"$step.cmd"
+    val recorded = command.mkString(" ") + "\n"
+    val previous = if (record.exists()) Some(java.nio.file.Files.readString(record.toPath)) else None
+    if (!previous.contains(recorded)) {
+      outputs.foreach(_.delete())
+      dir.addFile(s"$step.cmd", recorded)
+    }
+  }
+
 }
+
+/** How a Verilator model is built.
+  *
+  * `verilator`, `cxx` and `link` receive the complete command liftoff would run for their build step,
+  * program first, and return the command to run instead. The commands are run by make, so they
+  * go through the shell. Afterwards liftoff appends what the harness relies on: `--cc --build`, the
+  * flag of `waves`, `--Mdir` and `--top-module` to Verilator, `-c -o <harness>.o <harness>.cpp` to
+  * the harness compilation and `-o <library>` to the link.
+  *
+  * @param waves     format of the waves the model records
+  * @param arguments Verilator arguments, part of the command the `verilator` hook receives
+  * @param sources   additional Verilog sources
+  * @param dpi       C++ sources that Verilator compiles and liftoff links into the model
+  */
+case class VerilatorBuild(
+    waves: Verilator.TraceFormat = Verilator.TraceFormat.Fst,
+    arguments: Seq[Verilator.Argument] = Seq(),
+    sources: Seq[File] = Seq(),
+    dpi: Seq[File] = Seq(),
+    verilator: Seq[String] => Seq[String] = identity,
+    cxx: Seq[String] => Seq[String] = identity,
+    link: Seq[String] => Seq[String] = identity
+)
 
 
 /*
@@ -145,7 +191,10 @@ class VerilatorSimModelFactory(
   val name: String,
   val functionPrefix: String,
   val ports: Seq[VerilatorPortDescriptor],
-  val libFile: SharedObject
+  val libFile: SharedObject,
+  val waves: Verilator.TraceFormat,
+  /** The commands that built the model: Verilator, the harness compilation and the link. */
+  val commands: Seq[Seq[String]]
 ) {
 
   val lib = libFile.load()
@@ -184,7 +233,7 @@ class VerilatorSimModel(
 ) extends SimModel {
 
   
-  val waveFile: File = dir / "wave.fst"
+  val waveFile: File = dir / s"wave.${factory.waves.fileExtension}"
 
   val arena = Arena.ofShared()
   val allocTraceFileName = arena.allocateFrom(waveFile.getAbsolutePath())

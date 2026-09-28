@@ -8,7 +8,6 @@ import chisel3.experimental.VecLiterals._
 import chisel3.experimental.BundleLiterals._
 import chisel3.util.HasBlackBoxPath
 import circt.stage.ChiselStage
-import liftoff.simulateChisel
 import liftoff.ChiselModel
 
 class ChiselSimulationTests extends AnyWordSpec with Matchers {
@@ -34,10 +33,7 @@ class ChiselSimulationTests extends AnyWordSpec with Matchers {
       val dir = "build/chisel_simulation".toDir
       dir.createIfNotExists()
       dir.clean()
-      val out = dir.addLoggingFile("simulation.log")
-      Reporting.setOutput(out, colored = false)
-
-      simulateChisel(new MyModule, dir) { dut =>
+      ChiselModel(new MyModule).log("simulation.log").simulate(dir) { dut =>
 
         dut.io.out.dependsCombinationallyOn(Seq(dut.io.in.a, dut.io.in.b) ++ dut.io.vecin)
 
@@ -81,7 +77,7 @@ class ChiselSimulationTests extends AnyWordSpec with Matchers {
       dir.createIfNotExists()
       dir.clean()
       
-      simulateChisel(new MyCounter, dir) { dut =>
+      ChiselModel(new MyCounter).simulate(dir) { dut =>
 
         dut.io.inc.poke(false.B)
         dut.clock.step(3)
@@ -127,7 +123,7 @@ class ChiselSimulationTests extends AnyWordSpec with Matchers {
       val sim1 = buildDir.addSubDir(buildDir / "sim1")
       val sim2 = buildDir.addSubDir(buildDir / "sim2")
 
-      val model = ChiselModel(new SimpleModule, buildDir)
+      val model = ChiselModel(new SimpleModule).build(buildDir)
       val res1 = model.simulate(sim1) { dut =>
         dut.io.in.poke(3.U)
         dut.clock.step()
@@ -180,6 +176,31 @@ class ChiselSimulationTests extends AnyWordSpec with Matchers {
 
     }
 
+    "fail when an expectation fails" in {
+
+      import chisel3._
+
+      class Delay extends Module {
+        val io = IO(new Bundle {
+          val in = Input(UInt(8.W))
+          val out = Output(UInt(8.W))
+        })
+        io.out := RegNext(io.in)
+      }
+
+      val dir = "build/chisel_failing_expect".toDir
+      dir.createIfNotExists()
+      dir.clean()
+
+      a [liftoff.chisel.FailedExpectationException[_]] should be thrownBy {
+        ChiselModel(new Delay).simulate(dir) { dut =>
+          dut.io.in.poke(1.U)
+          dut.clock.step()
+          dut.io.out.expect(2.U)
+        }
+      }
+    }
+
     "simulate BlackBoxes and assertions" in {
 
       import chisel3._
@@ -217,7 +238,7 @@ class ChiselSimulationTests extends AnyWordSpec with Matchers {
         chisel3.assert(io.in =/= 255.U, "in must not overflow")
       }
 
-      simulateChisel(new WithBlackBox, workingDir) { dut =>
+      ChiselModel(new WithBlackBox).simulate(workingDir) { dut =>
         dut.io.in.poke(3.U)
         dut.clock.step()
         dut.io.out.expect(4.U)

@@ -69,7 +69,7 @@ class DpiToScala extends AnyWordSpec with Matchers {
 
       val cFile = dir.addFile("call_scala.cpp", cFunction)
 
-      val module = VerilogModel("top", Seq(vlogFile, cFile), dir, Seq(), Seq("verilator/call_scala.o"))
+      val module = VerilogModel("top", vlogFile).dpi(cFile).build(dir)
 
       val arena  = Arena.ofShared()                 // must outlive the whole simulation
       val linker = Linker.nativeLinker()

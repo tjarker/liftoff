@@ -44,9 +44,7 @@ class VerilatorSimModelTests extends AnyWordSpec with Matchers {
       val factory = VerilatorSimModelFactory.create(
         topName,
         buildDir,
-        Seq(verilogFile),
-        verilatorOptions = Seq(),
-        cOptions = Seq()
+        Seq(verilogFile)
       )
 
       val simModel = factory.createModel(buildDir.addSubDir(buildDir / "sim"))
