@@ -29,6 +29,7 @@ package object coroutine {
   class CoroutineContext(mapping: mutable.Map[AnyRef, Any]) {
     def get[T](key: AnyRef): Option[T] = mapping.get(key).asInstanceOf[Option[T]]
     def set[T](key: AnyRef, value: T): Unit = mapping.update(key, value)
+    def remove(key: AnyRef): Unit = mapping.remove(key)
     def capture(): CoroutineContext = new CoroutineContext(mutable.Map.from(mapping))
     private[coroutine] def map: mutable.Map[AnyRef, Any] = mapping
     override def toString(): String = {
@@ -130,6 +131,13 @@ package object coroutine {
           case None => defaultContext.get().set[T](key, value)
         }
       }
+      def remove(key: AnyRef): Unit = {
+        currentScope match {
+          case Some(scope) => scope.currentContext.remove(key)
+          case None        => defaultContext.get().remove(key)
+        }
+      }
+
       def withValue[T, R](key: AnyRef, value: T)(block: => R): R = {
         val oldValue = get[T](key)
         set[T](key, value)
@@ -138,7 +146,7 @@ package object coroutine {
         } finally {
           oldValue match {
             case Some(v) => set[T](key, v)
-            case None    => () // do nothing
+            case None    => remove(key)
           }
         }
       }

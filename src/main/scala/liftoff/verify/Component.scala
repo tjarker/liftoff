@@ -106,11 +106,14 @@ case class ComponentBuilder(
     typeOverrides.foreach { case (base, overrideType) =>
       Component.overrideType_(base, overrideType)
     }
-    val oldParams = params.map { case (c, v) => c -> Config.swap(c, v) }
-    val comp = Component.create[C](args: _*)(implicitly[ClassTag[C]], name)
+    // The parameters are only set while the component is constructed.
+    def withParams(params: List[(Config[Any], Any)]): C = params match {
+      case (c, v) :: rest => Config.scoped(c, v)(withParams(rest))
+      case Nil            => Component.create[C](args: _*)(implicitly[ClassTag[C]], name)
+    }
+    val comp = withParams(params.toList)
 
     Component.restoreOverrides(oldOverrides)
-    oldParams.foreach { case (c, v) => Config.set(c, v) }
 
     comp
 
