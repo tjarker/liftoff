@@ -205,6 +205,8 @@ class BiGen[I, O](block: => Unit) {
       nextValue = v
     case Finished(_) =>
       notDone = false
+    case Failed(e) =>
+      throw e
   }
 
   var openHandshake = false
@@ -230,6 +232,8 @@ class BiGen[I, O](block: => Unit) {
         nextValue = v
       case Finished(v) =>
         notDone = false
+      case Failed(e) =>
+        throw e
     }
     openHandshake = false
   }
