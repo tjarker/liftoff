@@ -10,7 +10,7 @@ import liftoff.misc.SharedObject
 import liftoff.misc.WorkingDirectory
 import liftoff.simulation.PortHandle
 
-object VerilatorModelHarness {
+private[liftoff] object VerilatorModelHarness {
 
   def createContextFunName(m: String) = s"${m}_create_context"
   def deleteContextFunName(m: String) = s"${m}_delete_context"

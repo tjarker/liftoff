@@ -66,7 +66,12 @@ package object liftoff extends misc.Misc with chisel.ChiselPeekPokeAPI with simu
   val Test = liftoff.verify.component.Test
 
   
-  /** @param waveFile the waves the simulation recorded; empty if the model records none */
+  /** @param result   what the simulation block returned
+    * @param runTimes wall-clock time spent in each part of the simulation
+    * @param freq     simulated clock cycles per millisecond of wall-clock time (kHz)
+    * @param cycles   cycles of the clock of a Chisel module, or of the first clock domain of a Verilog model
+    * @param waveFile the waves the simulation recorded; empty if the model records none
+    */
   case class SimulationResult[T](result: T, runTimes: Map[String, Time], freq: Double, cycles: Long, waveFile: Option[File]) {
     def openWaveInSurfer(): Unit = waveFile match {
       case Some(file) =>

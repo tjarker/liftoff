@@ -52,7 +52,8 @@ def groupProject(baseGroup: ChiselGroup, macros: Project): Project = {
       // User code expands the macros, so they ship inside the liftoff jar.
       Compile / packageBin / mappings ++= (macros / Compile / packageBin / mappings).value,
       Compile / packageSrc / mappings ++= (macros / Compile / packageSrc / mappings).value,
-      javacOptions += "--add-exports=java.base/jdk.internal.vm=ALL-UNNAMED",
+      // liftoff supports JDK 22 and newer, whichever JDK builds it.
+      javacOptions ++= Seq("--release", "22"),
       fork := true,
       javaOptions ++= Seq(
         "-Djdk.virtualThreadScheduler.parallelism=1",

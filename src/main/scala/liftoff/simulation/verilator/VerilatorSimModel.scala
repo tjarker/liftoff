@@ -15,7 +15,7 @@ import liftoff.misc.Reporting
 
 import java.lang.foreign._
 
-object VerilatorSimModelFactory {
+private[liftoff] object VerilatorSimModelFactory {
 
   val uniqueNameCounter = mutable.Map[String, Int]()
   def uniqueName(base: String): String = {
@@ -32,6 +32,8 @@ object VerilatorSimModelFactory {
       sources: Seq[File],
       build: VerilatorBuild = VerilatorBuild()
   ): VerilatorSimModelFactory = {
+
+    checkSetup()
 
     if (buildDirs.contains(dir)) {
       throw new Exception(s"Working dir for $topName (${dir.dir.getAbsolutePath()}) has already been used in this run.")
@@ -137,6 +139,14 @@ object VerilatorSimModelFactory {
     )
   }
 
+  /** Fails early with a clear message when this machine cannot build or run models. */
+  private def checkSetup(): Unit = {
+    val jdk = Runtime.version().feature()
+    if (jdk < 22) throw new IllegalStateException(s"liftoff needs JDK 22 or newer, but runs on JDK $jdk")
+    if (Verilator.getExecutable.isEmpty)
+      throw new IllegalStateException("liftoff needs Verilator to build models, but `verilator` is not on the PATH")
+  }
+
   /** Records the `command` of a build step in `<step>.cmd` and, if it differs from the command
     * recorded by the last build, deletes the `outputs` of the step so that it runs again. make
     * would miss the change: it compares timestamps, and two builds can happen within its resolution.
@@ -176,7 +186,7 @@ case class VerilatorBuild(
     link: Seq[String] => Seq[String] = identity
 )
 
-class VerilatorSimModelFactory(
+private[liftoff] class VerilatorSimModelFactory(
   val name: String,
   val functionPrefix: String,
   val ports: Seq[VerilatorPortDescriptor],
@@ -212,7 +222,7 @@ class VerilatorSimModelFactory(
 }
 
 
-class VerilatorSimModel(
+private[liftoff] class VerilatorSimModel(
   val name: String,
   val portDescriptors: Seq[VerilatorPortDescriptor],
   val factory: VerilatorSimModelFactory,
@@ -268,29 +278,29 @@ class VerilatorSimModel(
 
 }
 
-trait VerilatorPortDescriptor {
+private[liftoff] trait VerilatorPortDescriptor {
   def name: String
   def id: Int
   def width: Int
 }
-object VerilatorPortDescriptor {
+private[liftoff] object VerilatorPortDescriptor {
   def unapply(desc: VerilatorPortDescriptor): Option[(String, Int, Int)] = {
     Some((desc.name, desc.id, desc.width))
   }
 }
-case class VerilatorInputDescriptor(
+private[liftoff] case class VerilatorInputDescriptor(
   name: String,
   id: Int,
   width: Int
 ) extends VerilatorPortDescriptor
 
-case class VerilatorOutputDescriptor(
+private[liftoff] case class VerilatorOutputDescriptor(
   name: String,
   id: Int,
   width: Int
 ) extends VerilatorPortDescriptor
 
-trait VerilatorPortHandle extends PortHandle {
+private[liftoff] trait VerilatorPortHandle extends PortHandle {
   def id : Int
   def model: VerilatorSimModel
   val address: MemorySegment = model.factory.getPointerHandle.invokeExact(model.contextPtr, id.toLong)
@@ -298,7 +308,7 @@ trait VerilatorPortHandle extends PortHandle {
   val mask = (BigInt(1) << width) - 1
 }
 
-object VerilatorPortHandle {
+private[liftoff] object VerilatorPortHandle {
   def unapply(handle: VerilatorPortHandle): Option[(String, Int, Int)] = {
     Some((handle.model.name, handle.id, handle match {
       case i: InputPortHandle => i.width
@@ -329,7 +339,7 @@ object VerilatorPortHandle {
 
 
 
-class VerilatorWideInputPortHandle(
+private[liftoff] class VerilatorWideInputPortHandle(
   val id: Int,
   val model: VerilatorSimModel,
   val name: String,
@@ -357,7 +367,7 @@ class VerilatorWideInputPortHandle(
   }
 }
 
-class VerilatorWideOutputPortHandle(
+private[liftoff] class VerilatorWideOutputPortHandle(
   val id: Int,
   val model: VerilatorSimModel,
   val name: String,
@@ -378,7 +388,7 @@ class VerilatorWideOutputPortHandle(
 
 }
 
-class VerilatorU8InputPortHandle(
+private[liftoff] class VerilatorU8InputPortHandle(
   val model: VerilatorSimModel,
   val name: String,
   val id: Int,
@@ -396,7 +406,7 @@ class VerilatorU8InputPortHandle(
   }
 }
 
-class VerilatorU16InputPortHandle(
+private[liftoff] class VerilatorU16InputPortHandle(
   val model: VerilatorSimModel,
   val name: String,
   val id: Int,
@@ -414,7 +424,7 @@ class VerilatorU16InputPortHandle(
   }
 }
 
-class VerilatorU32InputPortHandle(
+private[liftoff] class VerilatorU32InputPortHandle(
   val model: VerilatorSimModel,
   val name: String,
   val id: Int,
@@ -432,7 +442,7 @@ class VerilatorU32InputPortHandle(
   }
 }
 
-class VerilatorU64InputPortHandle(
+private[liftoff] class VerilatorU64InputPortHandle(
   val model: VerilatorSimModel,
   val name: String,
   val id: Int,
@@ -450,7 +460,7 @@ class VerilatorU64InputPortHandle(
   }
 }
 
-class VerilatorU8OutputPortHandle(
+private[liftoff] class VerilatorU8OutputPortHandle(
   val model: VerilatorSimModel,
   val name: String,
   val id: Int,
@@ -466,7 +476,7 @@ class VerilatorU8OutputPortHandle(
   
 }
 
-class VerilatorU16OutputPortHandle(
+private[liftoff] class VerilatorU16OutputPortHandle(
   val model: VerilatorSimModel,
   val name: String,
   val id: Int,
@@ -482,7 +492,7 @@ class VerilatorU16OutputPortHandle(
   
 }
 
-class VerilatorU32OutputPortHandle(
+private[liftoff] class VerilatorU32OutputPortHandle(
   val model: VerilatorSimModel,
   val name: String,
   val id: Int,
@@ -499,7 +509,7 @@ class VerilatorU32OutputPortHandle(
 }
 
 
-class VerilatorU64OutputPortHandle(
+private[liftoff] class VerilatorU64OutputPortHandle(
   val model: VerilatorSimModel,
   val name: String,
   val id: Int,

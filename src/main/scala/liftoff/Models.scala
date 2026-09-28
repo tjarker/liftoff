@@ -133,6 +133,10 @@ private[liftoff] object ModelRun {
     Option.when(simModel.factory.waves != Waves.Off)(simModel.waveFile)
 
   def commands(factory: VerilatorSimModelFactory): Seq[String] = factory.commands.map(_.mkString(" "))
+
+  /** Simulated clock cycles per millisecond of wall-clock time. */
+  def frequencyKHz(cycles: Long, wallClock: Time): Double =
+    if (wallClock.valueFs == 0) 0.0 else cycles / (wallClock.valueFs / 1e12)
 }
 
 /** A Chisel module to build into a model. Chain options, then `build` it or `simulate` it right away. */
@@ -201,7 +205,7 @@ class ChiselModel[M <: chisel3.Module] private[liftoff] (
         val verilator = controller.getModelRunTimeNanos().ns
         val tasks = controller.getTaskRunTimeNanos().ns
         val overhead = total - verilator - tasks
-        val frequencykhz = dut.clock.cycle / total.ms.toDouble
+        val frequencykhz = ModelRun.frequencyKHz(dut.clock.cycle, total)
 
         val timeOverview = Seq(
           "Total" -> total,
@@ -299,6 +303,8 @@ class VerilogModel private[liftoff] (
       val verilator = controller.getModelRunTimeNanos().ns
       val tasks = controller.getTaskRunTimeNanos().ns
       val overhead = total - verilator - tasks - totalGc
+      // cycles of the first clock domain, like the single clock of a Chisel module
+      val cycles = verilogModule.clocks.headOption.map(_.cycle.toLong).getOrElse(0L)
       SimulationResult(res, Map(
         "Total" -> total,
         "Verilator" -> verilator,
@@ -306,7 +312,7 @@ class VerilogModel private[liftoff] (
         "GC" -> totalGc,
         "Overhead" -> overhead,
         "Compilation" -> compilationTime
-      ), 0.0d, 0L, ModelRun.waveFile(simModel))
+      ), ModelRun.frequencyKHz(cycles, total), cycles, ModelRun.waveFile(simModel))
 
     } finally {
       simModel.cleanup()

@@ -2,7 +2,7 @@ package liftoff.simulation.verilator
 
 import java.io.File
 
-object PortCollector {
+private[liftoff] object PortCollector {
 
   import scala.util.matching.Regex
 
