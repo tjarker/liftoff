@@ -128,7 +128,7 @@ class Task[T](
 
   def runStep(resp: SimControllerResponse): Result[SimControllerYield, T] = {
     if (isCancelled) {
-      Reporting.error(None, "Task", s"Task $this is cancelled, cannot run step")
+      Reporting.error(None, "liftoff.task", s"Task $this is cancelled, cannot run step")
       return Finished(null.asInstanceOf[T])
       // throw new Exception(s"Task $this is cancelled, cannot run step")
     }

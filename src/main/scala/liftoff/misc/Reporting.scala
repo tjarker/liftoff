@@ -3,24 +3,104 @@ package liftoff.misc
 import liftoff.simulation.Time
 import liftoff.coroutine.CoroutineContextVariable
 
-/** Reports of a simulation, tagged with the simulation time and the reporting component. */
+import scala.annotation.tailrec
+
+/** Reports of a simulation, tagged with the simulation time and the reporting component.
+  *
+  * Each provider reports up to its level, `Info` by default. A level set for a provider applies to the providers below
+  * it too, so `setLevel("root.env", Level.Debug)` covers `root.env.driver`. The environment variable `LIFTOFF_LOG` sets
+  * the initial levels, for example `debug` or `info,liftoff.scheduler=trace`.
+  */
 object Reporting {
+
+  /** How much to report, from nothing to everything. */
+  sealed abstract class Level(val rank: Int) {
+    def name: String = toString.toLowerCase
+  }
+  object Level {
+    case object Off extends Level(0)
+    case object Error extends Level(1)
+    case object Warn extends Level(2)
+    case object Info extends Level(3)
+    case object Debug extends Level(4)
+    case object Trace extends Level(5)
+
+    val all: Seq[Level] = Seq(Off, Error, Warn, Info, Debug, Trace)
+
+    def parse(name: String): Option[Level] = all.find(_.name == name.trim.toLowerCase)
+  }
+
+  /** The level of each provider: the level of its longest prefix in `prefixes`, else `default`. */
+  case class Levels(default: Level, prefixes: Map[String, Level]) {
+
+    def of(provider: String): Level = if (prefixes.isEmpty) default else lookup(provider)
+
+    @tailrec private def lookup(provider: String): Level = prefixes.get(provider) match {
+      case Some(level) => level
+      case None        =>
+        val dot = provider.lastIndexOf('.')
+        if (dot < 0) default else lookup(provider.substring(0, dot))
+    }
+
+    def updated(provider: String, level: Level): Levels = copy(prefixes = prefixes.updated(provider, level))
+  }
+
+  object Levels {
+
+    val default: Levels = Levels(Level.Info, Map.empty)
+
+    /** Parses comma-separated `level` and `provider=level` entries, as in `info,liftoff.scheduler=trace`. */
+    def parse(spec: String): Levels =
+      spec.split(",").map(_.trim).filter(_.nonEmpty).foldLeft(default) { (levels, entry) =>
+        def level(name: String) = Level.parse(name).getOrElse {
+          throw new IllegalArgumentException(
+            s"Unknown level '$name' in '$spec', use one of ${Level.all.map(_.name).mkString(", ")}"
+          )
+        }
+        entry.split("=", 2) match {
+          case Array(provider, name) => levels.updated(provider.trim, level(name))
+          case Array(name)           => levels.copy(default = level(name))
+        }
+      }
+
+    def fromEnvironment(): Levels = sys.env.get("LIFTOFF_LOG") match {
+      case Some(spec) =>
+        try parse(spec)
+        catch {
+          case e: IllegalArgumentException =>
+            System.err.println(s"Ignoring LIFTOFF_LOG: ${e.getMessage}")
+            default
+        }
+      case None => default
+    }
+  }
 
   val successTag = fansi.Color.Green("success")
   val errorTag = fansi.Color.Red("error")
   val warnTag = fansi.Color.Yellow("warn")
   val infoTag = fansi.Str("info")
   val debugTag = fansi.Color.Magenta("debug")
+  val traceTag = fansi.Color.DarkGray("trace")
 
   val outputStream = new CoroutineContextVariable[java.io.PrintStream](System.out)
   val coloredOutput = new CoroutineContextVariable[Boolean](true)
   val providerName = new CoroutineContextVariable[String]("unknown")
-  val providerFilters = new CoroutineContextVariable[Set[String]](Set())
+  val levels = new CoroutineContextVariable[Levels](Levels.fromEnvironment())
 
-  def shouldShow(provider: String): Boolean = {
-    val res = !providerFilters.value.contains(provider)
-    res
-  }
+  /** Sets the level of the providers without a level of their own. */
+  def setLevel(level: Level): Unit = levels.value = levels.value.copy(default = level)
+
+  /** Sets the level of `provider` and the providers below it. */
+  def setLevel(provider: String, level: Level): Unit = levels.value = levels.value.updated(provider, level)
+
+  /** Runs `block` with the level of the providers without a level of their own set to `level`. */
+  def withLevel[R](level: Level)(block: => R): R = levels.withValue(levels.value.copy(default = level))(block)
+
+  /** Runs `block` with the level of `provider` and the providers below it set to `level`. */
+  def withLevel[R](provider: String, level: Level)(block: => R): R =
+    levels.withValue(levels.value.updated(provider, level))(block)
+
+  def isEnabled(provider: String, level: Level): Boolean = level.rank <= levels.value.of(provider).rank
 
   def withOutput[R](stream: java.io.PrintStream, colored: Boolean = true)(block: => R): R = {
     outputStream.withValue[R](stream) {
@@ -41,15 +121,6 @@ object Reporting {
     providerName.value
   }
 
-  def addProviderFilter(filter: String): Unit = {
-    val filters = providerFilters.value
-    providerFilters.value = filters + filter
-  }
-  def removeProviderFilter(filter: String): Unit = {
-    val filters = providerFilters.value
-    providerFilters.value = filters - filter
-  }
-
   object NullStream
       extends java.io.PrintStream(new java.io.OutputStream {
         def write(b: Int): Unit = {}
@@ -68,7 +139,7 @@ object Reporting {
     val timeStrFmt = time match {
       case Some(t) if t.toString.endsWith("s ") => {
         val timeStr = t.toString.trim
-        ("─" * (8 - timeStr.length)) + "@" + fansi.Color.LightBlue(timeStr).toString() + "─"
+        ("─" * (8 - timeStr.length)) + "@" + fansi.Color.True(51, 153, 255)(timeStr).toString() + "─"
       }
       case Some(t) => {
         val timeStr = t.toString
@@ -100,11 +171,14 @@ object Reporting {
     }
   }
 
+  private def report(level: Level, tag: fansi.Str, time: => Option[Time], provider: String, message: => String): Unit =
+    if (isEnabled(provider, level)) outputStream.value.println(reportString(tag, time, provider, message))
+
   def infoStr(time: Option[Time], provider: String, message: => String): String = {
     reportString(infoTag, time, provider, message)
   }
   def info(time: => Option[Time], provider: String, message: => String): Unit = {
-    if (shouldShow(provider)) outputStream.value.println(infoStr(time, provider, message))
+    report(Level.Info, infoTag, time, provider, message)
   }
   def info(time: => Option[Time], message: => String): Unit = {
     info(time, providerName.value, message)
@@ -114,7 +188,7 @@ object Reporting {
     reportString(warnTag, time, provider, message)
   }
   def warn(time: => Option[Time], provider: String, message: => String): Unit = {
-    if (shouldShow(provider)) outputStream.value.println(warnStr(time, provider, message))
+    report(Level.Warn, warnTag, time, provider, message)
   }
   def warn(time: => Option[Time], message: => String): Unit = {
     warn(time, providerName.value, message)
@@ -124,7 +198,7 @@ object Reporting {
     reportString(errorTag, time, provider, message)
   }
   def error(time: => Option[Time], provider: String, message: => String): Unit = {
-    if (shouldShow(provider)) outputStream.value.println(errorStr(time, provider, message))
+    report(Level.Error, errorTag, time, provider, message)
   }
   def error(time: => Option[Time], message: => String): Unit = {
     error(time, providerName.value, message)
@@ -134,7 +208,7 @@ object Reporting {
     reportString(successTag, time, provider, message)
   }
   def success(time: => Option[Time], provider: String, message: => String): Unit = {
-    if (shouldShow(provider)) outputStream.value.println(successStr(time, provider, message))
+    report(Level.Info, successTag, time, provider, message)
   }
   def success(time: => Option[Time], message: => String): Unit = {
     success(time, providerName.value, message)
@@ -144,10 +218,20 @@ object Reporting {
     reportString(debugTag, time, provider, message)
   }
   def debug(time: => Option[Time], provider: String, message: => String): Unit = {
-    if (shouldShow(provider)) outputStream.value.println(debugStr(time, provider, message))
+    report(Level.Debug, debugTag, time, provider, message)
   }
   def debug(time: => Option[Time], message: => String): Unit = {
     debug(time, providerName.value, message)
+  }
+
+  def traceStr(time: Option[Time], provider: String, message: => String): String = {
+    reportString(traceTag, time, provider, message)
+  }
+  def trace(time: => Option[Time], provider: String, message: => String): Unit = {
+    report(Level.Trace, traceTag, time, provider, message)
+  }
+  def trace(time: => Option[Time], message: => String): Unit = {
+    trace(time, providerName.value, message)
   }
 
   // inspired by https://stackoverflow.com/a/55143951
