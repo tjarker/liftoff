@@ -50,7 +50,17 @@ val driver = Task {
 driver.join()
 ```
 
-`VerilogModel("top", files: _*)` works the same way for Verilog; its ports are `dut("name")`.
+`VerilogModel("top", files: _*)` works the same way for Verilog; its ports are `dut("name")` and
+`.clock(1.ns)` drives the port `clock`:
+
+```scala
+VerilogModel("Adder", new File("src/main/verilog/Adder.sv")).clock(1.ns).simulate("build/add".toDir) { dut =>
+  dut("a").poke(10)
+  dut("b").poke(20)
+  dut("clock").step()
+  assert(dut("sum").peek() == 30)
+}
+```
 
 ## Testbenches
 
@@ -86,7 +96,8 @@ class AdderTest(dut: Adder) extends Test {
 ChiselModel(new Adder).simulate("build/testbench".toDir)(dut => Test.run(new AdderTest(dut)))
 ```
 
-The complete examples are in [examples/quickstart](examples/quickstart).
+The complete examples are in [examples/quickstart](examples/quickstart) for Chisel and
+[examples/quickstart-verilog](examples/quickstart-verilog) for Verilog.
 
 ## Configure models
 
@@ -114,6 +125,20 @@ alu.clock(5.ns).simulate("test/fast".toDir) { dut => ... }
 For complete control, `.verilator(f)`, `.cxx(f)` and `.link(f)` rewrite the commands that build
 the model. Each gets the whole command, defaults and options included, and runs what `f`
 returns; liftoff only appends the flags and files its harness needs. `alu.commands` shows the result.
+
+## Reporting
+
+Reports are tagged with the component that makes them. Each reports up to its level: `Off`,
+`Error`, `Warn`, `Info` (default), `Debug` or `Trace`. A level applies to the components below too;
+liftoff's own reports come from `liftoff.*`:
+
+```scala
+Reporting.setLevel(Level.Warn)                       // all
+Reporting.setLevel("root.env", Level.Debug)          // root.env and below
+Reporting.withLevel("liftoff", Level.Debug) { ... }  // runtime tables of simulations and tests
+```
+
+At `Debug`, a test also reports its phases. Without changing code: `LIFTOFF_LOG=debug sbt test` or `LIFTOFF_LOG=info,liftoff.scheduler=trace`.
 
 ## Develop
 

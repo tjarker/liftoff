@@ -42,7 +42,10 @@ package object liftoff extends misc.Misc with chisel.ChiselPeekPokeAPI with simu
   val StepUntilResult = liftoff.simulation.StepUntilResult
   type Config[T] = liftoff.verify.Config[T]
   type VerilogModule = liftoff.verilog.VerilogModule
+  type VerilogSimModel = liftoff.verilog.VerilogSimModel
   val Reporting = liftoff.misc.Reporting
+  type Level = liftoff.misc.Reporting.Level
+  val Level = liftoff.misc.Reporting.Level
   type BiGen[T1, T2] = liftoff.coroutine.BiGen[T1, T2]
   type Gen[T] = liftoff.coroutine.Gen[T]
   val BiGen = liftoff.coroutine.BiGen
@@ -92,7 +95,7 @@ package object liftoff extends misc.Misc with chisel.ChiselPeekPokeAPI with simu
       case None =>
         Reporting.warn(
           None,
-          "SimulationResult",
+          "liftoff.sim",
           "The model records no waves, see `waves` of ChiselModel and VerilogModel"
         )
     }

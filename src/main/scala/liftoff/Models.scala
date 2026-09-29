@@ -140,6 +140,55 @@ private[liftoff] object ModelRun {
   /** Simulated clock cycles per millisecond of wall-clock time. */
   def frequencyKHz(cycles: Long, wallClock: Time): Double =
     if (wallClock.valueFs == 0) 0.0 else cycles / (wallClock.valueFs / 1e12)
+
+  /** Times `run` on the model `name`, reports its runtimes and cleans up the model. `cycles` counts the simulated
+    * cycles afterwards.
+    */
+  def simulate[T](name: String, simModel: VerilatorSimModel, controller: SimController, compilationTime: Time)(
+      run: => T
+  )(cycles: => Long): SimulationResult[T] =
+    try {
+      val startSimTime = System.nanoTime()
+      val startGcTime = GcTime.totalGcTimeMs
+      val result = run
+      val total = (System.nanoTime() - startSimTime).ns
+      val totalGc = (GcTime.totalGcTimeMs - startGcTime).ms
+      val verilator = controller.getModelRunTimeNanos().ns
+      val tasks = controller.getTaskRunTimeNanos().ns
+      val simulatedCycles = cycles
+      val frequency = frequencyKHz(simulatedCycles, total)
+
+      val runTimes = Seq(
+        "Total" -> total,
+        "Verilator" -> verilator,
+        "Tasks" -> tasks,
+        "Scheduler" -> (total - verilator - tasks),
+        "GC" -> totalGc,
+        "Compilation" -> compilationTime
+      )
+      Reporting.debug(
+        None,
+        "liftoff.sim",
+        Reporting.table(Seq("Description", "Time") +: runTimes.map { case (k, v) => Seq(k, v.toString()) })
+      )
+      Reporting.info(
+        None,
+        name,
+        f"Simulation frequency: ${frequency}%.2f kHz (${simulatedCycles} cycles in ${total})"
+      )
+      SimulationResult(result, runTimes.toMap, frequency, simulatedCycles, waveFile(simModel))
+    } catch {
+      // keyboard interrupt
+      case e: InterruptedException =>
+        Reporting.warn(None, "liftoff.sim", s"Simulation interrupted by user")
+        throw e
+      case e: Throwable =>
+        Reporting.error(None, "liftoff.sim", s"Simulation failed with exception: ${e.getMessage}")
+        throw e
+    } finally {
+      Reporting.debug(None, "liftoff.sim", s"Cleaning up simulation model")
+      simModel.cleanup()
+    }
 }
 
 /** A Chisel module to build into a model. Chain options, then `build` it or `simulate` it right away. */
@@ -159,8 +208,8 @@ class ChiselModelBuilder[M <: chisel3.Module] private[liftoff] (
     val endTime = System.nanoTime()
     Reporting.info(
       None,
-      "ChiselModel",
-      f"Elaboration and Verilator model compilation took ${(endTime - startTime) / 1e6.toDouble}%.2f ms"
+      dut.name,
+      f"Elaboration and compilation: ${(endTime - startTime) / 1e6.toDouble}%.2f ms"
     )
     val ports = DataMirror.fullModulePorts(dut).collect { case (_, el: Element) =>
       el // only collect leaf ports
@@ -201,56 +250,10 @@ class ChiselModel[M <: chisel3.Module] private[liftoff] (
       )
 
       val root = controller.addTask("rootTask", 0, None)(block(dut))
-      try {
-        val startSimTime = System.nanoTime()
-        val startGcTime = GcTime.totalGcTimeMs
+      ModelRun.simulate(dut.name, simModel, controller, compilationTime) {
         controller.run()
-        val endSimTime = System.nanoTime()
-        val total = (endSimTime - startSimTime).ns
-        val endGcTime = GcTime.totalGcTimeMs
-        val totalGc = (endGcTime - startGcTime).ms
-        val verilator = controller.getModelRunTimeNanos().ns
-        val tasks = controller.getTaskRunTimeNanos().ns
-        val overhead = total - verilator - tasks
-        val frequencykhz = ModelRun.frequencyKHz(dut.clock.cycle, total)
-
-        val timeOverview = Seq(
-          "Total" -> total,
-          "Verilator" -> verilator,
-          "Tasks" -> tasks,
-          "Scheduler" -> overhead,
-          "GC" -> totalGc,
-          "Compilation" -> compilationTime
-        )
-        Reporting.info(
-          None,
-          "ChiselSimulation",
-          Reporting.table(Seq("Description", "Time") +: timeOverview.toSeq.map { case (k, v) => Seq(k, v.toString()) })
-        )
-        Reporting.info(
-          None,
-          "ChiselSimulation",
-          f"Simulation frequency: ${frequencykhz}%.2f kHz (${dut.clock.cycle} cycles in ${total})"
-        )
-        SimulationResult(
-          root.result.get,
-          timeOverview.toMap,
-          frequencykhz,
-          dut.clock.cycle,
-          ModelRun.waveFile(simModel)
-        )
-      } catch {
-        // keyboard interrupt
-        case e: InterruptedException =>
-          Reporting.info(None, "ChiselSimulation", s"Simulation interrupted by user")
-          throw e
-        case e: Throwable =>
-          Reporting.error(None, "ChiselSimulation", s"Simulation failed with exception: ${e.getMessage}")
-          throw e
-      } finally {
-        Reporting.info(None, "ChiselSimulation", s"Cleaning up simulation model")
-        simModel.cleanup()
-      }
+        root.result.get
+      }(dut.clock.cycle)
     }
   }
 }
@@ -281,8 +284,8 @@ class VerilogModelBuilder private[liftoff] (
     val endTime = System.nanoTime()
     Reporting.info(
       None,
-      "VerilogModel",
-      f"Verilator model compilation took ${(endTime - startTime) / 1e6.toDouble}%.2f ms"
+      name,
+      f"Compilation: ${(endTime - startTime) / 1e6.toDouble}%.2f ms"
     )
     new VerilogModel(VerilogModule(name, files), simModelFactory, (endTime - startTime).ns, current)
   }
@@ -312,43 +315,18 @@ class VerilogModel private[liftoff] (
       val controller = new SimController(simModel, current.run.backend)
       val verilogModule = new VerilogSimModel(controller)
 
-      try {
-        val startSimTime = System.nanoTime()
-        val startGcTime = GcTime.totalGcTimeMs
-        val res = controller.run {
+      ModelRun.simulate(module.name, simModel, controller, compilationTime) {
+        controller.run {
           current.run.clock.foreach { case (clockName, period) =>
             val domain = verilogModule.nameToPort.collect { case (portName, port) if portName != clockName => port }
             verilogModule.addClockDomain(clockName, period)(domain.toSeq: _*)
           }
           block(verilogModule)
         }
-        val endSimTime = System.nanoTime()
-        val total = (endSimTime - startSimTime).ns
-        val endGcTime = GcTime.totalGcTimeMs
-        val totalGc = (endGcTime - startGcTime).ms
-        val verilator = controller.getModelRunTimeNanos().ns
-        val tasks = controller.getTaskRunTimeNanos().ns
-        val overhead = total - verilator - tasks - totalGc
+      }(
         // cycles of the first clock domain, like the single clock of a Chisel module
-        val cycles = verilogModule.clocks.headOption.map(_.cycle.toLong).getOrElse(0L)
-        SimulationResult(
-          res,
-          Map(
-            "Total" -> total,
-            "Verilator" -> verilator,
-            "Tasks" -> tasks,
-            "GC" -> totalGc,
-            "Overhead" -> overhead,
-            "Compilation" -> compilationTime
-          ),
-          ModelRun.frequencyKHz(cycles, total),
-          cycles,
-          ModelRun.waveFile(simModel)
-        )
-
-      } finally {
-        simModel.cleanup()
-      }
+        verilogModule.clocks.headOption.map(_.cycle.toLong).getOrElse(0L)
+      )
     }
 }
 

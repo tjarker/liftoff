@@ -359,7 +359,7 @@ class SimController(simModel: SimModel, backend: Option[CoroutineBackend] = None
 
       val event = eventQueue.pop().get
 
-      Reporting.debug(Some(currentTime), "SimController.Loop", s"Handling event: ${event}")
+      Reporting.trace(Some(currentTime), "liftoff.scheduler", s"Handling event: ${event}")
 
       val delta = event.time - currentTime
       if (delta > 0.fs) {
@@ -378,15 +378,19 @@ class SimController(simModel: SimModel, backend: Option[CoroutineBackend] = None
 
       handleEvent(event)
 
-      Reporting.debug(
+      Reporting.trace(
         Some(currentTime),
-        "SimController.Queue",
+        "liftoff.scheduler",
         s"Event queue:\n - ${eventQueue.queue.mkString("\n - ")}"
       )
 
     }
 
-    Reporting.debug(Some(currentTime), "SimController", s"No more active tasks in event queue, simulation complete.")
+    Reporting.debug(
+      Some(currentTime),
+      "liftoff.scheduler",
+      s"No more active tasks in event queue, simulation complete."
+    )
   }
 
   def run[T](block: => T): T = {
